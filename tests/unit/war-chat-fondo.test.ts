@@ -2,12 +2,12 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 /**
- * El fondo del hilo es una customización Gudlime: vive en gudlime-theme.css
+ * El fondo del hilo es una customización War: vive en war-theme.css
  * y solo lee --accent-tint (lo inyecta accentCssVariables). No reescribe
  * globals.css ni los tokens --accent*.
  */
-describe("fondo del chat desde el acento (Gudlime)", () => {
-  const css = readFileSync("src/app/gudlime-theme.css", "utf8");
+describe("fondo del chat desde el acento (War)", () => {
+  const css = readFileSync("src/app/war-theme.css", "utf8");
 
   it("el hilo es un lavado sólido de --accent-tint, sin el mosaico", () => {
     const regla = css.match(/\.thread-bg\s*\{([^}]*)\}/);

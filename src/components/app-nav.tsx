@@ -380,7 +380,7 @@ export function AppNav({
 }
 
 /**
- * Gudlime — Sidebar de escritorio con icono + label (estilo admin Gadr /
+ * War — Sidebar de escritorio con icono + label (estilo admin Gadr /
  * Notion), en lugar del riel de solo iconos de Vocero upstream.
  * Ancho w-56; activo = acento sólido con texto claro.
  */

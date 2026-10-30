@@ -344,7 +344,7 @@ export type Apariencia = z.infer<typeof aparienciaSchema>;
 
 export const APARIENCIA_POR_DEFECTO: Apariencia = {
   tema: "menta",
-  letra: "inter", // Gudlime default (was urbanist)
+  letra: "inter", // War default (was urbanist)
   tamano: "normal",
   densidad: "normal",
 };
