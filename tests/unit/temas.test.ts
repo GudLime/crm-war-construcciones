@@ -151,7 +151,7 @@ describe("062 — qué apariencia vale", () => {
     expect(parejaDe(a).tema).toBe("noche");
     expect(parejaDe(parejaDe(a)).tema).toBe("menta");
     expect(atributosHtml(parejaDe(a))["data-theme"]).toBe("dark");
-    expect(atributosHtml(a)).toMatchObject({ "data-tema": "menta", "data-letra": "urbanist", "data-tamano": "normal", "data-densidad": "normal" });
+    expect(atributosHtml(a)).toMatchObject({ "data-tema": "menta", "data-letra": APARIENCIA_POR_DEFECTO.letra, "data-tamano": "normal", "data-densidad": "normal" });
   });
 });
 
