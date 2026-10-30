@@ -235,6 +235,7 @@ describe("checkWhatsApp", () => {
     displayPhoneNumber: "+52 1 55 0000 0000",
     verifiedName: "Ferretería",
     status: "connected",
+    coexistence: false,
     token,
   });
   const guardada = (token: string) => ({
