@@ -18,6 +18,11 @@ import { leerEventoDeAlta, opcionesDeInit, opcionesDeLogin } from "@/lib/meta/si
  * El popup tiene que abrirse DIRECTO en el clic: un `await` antes y el
  * navegador lo bloquea. Por eso todo lo que necesita `FB.login` se carga al
  * montar, no al pulsar.
+ *
+ * 067 — Con la coexistencia encendida en la instancia aparece la opción «Ya
+ * uso este número en la app WhatsApp Business». Marcada, el popup se abre en
+ * modo coexistencia, no se pide PIN (el número no se registra) y el evento
+ * `FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING` termina el alta.
  */
 
 type Config = {
@@ -26,6 +31,8 @@ type Config = {
   appId?: string;
   configId?: string;
   graphVersion?: string;
+  /** 067 — La instancia ofrece la coexistencia. */
+  coexistencia?: boolean;
 };
 type Facebook = {
   init: (o: object) => void;
@@ -33,6 +40,7 @@ type Facebook = {
 };
 type Pendiente = {
   pin: string | null;
+  modo: "normal" | "coexistencia";
   code?: string;
   evento?: { wabaId: string; phoneNumberId: string | null };
   enviando: boolean;
@@ -41,6 +49,8 @@ export type ResultadoEmbebido = {
   displayPhoneNumber: string;
   generatedPin?: string;
   webhook: unknown;
+  /** 067 — Alta en coexistencia y si Meta aceptó cada sincronización. */
+  coexistence?: { contactsSync: boolean; historySync: boolean };
 };
 
 const fb = () => (window as Window & { FB?: Facebook }).FB;
@@ -55,6 +65,7 @@ export function EmbeddedSignup({
   const [oculto, setOculto] = useState(false);
   const [sdk, setSdk] = useState(false);
   const [pin, setPin] = useState("");
+  const [coexistir, setCoexistir] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [exito, setExito] = useState<ResultadoEmbebido | null>(null);
@@ -97,6 +108,7 @@ export function EmbeddedSignup({
           wabaId: p.evento.wabaId,
           phoneNumberId: p.evento.phoneNumberId,
           pin: p.pin,
+          modo: p.modo,
         }),
         signal: AbortSignal.timeout(120_000),
       });
@@ -130,9 +142,14 @@ export function EmbeddedSignup({
         return fallar(`Meta reportó un error${e.message ? `: ${e.message}` : ""}. Puedes volver a intentarlo.`);
       }
       if (e.kind === "coexistence") {
-        return fallar(
-          "En Meta se eligió conectar la app de WhatsApp Business del teléfono (coexistencia), que esta versión no admite. No se guardó nada."
-        );
+        if (activo.current.modo !== "coexistencia") {
+          return fallar(
+            "En Meta se eligió conectar la app de WhatsApp Business del teléfono (coexistencia). Marca «Ya uso este número en la app WhatsApp Business» y vuelve a conectar. No se guardó nada."
+          );
+        }
+        if (!e.wabaId) return fallar("Meta no devolvió la cuenta de WhatsApp. Puedes volver a intentarlo.");
+        activo.current.evento = { wabaId: e.wabaId, phoneNumberId: e.phoneNumberId };
+        return void enviar();
       }
       activo.current.evento = { wabaId: e.wabaId, phoneNumberId: e.phoneNumberId };
       void enviar();
@@ -148,12 +165,17 @@ export function EmbeddedSignup({
     setSdk(true);
   }
 
-  const pinValido = pin === "" || /^\d{6}$/.test(pin);
+  const modoCoexistencia = Boolean(config?.coexistencia && coexistir);
+  const pinValido = modoCoexistencia || pin === "" || /^\d{6}$/.test(pin);
 
   function lanzar() {
     const f = fb();
     if (!f || !config?.configId || !pinValido || activo.current) return;
-    const p: Pendiente = { pin: pin || null, enviando: false };
+    const p: Pendiente = {
+      pin: modoCoexistencia ? null : pin || null,
+      modo: modoCoexistencia ? "coexistencia" : "normal",
+      enviando: false,
+    };
     activo.current = p;
     setBusy(true);
     setError("");
@@ -168,7 +190,7 @@ export function EmbeddedSignup({
         if (!r.authResponse?.code) return fallar("Meta no autorizó la conexión. Puedes volver a intentarlo.");
         p.code = r.authResponse.code;
         void enviar();
-      }, opcionesDeLogin(config.configId));
+      }, opcionesDeLogin(config.configId, { coexistencia: modoCoexistencia }));
     } catch {
       fallar("No se pudo abrir Meta. Permite las ventanas emergentes y vuelve a intentarlo.");
     }
@@ -204,26 +226,47 @@ export function EmbeddedSignup({
 
         {config?.canManage && (
           <>
-            <div className="max-w-sm space-y-1.5">
-              <Label htmlFor="embedded-pin">
-                PIN de verificación en dos pasos{" "}
-                <span className="font-normal text-muted-foreground">(opcional)</span>
-              </Label>
-              <Input
-                id="embedded-pin"
-                type="password"
-                inputMode="numeric"
-                autoComplete="off"
-                maxLength={6}
-                value={pin}
-                disabled={busy}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-              />
-              <p className="text-xs text-muted-foreground">
-                Solo si tu número ya tiene uno. Si lo dejas vacío, generamos
-                uno al registrar el número y te lo mostramos una vez.
-              </p>
-            </div>
+            {config.coexistencia && (
+              <label className="flex max-w-lg items-start gap-2">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={coexistir}
+                  disabled={busy}
+                  onChange={(e) => setCoexistir(e.target.checked)}
+                />
+                <span>
+                  <span className="font-medium">Ya uso este número en la app WhatsApp Business</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Coexistencia: el número sigue funcionando en el teléfono y lo que
+                    contestes desde ahí aparece en la bandeja. Se importan tus contactos
+                    y hasta 180 días de chats.
+                  </span>
+                </span>
+              </label>
+            )}
+            {!modoCoexistencia && (
+              <div className="max-w-sm space-y-1.5">
+                <Label htmlFor="embedded-pin">
+                  PIN de verificación en dos pasos{" "}
+                  <span className="font-normal text-muted-foreground">(opcional)</span>
+                </Label>
+                <Input
+                  id="embedded-pin"
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  maxLength={6}
+                  value={pin}
+                  disabled={busy}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Solo si tu número ya tiene uno. Si lo dejas vacío, generamos
+                  uno al registrar el número y te lo mostramos una vez.
+                </p>
+              </div>
+            )}
 
             <Button disabled={!sdk || busy || !pinValido} onClick={lanzar}>
               {busy ? "Completando la conexión…" : "Conectar con Meta"}
@@ -242,8 +285,16 @@ export function EmbeddedSignup({
             className="space-y-2 rounded-lg border border-success-soft bg-success-tint p-3 text-success-text"
           >
             <p className="flex items-start gap-2">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> Conectado {exito.displayPhoneNumber}.
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> Conectado {exito.displayPhoneNumber}
+              {exito.coexistence ? " en coexistencia con la app del teléfono." : "."}
             </p>
+            {exito.coexistence && (
+              <p className="text-xs">
+                {exito.coexistence.contactsSync && exito.coexistence.historySync
+                  ? "Estamos importando tus contactos y chats: puede tardar desde unos minutos hasta algunas horas."
+                  : "Meta no aceptó importar los contactos o los chats anteriores. Los mensajes nuevos llegan igual; para importar lo anterior hay que desconectar el número desde la app y volver a conectarlo."}
+              </p>
+            )}
             {exito.generatedPin && (
               <p className="flex items-start gap-2">
                 <KeyRound className="mt-0.5 h-4 w-4 shrink-0" />

@@ -28,12 +28,16 @@ const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   webhook: vi.fn(),
   descubrir: vi.fn(),
+  pedidoSync: vi.fn(),
 }));
 vi.mock("@/lib/auth/session", async (original) => ({
   ...(await original<typeof import("@/lib/auth/session")>()),
   requireSession: mocks.session,
 }));
-vi.mock("@/server/whatsapp/credentials", () => ({ saveCredentials: mocks.save }));
+vi.mock("@/server/whatsapp/credentials", () => ({
+  saveCredentials: mocks.save,
+  guardarPedidoDeSincronizacion: mocks.pedidoSync,
+}));
 vi.mock("@/server/whatsapp/connect", () => ({
   registerWebhookForNumber: mocks.webhook,
   descubrirCuentaDeMensajes: mocks.descubrir,
@@ -130,6 +134,8 @@ describe("el evento de sesión de Meta", () => {
     expect(leerEventoDeAlta(FB, ev("ERROR", { error_message: "falló" }))).toEqual({ kind: "error", message: "falló" });
     expect(leerEventoDeAlta(FB, ev("FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING", { waba_id: "1" }))).toEqual({
       kind: "coexistence",
+      wabaId: "1",
+      phoneNumberId: null,
     });
   });
 
@@ -201,7 +207,9 @@ describe("el alta en el servidor", () => {
       token: "EAAG-del-cliente",
       displayPhoneNumber: "+51 999 888 777",
       verifiedName: "AvisaPe",
+      coexistence: false,
     });
+    expect(mocks.pedidoSync).not.toHaveBeenCalled();
     expect(mocks.webhook).toHaveBeenCalledWith(
       expect.objectContaining({
         wabaId: "160228957180064",
@@ -296,6 +304,7 @@ describe("la ruta /api/settings/whatsapp/embedded", () => {
       appId: "1715957376325225",
       configId: "998877",
       graphVersion: "v25.0",
+      coexistencia: false,
     });
     expect(JSON.stringify(data)).not.toContain("secreto");
     mocks.session.mockResolvedValue({ organizationId: "org_1", userId: "usr_2", role: "member" });
@@ -327,5 +336,88 @@ describe("la ruta /api/settings/whatsapp/embedded", () => {
     const res = await post(valido);
     expect(res.status).toBe(422);
     expect((await res.json()).error.code).toBe("asset_mismatch");
+  });
+});
+
+describe("067 — alta en coexistencia", () => {
+  const input = {
+    organizationId: "org_1",
+    code: "code-bueno",
+    wabaId: "160228957180064",
+    phoneNumberId: "555",
+    pin: null,
+    modo: "coexistencia" as const,
+  };
+
+  it("FB.login lleva featureType solo en coexistencia", () => {
+    expect(opcionesDeLogin("998877", { coexistencia: true }).extras).toEqual({
+      setup: {},
+      featureType: "whatsapp_business_app_onboarding",
+      sessionInfoVersion: "3",
+      version: "v4",
+    });
+    expect(opcionesDeLogin("998877").extras).not.toHaveProperty("featureType");
+  });
+
+  it("no registra el número, guarda en coexistencia y pide contactos y luego historial", async () => {
+    respond({ data: [numero("555", { status: "CONNECTED" })] }); // phone_numbers
+    respond({ messaging_product: "whatsapp", request_id: "req-contactos" });
+    respond({ messaging_product: "whatsapp", request_id: "req-historial" });
+
+    const r = await completarAltaEmbebida(input);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/register"))).toBe(false);
+    expect(graphCall(1)).toMatchObject({
+      url: expect.stringContaining("/555/smb_app_data"),
+      method: "POST",
+      body: { messaging_product: "whatsapp", sync_type: "smb_app_state_sync" },
+    });
+    expect(graphCall(2).body).toEqual({ messaging_product: "whatsapp", sync_type: "history" });
+    expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ coexistence: true, phoneNumberId: "555" }));
+    // El webhook se suscribe ANTES de pedir la sincronización (lo exige Meta).
+    expect(mocks.webhook.mock.invocationCallOrder[0]!).toBeLessThan(mocks.pedidoSync.mock.invocationCallOrder[0]!);
+    expect(mocks.pedidoSync).toHaveBeenCalledWith("org_1", {
+      contactsRequestId: "req-contactos",
+      historyRequestId: "req-historial",
+    });
+    expect(r).toMatchObject({ registered: false, coexistence: { contactsSync: true, historySync: true } });
+    expect(r.generatedPin).toBeUndefined();
+  });
+
+  it("si Meta rechaza la sincronización, el alta queda hecha y lo dice", async () => {
+    respond({ data: [numero("555")] });
+    respond({ error: { message: "nope", code: 100 } }, 400);
+    respond({ error: { message: "nope", code: 100 } }, 400);
+
+    const r = await completarAltaEmbebida(input);
+
+    expect(mocks.save).toHaveBeenCalled();
+    expect(r).toMatchObject({ coexistence: { contactsSync: false, historySync: false } });
+    expect(mocks.pedidoSync).toHaveBeenCalledWith("org_1", { contactsRequestId: null, historyRequestId: null });
+  });
+
+  it("la ruta rechaza el modo coexistencia si la instancia no lo tiene encendido", async () => {
+    delete process.env.META_COEXISTENCIA;
+    const res = await POST(
+      new Request("https://crm.ejemplo.test/api/settings/whatsapp/embedded", {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: "https://crm.ejemplo.test", host: "crm.ejemplo.test" },
+        body: JSON.stringify({ code: "c", wabaId: "1", phoneNumberId: null, pin: null, modo: "coexistencia" }),
+      })
+    );
+    expect(res.status).toBe(422);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("coexistence_disabled");
+    expect(mocks.save).not.toHaveBeenCalled();
+  });
+
+  it("el GET dice si la instancia ofrece la coexistencia", async () => {
+    process.env.META_COEXISTENCIA = "on";
+    try {
+      const res = await GET();
+      expect(await res.json()).toMatchObject({ ready: true, canManage: true, coexistencia: true });
+    } finally {
+      delete process.env.META_COEXISTENCIA;
+    }
   });
 });

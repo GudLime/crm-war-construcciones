@@ -9,6 +9,16 @@ imagen `ghcr.io/kevinrivm/vocero-crm:X.Y.Z`.
 
 ### Nuevo
 
+- **Coexistencia** (spec 067): con `META_COEXISTENCIA=on` y una app de Tech
+  Provider, «Conectar con Meta» ofrece «Ya uso este número en la app WhatsApp
+  Business». El número sigue en el teléfono, no se vuelve a registrar, y al
+  conectar se importan los contactos y hasta 180 días de chats (webhooks
+  `smb_app_state_sync` e `history`, como historia: sin agente, sin no leídos,
+  sin ventana de 24 h). `PARTNER_REMOVED` / `ACCOUNT_OFFBOARDED` dejan la
+  conexión para reconectar. Ajustes → WhatsApp muestra el avance. **Migración
+  aditiva `0027_coexistencia`** (se aplica sola al arrancar). Guía en
+  [docs/embedded-signup.md](docs/embedded-signup.md#coexistencia).
+
 - **«Conectar con Meta» (Embedded Signup v4)** en Ajustes → WhatsApp (spec
   066). Con `META_APP_ID`, `META_EMBEDDED_CONFIG_ID` y `META_APP_SECRET` en la
   instancia, quien administra la cuenta autoriza su WhatsApp en la ventana

@@ -1,4 +1,4 @@
-import { eq, or } from "drizzle-orm";
+import { and, eq, isNull, notInArray, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
@@ -15,6 +15,8 @@ export type Credentials = {
   displayPhoneNumber: string | null;
   verifiedName: string | null;
   status: "connected" | "reconnect_required";
+  /** 067 — El número sigue activo en la app WhatsApp Business (coexistencia). */
+  coexistence: boolean;
   token: string;
 };
 
@@ -30,6 +32,7 @@ function toCredentials(row: Row): Credentials {
     displayPhoneNumber: row.displayPhoneNumber,
     verifiedName: row.verifiedName,
     status: row.status,
+    coexistence: row.coexistence,
     token: decryptSecret({
       cipher: row.tokenCipher,
       iv: row.tokenIv,
@@ -103,9 +106,23 @@ export async function saveCredentials(input: {
   token: string;
   displayPhoneNumber?: string | null;
   verifiedName?: string | null;
+  /**
+   * 067 — `true` solo en el alta por coexistencia. Cualquier otra conexión
+   * (manual o Embedded Signup normal) la apaga y borra el estado de las
+   * sincronizaciones: ya no aplica a ese número.
+   */
+  coexistence?: boolean;
 }): Promise<void> {
   const db = getDb();
   const enc = encryptSecret(input.token);
+  const coexistencia = {
+    coexistence: input.coexistence === true,
+    coexistenceSince: input.coexistence === true ? new Date() : null,
+    contactsSyncRequestId: null,
+    historySyncRequestId: null,
+    historySyncStatus: null,
+    historySyncProgress: null,
+  };
   await db
     .insert(schema.metaCredentials)
     .values({
@@ -120,6 +137,7 @@ export async function saveCredentials(input: {
       tokenIv: enc.iv,
       tokenTag: enc.tag,
       status: "connected",
+      ...coexistencia,
     })
     .onConflictDoUpdate({
       target: [schema.metaCredentials.organizationId],
@@ -135,6 +153,7 @@ export async function saveCredentials(input: {
         tokenIv: enc.iv,
         tokenTag: enc.tag,
         status: "connected",
+        ...coexistencia,
         updatedAt: new Date(),
       },
     });
@@ -162,6 +181,93 @@ export async function markReconnectRequired(
     .update(schema.metaCredentials)
     .set({ status: "reconnect_required", updatedAt: new Date() })
     .where(scoped(schema.metaCredentials.organizationId, organizationId));
+}
+
+/** 067 — Lo que se sabe de las sincronizaciones de la coexistencia. */
+export type EstadoCoexistencia = {
+  since: Date | null;
+  contactsRequested: boolean;
+  historyStatus: "pending" | "running" | "done" | "declined" | "failed" | null;
+  historyProgress: number | null;
+};
+
+export async function getEstadoCoexistencia(
+  organizationId: string
+): Promise<EstadoCoexistencia | null> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      coexistence: schema.metaCredentials.coexistence,
+      since: schema.metaCredentials.coexistenceSince,
+      contactsSyncRequestId: schema.metaCredentials.contactsSyncRequestId,
+      historyStatus: schema.metaCredentials.historySyncStatus,
+      historyProgress: schema.metaCredentials.historySyncProgress,
+    })
+    .from(schema.metaCredentials)
+    .where(scoped(schema.metaCredentials.organizationId, organizationId))
+    .limit(1);
+  const row = rows[0];
+  if (!row?.coexistence) return null;
+  return {
+    since: row.since,
+    contactsRequested: Boolean(row.contactsSyncRequestId),
+    historyStatus: row.historyStatus,
+    historyProgress: row.historyProgress,
+  };
+}
+
+/** 067 — Guarda lo que respondió Meta al pedir las sincronizaciones. */
+export async function guardarPedidoDeSincronizacion(
+  organizationId: string,
+  pedido: {
+    contactsRequestId: string | null;
+    historyRequestId: string | null;
+  }
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.metaCredentials)
+    .set({
+      contactsSyncRequestId: pedido.contactsRequestId,
+      historySyncRequestId: pedido.historyRequestId,
+      historySyncStatus: pedido.historyRequestId ? "pending" : "failed",
+      historySyncProgress: pedido.historyRequestId ? 0 : null,
+      updatedAt: new Date(),
+    })
+    .where(scoped(schema.metaCredentials.organizationId, organizationId));
+}
+
+/**
+ * 067 — Avance del historial. Monotónico (constitución IV): un chunk que
+ * llega tarde no hace retroceder el progreso, y un estado final
+ * (`done`, `declined`) no se reabre.
+ */
+export async function actualizarAvanceDelHistorial(
+  organizationId: string,
+  avance: { status: "running" | "done" | "declined" | "failed"; progress: number | null }
+): Promise<void> {
+  const db = getDb();
+  const progreso = avance.progress === null ? null : Math.max(0, Math.min(100, Math.round(avance.progress)));
+  await db
+    .update(schema.metaCredentials)
+    .set({
+      historySyncStatus: avance.status,
+      historySyncProgress:
+        progreso === null
+          ? sql`${schema.metaCredentials.historySyncProgress}`
+          : sql`greatest(coalesce(${schema.metaCredentials.historySyncProgress}, 0), ${progreso})`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        scoped(schema.metaCredentials.organizationId, organizationId),
+        eq(schema.metaCredentials.coexistence, true),
+        or(
+          isNull(schema.metaCredentials.historySyncStatus),
+          notInArray(schema.metaCredentials.historySyncStatus, ["done", "declined"])
+        )
+      )
+    );
 }
 
 /** Últimos 4 caracteres del token para mostrar en UI (jamás el token). */

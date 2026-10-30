@@ -3,7 +3,11 @@ import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { getEnv } from "@/lib/env";
 import { graphRequest, MetaApiError } from "@/lib/meta/client";
-import { saveCredentials } from "@/server/whatsapp/credentials";
+import {
+  guardarPedidoDeSincronizacion,
+  saveCredentials,
+} from "@/server/whatsapp/credentials";
+import { pedirSincronizacion } from "@/server/whatsapp/coexistencia/sync";
 import {
   descubrirCuentaDeMensajes,
   registerWebhookForNumber,
@@ -14,10 +18,15 @@ import { webhookUrl, webhookVerifyToken } from "@/server/whatsapp/webhook-url";
 /**
  * 066 — «Conectar con Meta» (Embedded Signup v4), del lado del servidor.
  *
- * Puerto de la spec 104 del fork de un cliente, sin la coexistencia:
+ * Puerto de la spec 104 del fork de un cliente:
  *
  *   canje del `code` → número de la WABA → registro con PIN →
  *   credenciales cifradas → webhook (cuenta de WhatsApp, de mensajes y número)
+ *
+ * 067 — En coexistencia (el número sigue en la app WhatsApp Business del
+ * teléfono) cambian dos pasos: NO se registra el número (ya lo está, y Meta
+ * prohíbe hacerlo) y, después del webhook, se piden los contactos y el
+ * historial de la app (Meta da 24 h y una sola vez).
  *
  * Regla de esta frontera: ni el `code`, ni el token, ni el secreto, ni el
  * error crudo de Meta salen de aquí. Todo fallo es un `EmbeddedSignupError`
@@ -242,6 +251,8 @@ export type ResultadoAlta = {
   messagingAccountId: string | null;
   /** true si esta alta llamó a `/register` (el número no estaba conectado). */
   registered: boolean;
+  /** 067 — Alta en coexistencia y si Meta aceptó cada sincronización. */
+  coexistence?: { contactsSync: boolean; historySync: boolean };
   /**
    * El PIN que generó el servidor, para que el dueño lo guarde. Solo viaja
    * en esta respuesta: no se guarda ni se registra en logs.
@@ -257,11 +268,16 @@ export async function completarAltaEmbebida(input: {
   phoneNumberId: string | null;
   /** El PIN que ya tenía el número; sin él, se genera uno. */
   pin: string | null;
+  /** 067 — `coexistencia`: el número sigue en la app del teléfono. */
+  modo?: "normal" | "coexistencia";
 }): Promise<ResultadoAlta> {
+  const coexistencia = input.modo === "coexistencia";
   const token = await canjearCodigo(input.code);
   const numero = await resolverNumero(token, input.wabaId, input.phoneNumberId);
   const pin = input.pin ?? generarPin();
-  const registered = await registrarNumero(token, numero, pin);
+  // 067 — En coexistencia el número ya está registrado en la app: Meta
+  // prohíbe el `/register` (y uno con otro PIN lo rompería).
+  const registered = coexistencia ? false : await registrarNumero(token, numero, pin);
 
   // 065 — Best-effort: sin ella, el dueño la escribe en el formulario manual.
   const messagingAccountId = await descubrirCuentaDeMensajes(input.wabaId, token);
@@ -274,6 +290,7 @@ export async function completarAltaEmbebida(input: {
     token,
     displayPhoneNumber: numero.display_phone_number ?? null,
     verifiedName: numero.verified_name ?? null,
+    coexistence: coexistencia,
   });
 
   const webhook = await registerWebhookForNumber({
@@ -285,12 +302,26 @@ export async function completarAltaEmbebida(input: {
     messagingAccountId,
   });
 
+  // 067 — Con el webhook ya suscrito (Meta lo exige antes), se piden los
+  // contactos y el historial. Si Meta no acepta, el número igual quedó
+  // conectado: se avisa y no se repite solo (una sola vez por alta).
+  let sincronizacion: ResultadoAlta["coexistence"];
+  if (coexistencia) {
+    const pedido = await pedirSincronizacion(token, numero.id);
+    await guardarPedidoDeSincronizacion(input.organizationId, pedido);
+    sincronizacion = {
+      contactsSync: Boolean(pedido.contactsRequestId),
+      historySync: Boolean(pedido.historyRequestId),
+    };
+  }
+
   return {
     displayPhoneNumber: numero.display_phone_number!,
     wabaId: input.wabaId,
     phoneNumberId: numero.id,
     messagingAccountId,
     registered,
+    ...(sincronizacion ? { coexistence: sincronizacion } : {}),
     ...(registered && !input.pin ? { generatedPin: pin } : {}),
     webhook,
   };
