@@ -1,7 +1,14 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { getEnv } from "@/lib/env";
-import * as schema from "./schema";
+import * as baseSchema from "./schema";
+import * as ventasSchema from "./ventas-tables";
+
+/** Las tablas de Ventas viven aparte para no reescribir el esquema base. */
+const schemaValue = { ...baseSchema, ...ventasSchema };
+export { schemaValue as schema };
+/** Mismo nombre que el valor, para `import type { schema }`. */
+export type schema = typeof schemaValue;
 
 /**
  * Opciones de conexión comunes a TODA conexión que abra este repo (app, seeds,
@@ -56,5 +63,3 @@ export function getDb() {
   if (!cachedDb) cachedDb = drizzle(getSql(), { schema });
   return cachedDb;
 }
-
-export { schema };
