@@ -29,5 +29,5 @@ git merge upstream/main
 # y cambios en app-nav.tsx (sidebar con labels) si upstream tocó el riel.
 ```
 
-Después: crear un tag `vX.Y.Z` → GitHub Actions publica la imagen en
-`ghcr.io/warconstrucciones/crm` → en Coolify, cambiar el tag y redesplegar.
+Después: un push a `main` (o un tag `vX.Y.Z`) → GitHub Actions publica la imagen en
+`ghcr.io/gudlime/crm-war-construcciones` → en Coolify, cambiar el tag y redesplegar.
