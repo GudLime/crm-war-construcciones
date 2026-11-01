@@ -41,6 +41,11 @@ const prefixes = {
   quickReply: "qr",
   // 050 — notas internas del hilo
   conversationNote: "nota",
+  // Ventas de la constructora
+  edificio: "edi",
+  departamento: "dpt",
+  oportunidad: "opt",
+  tareaVenta: "trv",
 } as const;
 
 export type IdKind = keyof typeof prefixes;
