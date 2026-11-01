@@ -15,8 +15,15 @@ Basada en el fork de GudLime (`GudLime/vocero-crm`), con la marca cambiada a War
 3. **`src/lib/temas.ts`** — `APARIENCIA_POR_DEFECTO.letra = "inter"`.
 4. **`src/components/app-nav.tsx`** — sidebar de escritorio con **icono + label**
    (ancho `w-56`, activo = acento sólido), en lugar del riel solo-iconos.
+5. **Ventas de la constructora** — grupo de menú Edificios, Oportunidades y
+   Tareas. Los departamentos cuelgan del edificio (unidad, orientación del
+   edificio, orientación geográfica, metros cubiertos / semidescubiertos /
+   descubiertos, valor). Los metros totales se calculan. Una oportunidad
+   tiene origen, contacto y un interés que es un edificio o un departamento
+   de ese edificio. Las tareas son llamadas, visitas y mensajes que hace una
+   persona; la IA no las crea. Migración `0028_ventas_war`.
 
-5. **Coexistencia (spec 067)** — `specs/067-coexistencia/`. Pensada para
+6. **Coexistencia (spec 067)** — `specs/067-coexistencia/`. Pensada para
    proponer upstream. Toca `src/server/whatsapp/coexistencia/`,
    `embedded.ts`, `signup-event.ts`, `embedded-signup.tsx`,
    `webhooks/procesar.ts`, `credentials.ts`, el esquema y la migración
