@@ -1,12 +1,15 @@
 import {
+  Building2,
   CalendarDays,
   ChartColumn,
   FlaskConical,
   Inbox,
   Kanban,
   ListChecks,
+  ListTodo,
   Settings,
   Sparkles,
+  Tag,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -75,8 +78,15 @@ export function appNavGroups({
     { href: "/lab", label: "Laboratorio", icon: FlaskConical }
   );
 
+  const ventas: NavItem[] = [
+    { href: "/edificios", label: "Edificios", icon: Building2 },
+    { href: "/oportunidades", label: "Oportunidades", icon: Tag },
+    { href: "/tareas", label: "Tareas", icon: ListTodo },
+  ];
+
   return [
     { title: "Trabajo", items: trabajo },
+    { title: "Ventas", items: ventas },
     { title: "Agente", items: agente },
     // 019 — Se mide al final: primero se atiende y se organiza.
     { items: [{ href: "/results", label: "Resultados", icon: ChartColumn }] },
