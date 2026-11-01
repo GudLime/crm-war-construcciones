@@ -116,6 +116,42 @@ del número. Guárdalo; Vocero no lo almacena.
 | «Función no disponible» / `#2655111` | La app está en acceso estándar y el perfil no tiene rol en la app |
 | Conectado, pero el webhook avisa de la Cuenta de mensajes | Meta no la reveló o el token no tiene acceso a ella: escribe su ID en el formulario manual y pulsa «Registrar en Meta» |
 | Popup bloqueado | Permite ventanas emergentes para el dominio de la instancia |
+| «…se eligió conectar la app de WhatsApp Business del teléfono (coexistencia)» | En Meta se eligió coexistencia sin marcar la casilla: márcala y repite. Si la casilla no aparece, falta `META_COEXISTENCIA=on` |
+| Coexistencia conectada, pero «sin importación de chats» | Meta no aceptó `smb_app_data` (pasaron más de 24 h o ya se pidió): desconecta desde la app y vuelve a conectar |
+| No llegan los chats importados | Faltan los campos `history` / `smb_app_state_sync` en el webhook de la app |
 
-La coexistencia (mantener el número en la app WhatsApp Business del teléfono)
-no está en esta versión; ver «Fuera de alcance» en la spec.
+## Coexistencia
+
+Desde la spec [067](../specs/067-coexistencia/spec.md), el número puede
+seguir funcionando en la app WhatsApp Business del teléfono: lo que contestes
+desde el celular aparece en la bandeja (y pausa la IA en esa conversación), y
+al conectar se importan los contactos y hasta 180 días de chats.
+
+Requisitos:
+
+- La app de Meta de la instancia es de un **Tech Provider** (o Solution
+  Partner): Meta no ofrece la coexistencia a otras apps.
+- Las tres variables de arriba **y** `META_COEXISTENCIA=on` (runtime,
+  redesplegar).
+- En el panel de la app, **WhatsApp › Configuración › Webhook**, suscribir
+  además de `messages`: `history`, `smb_app_state_sync`, `smb_message_echoes`
+  y `account_update`.
+- El negocio usa la app WhatsApp Business 2.24.17 o superior.
+
+En **Ajustes → WhatsApp** se marca «Ya uso este número en la app WhatsApp
+Business» antes de «Conectar con Meta». No se pide PIN: el número no se
+vuelve a registrar.
+
+Lo que hay que saber:
+
+- Meta deja pedir la importación **una sola vez y dentro de las 24 h** del
+  alta. Vocero la pide sola al conectar. Si falla, para reintentar hay que
+  desconectar el número desde la app (Ajustes › Cuenta › Plataforma
+  empresarial) y volver a conectarlo.
+- Los chats importados entran como historia: no le llegan al agente, no
+  cuentan como no leídos y no abren la ventana de 24 h.
+- Borrar un contacto en el teléfono no lo borra del CRM.
+- Si el cliente desconecta el número desde la app, la conexión queda en «hay
+  que reconectar».
+- El portafolio dueño de la app tampoco puede conectarse a sí mismo en
+  coexistencia (misma regla del punto 4).

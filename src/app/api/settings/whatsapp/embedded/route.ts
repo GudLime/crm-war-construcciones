@@ -8,6 +8,7 @@ import {
   EmbeddedSignupError,
   embeddedConfig,
 } from "@/server/whatsapp/embedded";
+import { coexistenciaEnabled } from "@/server/whatsapp/coexistencia/flag";
 
 /**
  * 066 — «Conectar con Meta» (Embedded Signup v4) en Ajustes → WhatsApp.
@@ -19,6 +20,9 @@ import {
  *
  * Sin `META_APP_ID` + `META_EMBEDDED_CONFIG_ID` + `META_APP_SECRET` todo
  * responde 404 (CA-1) y queda solo el alta manual.
+ *
+ * 067 — Con `META_COEXISTENCIA=on`, el GET dice `coexistencia: true` y el
+ * POST admite `modo: "coexistencia"`. Apagada, ese modo se rechaza.
  */
 export const dynamic = "force-dynamic";
 
@@ -36,6 +40,7 @@ export const GET = withAuth(async (session) => {
       appId: cfg.appId,
       configId: cfg.configId,
       graphVersion: cfg.graphVersion,
+      coexistencia: coexistenciaEnabled(),
     },
     { headers: NO_STORE }
   );
@@ -48,6 +53,8 @@ const inputSchema = z.object({
   phoneNumberId: id.nullable(),
   /** El PIN que ya tenía el número; `null` = que el servidor genere uno. */
   pin: z.string().regex(/^\d{6}$/).nullable(),
+  /** 067 — `coexistencia`: el número sigue en la app del teléfono. */
+  modo: z.enum(["normal", "coexistencia"]).default("normal"),
 });
 
 export const POST = withAuth(async (session, req: Request) => {
@@ -66,6 +73,13 @@ export const POST = withAuth(async (session, req: Request) => {
   }
   const body = await parseBody(req, inputSchema);
   if (!body.ok) return body.response;
+  if (body.data.modo === "coexistencia" && !coexistenciaEnabled()) {
+    return apiError(
+      422,
+      "coexistence_disabled",
+      "Esta instancia no tiene activada la coexistencia (META_COEXISTENCIA). No se guardó nada."
+    );
+  }
   try {
     const r = await completarAltaEmbebida({
       organizationId: session.organizationId,

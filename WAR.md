@@ -16,6 +16,13 @@ Basada en el fork de GudLime (`GudLime/vocero-crm`), con la marca cambiada a War
 4. **`src/components/app-nav.tsx`** — sidebar de escritorio con **icono + label**
    (ancho `w-56`, activo = acento sólido), en lugar del riel solo-iconos.
 
+5. **Coexistencia (spec 067)** — `specs/067-coexistencia/`. Pensada para
+   proponer upstream. Toca `src/server/whatsapp/coexistencia/`,
+   `embedded.ts`, `signup-event.ts`, `embedded-signup.tsx`,
+   `webhooks/procesar.ts`, `credentials.ts`, el esquema y la migración
+   `0027_coexistencia`. Si upstream publica su propia coexistencia, preferir
+   la suya y revisar el número de migración antes del merge.
+
 Color y logo: cada cliente los configura en **Configuración → Marca** (DB).
 
 ## Actualizar desde upstream

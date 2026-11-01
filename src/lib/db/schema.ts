@@ -527,6 +527,27 @@ export const metaCredentials = pgTable(
     status: text("status", { enum: ["connected", "reconnect_required"] })
       .notNull()
       .default("connected"),
+    /**
+     * 067 — Coexistencia: el número sigue activo en la app WhatsApp Business
+     * del teléfono (alta por Embedded Signup con
+     * `featureType: whatsapp_business_app_onboarding`). Una conexión manual o
+     * un alta normal la deja en `false`.
+     */
+    coexistence: boolean("coexistence").notNull().default(false),
+    /** 067 — Cuándo se conectó en coexistencia (Meta da 24 h para sincronizar). */
+    coexistenceSince: timestamp("coexistence_since"),
+    /** 067 — `request_id` de Meta de cada sincronización (para soporte). */
+    contactsSyncRequestId: text("contacts_sync_request_id"),
+    historySyncRequestId: text("history_sync_request_id"),
+    /**
+     * 067 — Estado de la importación del historial (180 días). Nulo = no se
+     * pidió. `declined` = el negocio no autorizó compartirlo (código 2593109).
+     */
+    historySyncStatus: text("history_sync_status", {
+      enum: ["pending", "running", "done", "declined", "failed"],
+    }),
+    /** 067 — Avance del historial según Meta (0–100). */
+    historySyncProgress: integer("history_sync_progress"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

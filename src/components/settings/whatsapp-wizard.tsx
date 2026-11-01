@@ -24,7 +24,32 @@ type Connection = {
   verifiedName: string | null;
   status: "connected" | "reconnect_required";
   tokenLast4: string;
+  /** 067 — null si el número no está en coexistencia. */
+  coexistence?: {
+    since: string | null;
+    contactsRequested: boolean;
+    historyStatus: "pending" | "running" | "done" | "declined" | "failed" | null;
+    historyProgress: number | null;
+  } | null;
 };
+
+/** 067 — Una línea con el estado de la importación del historial. */
+function textoDelHistorial(c: NonNullable<Connection["coexistence"]>): string {
+  switch (c.historyStatus) {
+    case "pending":
+      return "importación de chats pedida a Meta";
+    case "running":
+      return `importando chats${c.historyProgress !== null ? ` (${c.historyProgress}%)` : "…"}`;
+    case "done":
+      return "chats anteriores importados";
+    case "declined":
+      return "el negocio no autorizó importar los chats anteriores";
+    case "failed":
+      return "Meta no pudo importar los chats anteriores";
+    default:
+      return "sin importación de chats";
+  }
+}
 
 type WebhookInfo = {
   url: string;
@@ -114,7 +139,13 @@ export function WhatsappWizard() {
               {connection.verifiedName ? `${connection.verifiedName} · ` : ""}
               token …{connection.tokenLast4}
             </p>
+            {connection.coexistence && (
+              <p className="text-success-text opacity-80">
+                Coexistencia con la app del teléfono · {textoDelHistorial(connection.coexistence)}
+              </p>
+            )}
           </div>
+          {connection.coexistence && <Badge variant="secondary">Coexistencia</Badge>}
           <Badge variant="success">Conectado</Badge>
           <Desconectar
             onHecho={() => {

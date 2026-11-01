@@ -25,6 +25,10 @@ export const envSchema = z.object({
   // solo el alta manual. Se leen en server/whatsapp/embedded.ts.
   META_APP_ID: z.string().optional(),
   META_EMBEDDED_CONFIG_ID: z.string().optional(),
+  // 067: coexistencia (el número sigue en la app WhatsApp Business del
+  // teléfono). Solo para apps de Tech Provider. Apagada por defecto; se lee
+  // en server/whatsapp/coexistencia/flag.ts. Ej.: META_COEXISTENCIA=on
+  META_COEXISTENCIA: z.string().optional(),
   META_GRAPH_API_VERSION: z.string().default("v25.0"),
   META_GRAPH_BASE_URL: z.string().url().default("https://graph.facebook.com"),
   OPENROUTER_API_TOKEN: z.string().optional(),

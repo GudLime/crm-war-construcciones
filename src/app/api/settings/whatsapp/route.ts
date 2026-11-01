@@ -3,6 +3,7 @@ import { apiError, parseBody, withAuth } from "@/lib/api";
 import {
   desconectarCanal,
   getCredentialsByOrg,
+  getEstadoCoexistencia,
   saveCredentials,
   tokenLast4,
 } from "@/server/whatsapp/credentials";
@@ -33,6 +34,10 @@ export const GET = withAuth(async (session) => {
       verifiedName: creds.verifiedName,
       status: creds.status,
       tokenLast4: tokenLast4(creds.token),
+      // 067 — null si el número no está en coexistencia.
+      coexistence: creds.coexistence
+        ? await getEstadoCoexistencia(session.organizationId)
+        : null,
     },
   });
 });
