@@ -1,0 +1,20 @@
+import { apiError, parseBody, withAuth } from "@/lib/api";
+import { crearEdificio, edificioSchema, listarEdificios, VentasError } from "@/server/ventas";
+
+export const dynamic = "force-dynamic";
+
+export const GET = withAuth(async (session) => {
+  return Response.json({ edificios: await listarEdificios(session.organizationId) });
+});
+
+export const POST = withAuth(async (session, req: Request) => {
+  const body = await parseBody(req, edificioSchema);
+  if (!body.ok) return body.response;
+  try {
+    const edificio = await crearEdificio(session.organizationId, body.data);
+    return Response.json({ edificio }, { status: 201 });
+  } catch (err) {
+    if (err instanceof VentasError) return apiError(err.status, err.code, err.message);
+    throw err;
+  }
+});
