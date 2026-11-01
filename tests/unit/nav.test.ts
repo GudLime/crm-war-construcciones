@@ -16,11 +16,12 @@ const labels = (groups: { items: { label: string }[] }[]) =>
   groups.map((g) => g.items.map((i) => i.label));
 
 describe("barra lateral agrupada", () => {
-  it("con todo apagado y como miembro: Trabajo, Agente y Resultados", () => {
+  it("con todo apagado y como miembro: Trabajo, Ventas, Agente y Resultados", () => {
     const groups = appNavGroups({ role: "member" });
-    expect(groups.map((g) => g.title)).toEqual(["Trabajo", "Agente", undefined]);
+    expect(groups.map((g) => g.title)).toEqual(["Trabajo", "Ventas", "Agente", undefined]);
     expect(labels(groups)).toEqual([
       ["Bandeja", "Pipeline", "Contactos"],
+      ["Edificios", "Oportunidades", "Tareas"],
       ["Agente", "Laboratorio"],
       ["Resultados"],
     ]);
@@ -39,11 +40,11 @@ describe("barra lateral agrupada", () => {
 
   it("la guía de inicio abre el grupo Agente solo para quien configura", () => {
     for (const role of ["owner", "admin"]) {
-      const agente = appNavGroups({ role })[1]!;
+      const agente = appNavGroups({ role }).find((g) => g.title === "Agente")!;
       expect(agente.items[0]).toMatchObject({ href: "/onboarding", label: "Guía de inicio" });
     }
     for (const role of ["member", null, undefined]) {
-      const agente = appNavGroups({ role })[1]!;
+      const agente = appNavGroups({ role }).find((g) => g.title === "Agente")!;
       expect(agente.items.map((i) => i.href)).not.toContain("/onboarding");
     }
   });
