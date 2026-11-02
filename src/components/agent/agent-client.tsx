@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Sparkles, Trash2 } from "lucide-react";
+import { Pencil, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { BrainStatusCard } from "@/components/agent/brain-status-card";
 import { externalDown, type BrainStatusDto } from "@/lib/brain-status";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
+import { Resumen } from "@/components/ui/seccion-editable";
 import {
   HERRAMIENTAS,
   ROLES,
@@ -44,7 +46,7 @@ export function AgentClient() {
   const [aiMensaje, setAiMensaje] = useState<string | null>(null);
   const [entries, setEntries] = useState<KbEntry[]>([]);
   const [kbSize, setKbSize] = useState<{ chars: number; warnAt: number; warning: boolean } | null>(null);
-  const [saved, setSaved] = useState(false);
+  const avisar = useAvisoGuardado();
   // 036 — Por qué no se pudo encender (409 `sin_cerebro`): el mensaje del
   // servidor, tal cual, junto al interruptor.
   const [switchError, setSwitchError] = useState<string | null>(null);
@@ -104,8 +106,7 @@ export function AgentClient() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ role: "calificador" }),
     }).catch(() => null);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    avisar("Rol cargado");
     void refetch();
   }
 
@@ -126,11 +127,19 @@ export function AgentClient() {
         );
       }
       void refetch();
+      if (patch.enabled === undefined) {
+        avisar(data?.error?.message ?? "No se pudieron guardar los cambios", "error");
+      }
       return false;
     }
     if (patch.enabled !== undefined) setSwitchError(null);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    avisar(
+      patch.enabled === true
+        ? "Agente encendido"
+        : patch.enabled === false
+          ? "Agente apagado"
+          : "Cambios aplicados"
+    );
     void refetch();
     return true;
   }
@@ -152,7 +161,6 @@ export function AgentClient() {
       <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 sm:px-6 sm:py-4">
         <h2 className="text-[17px] font-bold tracking-tight">Agente de IA</h2>
         <div className="flex items-center gap-3">
-          {saved && <span className="text-xs text-primary">Guardado ✓</span>}
           <span className="text-sm text-muted-foreground">
             {profile.enabled ? "Encendido" : "Apagado"}
           </span>
@@ -296,16 +304,61 @@ function ProfileSection({
   onSave: (patch: Partial<Profile>) => Promise<boolean>;
 }) {
   const [form, setForm] = useState(profile);
-  useEffect(() => setForm(profile), [profile]);
+  // Plegado por defecto: se edita con el lápiz y al guardar se vuelve a plegar.
+  const [editando, setEditando] = useState(false);
+  useEffect(() => {
+    if (!editando) setForm(profile);
+  }, [profile, editando]);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Comportamiento</CardTitle>
-        <CardDescription>
-          Cómo se presenta y actúa el agente al responder a tus clientes.
-        </CardDescription>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle>Comportamiento</CardTitle>
+            <CardDescription>
+              Cómo se presenta y actúa el agente al responder a tus clientes.
+            </CardDescription>
+          </div>
+          {editando ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label="Cerrar sin guardar"
+              onClick={() => {
+                setForm(profile);
+                setEditando(false);
+              }}
+            >
+              <X className="h-4 w-4" strokeWidth={1.8} />
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" onClick={() => setEditando(true)}>
+              <Pencil className="h-3.5 w-3.5" strokeWidth={1.8} />
+              Editar
+            </Button>
+          )}
+        </div>
       </CardHeader>
+      {!editando ? (
+        <CardContent>
+          <Resumen
+            className="sm:grid-cols-1 lg:grid-cols-1"
+            items={[
+              { etiqueta: "Nombre del agente", valor: profile.name },
+              { etiqueta: "Tono", valor: profile.tone },
+              {
+                etiqueta: "Instrucciones",
+                valor: profile.instructions ? (
+                  <span className="line-clamp-6">{profile.instructions}</span>
+                ) : null,
+              },
+              { etiqueta: "Reglas de escalado", valor: profile.escalationRules },
+              { etiqueta: "Saludo", valor: profile.greeting },
+            ]}
+          />
+        </CardContent>
+      ) : (
       <CardContent className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="agent-name">Nombre del agente</Label>
@@ -353,18 +406,31 @@ function ProfileSection({
             onChange={(e) => setForm({ ...form, greeting: e.target.value })}
           />
         </div>
-        <Button
-          onClick={() => {
-            // 034 — Solo lo de esta tarjeta: el formulario guarda una copia
-            // del perfil de cuando se abrió, y mandarla entera pisaría las
-            // herramientas cambiadas después en la tarjeta del rol.
-            const { name, tone, instructions, escalationRules, greeting } = form;
-            void onSave({ name, tone, instructions, escalationRules, greeting });
-          }}
-        >
-          Guardar comportamiento
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={async () => {
+              // 034 — Solo lo de esta tarjeta: el formulario guarda una copia
+              // del perfil de cuando se abrió, y mandarla entera pisaría las
+              // herramientas cambiadas después en la tarjeta del rol.
+              const { name, tone, instructions, escalationRules, greeting } = form;
+              const ok = await onSave({ name, tone, instructions, escalationRules, greeting });
+              if (ok) setEditando(false);
+            }}
+          >
+            Guardar cambios
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setForm(profile);
+              setEditando(false);
+            }}
+          >
+            Cancelar
+          </Button>
+        </div>
       </CardContent>
+      )}
     </Card>
   );
 }
@@ -381,32 +447,44 @@ function KbSection({
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [block, setBlock] = useState("");
+  const avisar = useAvisoGuardado();
 
   async function addQa() {
     if (!question.trim() || !answer.trim()) return;
-    await fetch("/api/kb", {
+    const res = await fetch("/api/kb", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ kind: "qa", question, answer }),
     }).catch(() => null);
+    if (!res?.ok) {
+      avisar("No se pudo agregar la pregunta", "error");
+      return;
+    }
     setQuestion("");
     setAnswer("");
+    avisar("Pregunta agregada");
     onChanged();
   }
 
   async function addBlock() {
     if (!block.trim()) return;
-    await fetch("/api/kb", {
+    const res = await fetch("/api/kb", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ kind: "block", content: block }),
     }).catch(() => null);
+    if (!res?.ok) {
+      avisar("No se pudo agregar el texto", "error");
+      return;
+    }
     setBlock("");
+    avisar("Texto agregado");
     onChanged();
   }
 
   async function remove(id: string) {
-    await fetch(`/api/kb/${id}`, { method: "DELETE" }).catch(() => null);
+    const res = await fetch(`/api/kb/${id}`, { method: "DELETE" }).catch(() => null);
+    avisar(res?.ok ? "Eliminado" : "No se pudo eliminar", res?.ok ? "ok" : "error");
     onChanged();
   }
 

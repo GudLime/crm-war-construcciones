@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Building2, Download, Upload } from "lucide-react";
+import { Building2, Download, Pencil, Plus, Upload, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
+import { Resumen, SeccionEditable } from "@/components/ui/seccion-editable";
 import { parseMoneyToCents } from "@/lib/money";
 import { ESTADOS_EDIFICIO, ESTADOS_UNIDAD, TIPOLOGIAS, etiqueta, metrosTexto } from "@/lib/ventas";
 import type { DepartamentoDto, EdificioDto } from "@/server/ventas";
@@ -16,7 +18,6 @@ import {
   Acciones,
   Campo,
   EstadoPill,
-  Ficha,
   Pagina,
   SelectNativo,
   Tabla,
@@ -123,7 +124,11 @@ export function EdificioDetalleClient() {
   const [errorUnidad, setErrorUnidad] = useState<string | null>(null);
   const [faltante, setFaltante] = useState(false);
   const [importando, setImportando] = useState(false);
-  const [importado, setImportado] = useState<string | null>(null);
+  // Nada se edita sin tocar el lápiz: plegado por defecto.
+  const [editandoEdificio, setEditandoEdificio] = useState(false);
+  /** null = cerrado; "nueva" = alta; si no, el id de la unidad que se edita. */
+  const [unidadAbierta, setUnidadAbierta] = useState<string | null>(null);
+  const avisar = useAvisoGuardado();
   const fichaUnidad = useRef<HTMLDivElement>(null);
 
   const cargar = useCallback(async () => {
@@ -169,7 +174,37 @@ export function EdificioDetalleClient() {
       setErrorEdificio(res ? await mensajeDe(res) : "No se pudo guardar");
       return;
     }
+    setEditandoEdificio(false);
+    avisar();
     void cargar();
+  }
+
+  function cancelarEdificio() {
+    if (edificio) {
+      setDatos({
+        nombre: edificio.nombre,
+        direccion: edificio.direccion ?? "",
+        estado: edificio.estado,
+        enVenta: edificio.enVenta ?? "",
+        notasAgente: edificio.notasAgente ?? "",
+      });
+    }
+    setErrorEdificio(null);
+    setEditandoEdificio(false);
+  }
+
+  function abrirUnidad(u: DepartamentoDto | null) {
+    setEditando(u?.id ?? null);
+    setUnidad(u ? desdeUnidad(u) : unidadVacia);
+    setErrorUnidad(null);
+    setUnidadAbierta(u?.id ?? "nueva");
+  }
+
+  function cerrarUnidad() {
+    setEditando(null);
+    setUnidad(unidadVacia);
+    setErrorUnidad(null);
+    setUnidadAbierta(null);
   }
 
   /** El interruptor guarda en el acto: no hace falta «Guardar edificio». */
@@ -190,9 +225,10 @@ export function EdificioDetalleClient() {
     }).catch(() => null);
     if (!res?.ok) {
       setMemoriaAgente(!prendido);
-      setErrorEdificio(res ? await mensajeDe(res) : "No se pudo guardar");
+      avisar(res ? await mensajeDe(res) : "No se pudo guardar", "error");
       return;
     }
+    avisar(prendido ? "Memoria del agente prendida" : "Memoria del agente apagada");
     void cargar();
   }
 
@@ -259,8 +295,8 @@ export function EdificioDetalleClient() {
       setErrorUnidad(res ? await mensajeDe(res) : "No se pudo guardar");
       return;
     }
-    setUnidad(unidadVacia);
-    setEditando(null);
+    avisar(editando ? "Cambios aplicados" : "Unidad agregada");
+    cerrarUnidad();
     void cargar();
   }
 
@@ -271,10 +307,158 @@ export function EdificioDetalleClient() {
       setErrorUnidad(res ? await mensajeDe(res) : "No se pudo borrar");
       return;
     }
-    setUnidad(unidadVacia);
-    setEditando(null);
+    avisar("Unidad eliminada");
+    cerrarUnidad();
     void cargar();
   }
+
+  const formularioUnidad = (
+    <div ref={fichaUnidad} className="rounded-lg border bg-card p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold">
+          {editando ? `Editar unidad ${unidad.unidad}` : "Nueva unidad"}
+        </p>
+        <Button size="sm" variant="ghost" onClick={cerrarUnidad} aria-label="Cerrar sin guardar">
+          <X className="h-4 w-4" strokeWidth={1.8} />
+        </Button>
+      </div>
+        <form onSubmit={guardarUnidad} className={grilla}>
+        <Campo label="Unidad">
+          <Input
+            value={unidad.unidad}
+            onChange={(e) => setUnidad({ ...unidad, unidad: e.target.value })}
+            required
+            maxLength={40}
+            placeholder="3B"
+          />
+        </Campo>
+        <Campo label="Piso">
+          <Input
+            value={unidad.piso}
+            onChange={(e) => setUnidad({ ...unidad, piso: e.target.value })}
+            inputMode="numeric"
+            placeholder="3"
+          />
+        </Campo>
+        <Campo label="Tipología">
+          <SelectNativo
+            value={unidad.tipologia}
+            onChange={(tipologia) => setUnidad({ ...unidad, tipologia })}
+          >
+            <option value="">Sin tipología</option>
+            {TIPOLOGIAS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </SelectNativo>
+        </Campo>
+        <Campo label="Orientación edificio">
+          <Input
+            value={unidad.orientacionEdificio}
+            onChange={(e) => setUnidad({ ...unidad, orientacionEdificio: e.target.value })}
+            placeholder="Frente, contrafrente"
+          />
+        </Campo>
+        <Campo label="Orientación GEO">
+          <Input
+            value={unidad.orientacionGeo}
+            onChange={(e) => setUnidad({ ...unidad, orientacionGeo: e.target.value })}
+            placeholder="Norte, noroeste"
+          />
+        </Campo>
+        <Campo label="Estado">
+          <SelectNativo value={unidad.estado} onChange={(estado) => setUnidad({ ...unidad, estado })}>
+            {ESTADOS_UNIDAD.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </SelectNativo>
+        </Campo>
+        <Campo label="Metros cubiertos">
+          <Input
+            value={unidad.metrosCubiertos}
+            onChange={(e) => setUnidad({ ...unidad, metrosCubiertos: e.target.value })}
+            inputMode="decimal"
+            placeholder="48,5"
+          />
+        </Campo>
+        <Campo label="Metros semidescubiertos">
+          <Input
+            value={unidad.metrosSemicubiertos}
+            onChange={(e) => setUnidad({ ...unidad, metrosSemicubiertos: e.target.value })}
+            inputMode="decimal"
+          />
+        </Campo>
+        <Campo label="Metros descubiertos">
+          <Input
+            value={unidad.metrosDescubiertos}
+            onChange={(e) => setUnidad({ ...unidad, metrosDescubiertos: e.target.value })}
+            inputMode="decimal"
+          />
+        </Campo>
+        <Campo label="Dormitorios">
+          <Input
+            value={unidad.dormitorios}
+            onChange={(e) => setUnidad({ ...unidad, dormitorios: e.target.value })}
+            inputMode="numeric"
+          />
+        </Campo>
+        <Campo label="Baños">
+          <Input
+            value={unidad.banos}
+            onChange={(e) => setUnidad({ ...unidad, banos: e.target.value })}
+            inputMode="numeric"
+          />
+        </Campo>
+        <Campo label="Toilette">
+          <Input
+            value={unidad.toilette}
+            onChange={(e) => setUnidad({ ...unidad, toilette: e.target.value })}
+            inputMode="numeric"
+          />
+        </Campo>
+        <Campo label="En suite">
+          <Input
+            value={unidad.enSuite}
+            onChange={(e) => setUnidad({ ...unidad, enSuite: e.target.value })}
+            inputMode="numeric"
+          />
+        </Campo>
+        <Campo label="Valor">
+          <Input
+            value={unidad.valor}
+            onChange={(e) => setUnidad({ ...unidad, valor: e.target.value })}
+            inputMode="decimal"
+            placeholder="125.000"
+          />
+        </Campo>
+        <Campo label="Notas para el agente" className="sm:col-span-2 lg:col-span-3">
+          <Textarea
+            rows={2}
+            value={unidad.notasAgente}
+            onChange={(e) => setUnidad({ ...unidad, notasAgente: e.target.value })}
+            maxLength={1000}
+            placeholder="Vista abierta al pulmón de manzana. Se entrega con cochera."
+          />
+        </Campo>
+        <Acciones error={errorUnidad}>
+          <Button type="submit" size="sm">
+            {editando ? "Guardar cambios" : "Agregar unidad"}
+          </Button>
+          <Button type="button" size="sm" variant="ghost" onClick={cerrarUnidad}>
+            Cancelar
+          </Button>
+          {editando && (
+            <Button type="button" size="sm" variant="outline" onClick={() => void eliminarUnidad()}>
+              Eliminar
+            </Button>
+          )}
+        </Acciones>
+      </form>
+    </div>
+  );
 
   if (faltante) {
     return (
@@ -329,7 +513,24 @@ export function EdificioDetalleClient() {
         />
       </div>
 
-      <Ficha titulo="Datos del edificio">
+      <SeccionEditable
+        titulo="Datos del edificio"
+        editando={editandoEdificio}
+        onEditar={() => setEditandoEdificio(true)}
+        onCancelar={cancelarEdificio}
+        etiquetaEditar="Editar datos del edificio"
+        resumen={
+          <Resumen
+            items={[
+              { etiqueta: "Nombre", valor: edificio.nombre },
+              { etiqueta: "Dirección", valor: edificio.direccion },
+              { etiqueta: "Estado", valor: etiqueta(ESTADOS_EDIFICIO, edificio.estado) },
+              { etiqueta: "En venta", valor: edificio.enVenta },
+              { etiqueta: "Notas para el agente", valor: edificio.notasAgente, ancho: true },
+            ]}
+          />
+        }
+      >
         <form onSubmit={guardarEdificio} className={grilla}>
           <Campo label="Nombre">
             <Input
@@ -373,14 +574,17 @@ export function EdificioDetalleClient() {
           </Campo>
           <Acciones error={errorEdificio}>
             <Button type="submit" size="sm">
-              Guardar edificio
+              Guardar cambios
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={cancelarEdificio}>
+              Cancelar
             </Button>
             <Button type="button" size="sm" variant="outline" onClick={() => void eliminarEdificio()}>
               Eliminar
             </Button>
           </Acciones>
         </form>
-      </Ficha>
+      </SeccionEditable>
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -398,13 +602,14 @@ export function EdificioDetalleClient() {
               Descargar CSV
             </a>
           )}
+          <Button size="sm" variant="outline" onClick={() => abrirUnidad(null)}>
+            <Plus className="h-4 w-4" strokeWidth={1.8} />
+            Agregar unidad
+          </Button>
           <Button
             size="sm"
             variant={importando ? "secondary" : "outline"}
-            onClick={() => {
-              setImportando((v) => !v);
-              setImportado(null);
-            }}
+            onClick={() => setImportando((v) => !v)}
           >
             <Upload className="h-4 w-4" strokeWidth={1.8} />
             Importar CSV
@@ -419,14 +624,15 @@ export function EdificioDetalleClient() {
             moneda={moneda}
             onAplicado={({ creadas, modificadas }) => {
               setImportando(false);
-              setImportado(`Listo: ${creadas} unidades nuevas y ${modificadas} actualizadas.`);
+              avisar(`Cambios aplicados: ${creadas} unidades nuevas y ${modificadas} actualizadas`);
               void cargar();
             }}
             onCancelar={() => setImportando(false)}
           />
         </div>
       )}
-      {importado && <p className="mb-4 text-sm text-success-text">{importado}</p>}
+
+      {unidadAbierta === "nueva" && <div className="mb-5">{formularioUnidad}</div>}
 
       {unidades.length === 0 ? (
         <p className="mb-4 text-sm text-text-3">Este edificio todavía no tiene unidades.</p>
@@ -447,19 +653,20 @@ export function EdificioDetalleClient() {
                 <Th className="text-right">Baños</Th>
                 <Th className="text-right">Valor</Th>
                 <Th>Estado</Th>
+                <Th className="w-12">
+                  <span className="sr-only">Editar</span>
+                </Th>
               </tr>
             </thead>
             <tbody>
               {unidades.map((u) => (
+                <Fragment key={u.id}>
                 <tr
-                  key={u.id}
-                  className="cursor-pointer border-b last:border-0 hover:bg-accent/40"
-                  onClick={() => {
-                    setEditando(u.id);
-                    setUnidad(desdeUnidad(u));
-                    setErrorUnidad(null);
-                    fichaUnidad.current?.scrollIntoView({ block: "nearest" });
-                  }}
+                  className={
+                    unidadAbierta === u.id
+                      ? "border-b bg-accent/40"
+                      : "border-b last:border-0 hover:bg-accent/20"
+                  }
                 >
                   <Td className="font-medium">
                     {u.unidad}
@@ -486,163 +693,32 @@ export function EdificioDetalleClient() {
                   <Td>
                     <EstadoPill opciones={ESTADOS_UNIDAD} value={u.estado} />
                   </Td>
+                  <Td>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      aria-label={`Editar unidad ${u.unidad}`}
+                      title="Editar"
+                      onClick={() => (unidadAbierta === u.id ? cerrarUnidad() : abrirUnidad(u))}
+                    >
+                      <Pencil className="h-3.5 w-3.5" strokeWidth={1.8} />
+                    </Button>
+                  </Td>
                 </tr>
+                {unidadAbierta === u.id && (
+                  <tr className="border-b">
+                    <td colSpan={13} className="bg-subtle p-3">
+                      {formularioUnidad}
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </Tabla>
         </div>
       )}
 
-      <div ref={fichaUnidad}>
-      <Ficha titulo={editando ? `Editar ${unidad.unidad || "unidad"}` : "Nueva unidad"}>
-        <form onSubmit={guardarUnidad} className={grilla}>
-          <Campo label="Unidad">
-            <Input
-              value={unidad.unidad}
-              onChange={(e) => setUnidad({ ...unidad, unidad: e.target.value })}
-              required
-              maxLength={40}
-              placeholder="3B"
-            />
-          </Campo>
-          <Campo label="Piso">
-            <Input
-              value={unidad.piso}
-              onChange={(e) => setUnidad({ ...unidad, piso: e.target.value })}
-              inputMode="numeric"
-              placeholder="3"
-            />
-          </Campo>
-          <Campo label="Tipología">
-            <SelectNativo
-              value={unidad.tipologia}
-              onChange={(tipologia) => setUnidad({ ...unidad, tipologia })}
-            >
-              <option value="">Sin tipología</option>
-              {TIPOLOGIAS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </SelectNativo>
-          </Campo>
-          <Campo label="Orientación edificio">
-            <Input
-              value={unidad.orientacionEdificio}
-              onChange={(e) => setUnidad({ ...unidad, orientacionEdificio: e.target.value })}
-              placeholder="Frente, contrafrente"
-            />
-          </Campo>
-          <Campo label="Orientación GEO">
-            <Input
-              value={unidad.orientacionGeo}
-              onChange={(e) => setUnidad({ ...unidad, orientacionGeo: e.target.value })}
-              placeholder="Norte, noroeste"
-            />
-          </Campo>
-          <Campo label="Estado">
-            <SelectNativo value={unidad.estado} onChange={(estado) => setUnidad({ ...unidad, estado })}>
-              {ESTADOS_UNIDAD.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </SelectNativo>
-          </Campo>
-          <Campo label="Metros cubiertos">
-            <Input
-              value={unidad.metrosCubiertos}
-              onChange={(e) => setUnidad({ ...unidad, metrosCubiertos: e.target.value })}
-              inputMode="decimal"
-              placeholder="48,5"
-            />
-          </Campo>
-          <Campo label="Metros semidescubiertos">
-            <Input
-              value={unidad.metrosSemicubiertos}
-              onChange={(e) => setUnidad({ ...unidad, metrosSemicubiertos: e.target.value })}
-              inputMode="decimal"
-            />
-          </Campo>
-          <Campo label="Metros descubiertos">
-            <Input
-              value={unidad.metrosDescubiertos}
-              onChange={(e) => setUnidad({ ...unidad, metrosDescubiertos: e.target.value })}
-              inputMode="decimal"
-            />
-          </Campo>
-          <Campo label="Dormitorios">
-            <Input
-              value={unidad.dormitorios}
-              onChange={(e) => setUnidad({ ...unidad, dormitorios: e.target.value })}
-              inputMode="numeric"
-            />
-          </Campo>
-          <Campo label="Baños">
-            <Input
-              value={unidad.banos}
-              onChange={(e) => setUnidad({ ...unidad, banos: e.target.value })}
-              inputMode="numeric"
-            />
-          </Campo>
-          <Campo label="Toilette">
-            <Input
-              value={unidad.toilette}
-              onChange={(e) => setUnidad({ ...unidad, toilette: e.target.value })}
-              inputMode="numeric"
-            />
-          </Campo>
-          <Campo label="En suite">
-            <Input
-              value={unidad.enSuite}
-              onChange={(e) => setUnidad({ ...unidad, enSuite: e.target.value })}
-              inputMode="numeric"
-            />
-          </Campo>
-          <Campo label="Valor">
-            <Input
-              value={unidad.valor}
-              onChange={(e) => setUnidad({ ...unidad, valor: e.target.value })}
-              inputMode="decimal"
-              placeholder="125.000"
-            />
-          </Campo>
-          <Campo label="Notas para el agente" className="sm:col-span-2 lg:col-span-3">
-            <Textarea
-              rows={2}
-              value={unidad.notasAgente}
-              onChange={(e) => setUnidad({ ...unidad, notasAgente: e.target.value })}
-              maxLength={1000}
-              placeholder="Vista abierta al pulmón de manzana. Se entrega con cochera."
-            />
-          </Campo>
-          <Acciones error={errorUnidad}>
-            <Button type="submit" size="sm">
-              {editando ? "Guardar unidad" : "Agregar unidad"}
-            </Button>
-            {editando && (
-              <>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setEditando(null);
-                    setUnidad(unidadVacia);
-                    setErrorUnidad(null);
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => void eliminarUnidad()}>
-                  Eliminar
-                </Button>
-              </>
-            )}
-          </Acciones>
-        </form>
-      </Ficha>
-      </div>
     </Pagina>
   );
 }
