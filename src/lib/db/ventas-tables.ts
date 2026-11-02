@@ -73,6 +73,11 @@ export const departamento = pgTable(
       enum: ["1_ambiente", "2_ambientes", "3_ambientes", "4_ambientes", "triplex"],
     }),
     piso: integer("piso"),
+    /** 0031 — Ambientes de la unidad, como vienen en la lista de precios. */
+    dormitorios: integer("dormitorios"),
+    banos: integer("banos"),
+    toilette: integer("toilette"),
+    enSuite: integer("en_suite"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

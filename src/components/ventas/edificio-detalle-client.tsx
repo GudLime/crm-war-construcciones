@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Building2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Building2, Download, Upload } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { parseMoneyToCents } from "@/lib/money";
@@ -26,6 +26,7 @@ import {
   plata,
   useMoneda,
 } from "./ui";
+import { ImportarUnidades } from "./importar-unidades";
 
 type UnidadForm = {
   unidad: string;
@@ -38,6 +39,10 @@ type UnidadForm = {
   estado: string;
   tipologia: string;
   piso: string;
+  dormitorios: string;
+  banos: string;
+  toilette: string;
+  enSuite: string;
 };
 
 const unidadVacia: UnidadForm = {
@@ -51,6 +56,10 @@ const unidadVacia: UnidadForm = {
   estado: "disponible",
   tipologia: "",
   piso: "",
+  dormitorios: "",
+  banos: "",
+  toilette: "",
+  enSuite: "",
 };
 
 function metrosCampo(n: number | null): string {
@@ -72,7 +81,19 @@ function desdeUnidad(u: DepartamentoDto): UnidadForm {
     estado: u.estado,
     tipologia: u.tipologia ?? "",
     piso: u.piso == null ? "" : String(u.piso),
+    dormitorios: u.dormitorios == null ? "" : String(u.dormitorios),
+    banos: u.banos == null ? "" : String(u.banos),
+    toilette: u.toilette == null ? "" : String(u.toilette),
+    enSuite: u.enSuite == null ? "" : String(u.enSuite),
   };
+}
+
+/** Cantidad chica (dormitorios, baños…): vacío = sin dato, NaN = inválido. */
+function cantidadDe(s: string): number | null {
+  const t = s.trim();
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isInteger(n) && n >= 0 && n <= 50 ? n : Number.NaN;
 }
 
 export function EdificioDetalleClient() {
@@ -89,6 +110,8 @@ export function EdificioDetalleClient() {
   const [errorEdificio, setErrorEdificio] = useState<string | null>(null);
   const [errorUnidad, setErrorUnidad] = useState<string | null>(null);
   const [faltante, setFaltante] = useState(false);
+  const [importando, setImportando] = useState(false);
+  const [importado, setImportado] = useState<string | null>(null);
   const fichaUnidad = useRef<HTMLDivElement>(null);
 
   const cargar = useCallback(async () => {
@@ -154,7 +177,17 @@ export function EdificioDetalleClient() {
     const valorTexto = unidad.valor.trim();
     const valorCents = valorTexto ? parseMoneyToCents(valorTexto) : null;
     if (valorTexto && valorCents == null) return "El valor no se entiende";
+    const cantidades = {
+      dormitorios: cantidadDe(unidad.dormitorios),
+      banos: cantidadDe(unidad.banos),
+      toilette: cantidadDe(unidad.toilette),
+      enSuite: cantidadDe(unidad.enSuite),
+    };
+    if (Object.values(cantidades).some((n) => Number.isNaN(n))) {
+      return "Dormitorios, baños, toilette y en suite tienen que ser números enteros";
+    }
     return {
+      ...cantidades,
       unidad: unidad.unidad,
       orientacionEdificio: unidad.orientacionEdificio || null,
       orientacionGeo: unidad.orientacionGeo || null,
@@ -284,16 +317,57 @@ export function EdificioDetalleClient() {
         </form>
       </Ficha>
 
-      <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h3 className="text-sm font-semibold">Departamentos</h3>
-        <p className="text-xs text-text-3">Los metros totales se calculan. No se cargan a mano.</p>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold">Departamentos</h3>
+          <p className="text-xs text-text-3">Los metros totales se calculan. No se cargan a mano.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {unidades.length > 0 && (
+            <a
+              href={`/api/edificios/${id}/unidades-csv`}
+              download
+              className={buttonVariants({ size: "sm", variant: "outline" })}
+            >
+              <Download className="h-4 w-4" strokeWidth={1.8} />
+              Descargar CSV
+            </a>
+          )}
+          <Button
+            size="sm"
+            variant={importando ? "secondary" : "outline"}
+            onClick={() => {
+              setImportando((v) => !v);
+              setImportado(null);
+            }}
+          >
+            <Upload className="h-4 w-4" strokeWidth={1.8} />
+            Importar CSV
+          </Button>
+        </div>
       </div>
+
+      {importando && id && (
+        <div className="mb-5">
+          <ImportarUnidades
+            edificioId={id}
+            moneda={moneda}
+            onAplicado={({ creadas, modificadas }) => {
+              setImportando(false);
+              setImportado(`Listo: ${creadas} unidades nuevas y ${modificadas} actualizadas.`);
+              void cargar();
+            }}
+            onCancelar={() => setImportando(false)}
+          />
+        </div>
+      )}
+      {importado && <p className="mb-4 text-sm text-success-text">{importado}</p>}
 
       {unidades.length === 0 ? (
         <p className="mb-4 text-sm text-text-3">Este edificio todavía no tiene unidades.</p>
       ) : (
         <div className="mb-5">
-          <Tabla className="min-w-[1100px]">
+          <Tabla className="min-w-[1250px]">
             <thead className="border-b bg-secondary/40">
               <tr>
                 <Th>Unidad</Th>
@@ -304,6 +378,8 @@ export function EdificioDetalleClient() {
                 <Th className="text-right">Semicub.</Th>
                 <Th className="text-right">Desc.</Th>
                 <Th className="text-right">Totales</Th>
+                <Th className="text-right">Dorm.</Th>
+                <Th className="text-right">Baños</Th>
                 <Th className="text-right">Valor</Th>
                 <Th>Estado</Th>
               </tr>
@@ -331,6 +407,11 @@ export function EdificioDetalleClient() {
                   <Td className="text-right tabular-nums">{metrosTexto(u.metrosSemicubiertos)}</Td>
                   <Td className="text-right tabular-nums">{metrosTexto(u.metrosDescubiertos)}</Td>
                   <Td className="text-right font-medium tabular-nums">{metrosTexto(u.metrosTotales)}</Td>
+                  <Td className="text-right tabular-nums">{u.dormitorios ?? "—"}</Td>
+                  <Td className="text-right tabular-nums">
+                    {u.banos ?? "—"}
+                    {u.toilette ? <span className="ml-1 text-xs text-text-3">+T</span> : null}
+                  </Td>
                   <Td className="text-right tabular-nums">{plata(u.valorCents, u.moneda, moneda)}</Td>
                   <Td>
                     <EstadoPill opciones={ESTADOS_UNIDAD} value={u.estado} />
@@ -418,6 +499,34 @@ export function EdificioDetalleClient() {
               value={unidad.metrosDescubiertos}
               onChange={(e) => setUnidad({ ...unidad, metrosDescubiertos: e.target.value })}
               inputMode="decimal"
+            />
+          </Campo>
+          <Campo label="Dormitorios">
+            <Input
+              value={unidad.dormitorios}
+              onChange={(e) => setUnidad({ ...unidad, dormitorios: e.target.value })}
+              inputMode="numeric"
+            />
+          </Campo>
+          <Campo label="Baños">
+            <Input
+              value={unidad.banos}
+              onChange={(e) => setUnidad({ ...unidad, banos: e.target.value })}
+              inputMode="numeric"
+            />
+          </Campo>
+          <Campo label="Toilette">
+            <Input
+              value={unidad.toilette}
+              onChange={(e) => setUnidad({ ...unidad, toilette: e.target.value })}
+              inputMode="numeric"
+            />
+          </Campo>
+          <Campo label="En suite">
+            <Input
+              value={unidad.enSuite}
+              onChange={(e) => setUnidad({ ...unidad, enSuite: e.target.value })}
+              inputMode="numeric"
             />
           </Campo>
           <Campo label="Valor">

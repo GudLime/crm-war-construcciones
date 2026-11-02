@@ -24,6 +24,13 @@ import {
   type TipoTarea,
 } from "@/lib/ventas";
 import { reemplazarInteres } from "@/server/oportunidades-war";
+import {
+  compararUnidades,
+  generarCsvUnidades,
+  leerUnidadesCsv,
+  type Comparacion,
+  type ValoresUnidad,
+} from "@/lib/unidades-csv";
 
 /**
  * Ventas de la constructora. Las rutas solo autentican y traducen el body;
@@ -67,6 +74,9 @@ export const edificioSchema = z.object({
   enVenta: texto(400),
 });
 
+/** Dormitorios, baños…: un entero chico, o nada. */
+const cantidad = z.number().int().min(0).max(50).nullable().optional();
+
 export const departamentoSchema = z.object({
   unidad: z.string().trim().min(1, "La unidad es obligatoria").max(40),
   orientacionEdificio: texto(80),
@@ -79,6 +89,10 @@ export const departamentoSchema = z.object({
   estado: estadoUnidad.optional(),
   tipologia: tipologia.nullable().optional(),
   piso: z.number().int().min(-5).max(200).nullable().optional(),
+  dormitorios: cantidad,
+  banos: cantidad,
+  toilette: cantidad,
+  enSuite: cantidad,
 });
 
 export const oportunidadSchema = z.object({
@@ -133,6 +147,10 @@ export type DepartamentoDto = {
   estado: EstadoUnidad;
   tipologia: Tipologia | null;
   piso: number | null;
+  dormitorios: number | null;
+  banos: number | null;
+  toilette: number | null;
+  enSuite: number | null;
 };
 
 export type OportunidadDto = {
@@ -224,6 +242,10 @@ function aDepartamento(fila: typeof schema.departamento.$inferSelect): Departame
     estado: fila.estado,
     tipologia: fila.tipologia,
     piso: fila.piso,
+    dormitorios: fila.dormitorios,
+    banos: fila.banos,
+    toilette: fila.toilette,
+    enSuite: fila.enSuite,
   };
 }
 
@@ -241,6 +263,10 @@ function valoresDepartamento(datos: z.infer<typeof departamentoSchema>) {
     estado: datos.estado ?? "disponible",
     tipologia: datos.tipologia ?? null,
     piso: datos.piso ?? null,
+    dormitorios: datos.dormitorios ?? null,
+    banos: datos.banos ?? null,
+    toilette: datos.toilette ?? null,
+    enSuite: datos.enSuite ?? null,
   } as const;
 }
 
@@ -835,4 +861,98 @@ export async function borrarTarea(organizationId: string, id: string): Promise<v
 
 export function esEstadoTarea(v: string | null): v is EstadoTarea {
   return !!v && (VALORES_ESTADO_TAREA as readonly string[]).includes(v);
+}
+
+/* ============================================================
+ * Lista de precios en CSV (importar / exportar unidades)
+ * ============================================================ */
+
+export type ImportacionUnidades = Comparacion & {
+  /** Solo al aplicar: lo que se escribió. */
+  aplicado?: { creadas: number; modificadas: number };
+  moneda: string;
+};
+
+/** Pasa los valores leídos del CSV a columnas de la tabla. Solo lo que vino. */
+function columnasDesdeCsv(v: ValoresUnidad, moneda: string) {
+  const set: Partial<typeof schema.departamento.$inferInsert> = {};
+  if (v.piso !== undefined) set.piso = v.piso;
+  if (v.tipologia !== undefined) set.tipologia = v.tipologia;
+  if (v.metrosCubiertos !== undefined) set.metrosCubiertos = num(v.metrosCubiertos);
+  if (v.metrosSemicubiertos !== undefined) set.metrosSemicubiertos = num(v.metrosSemicubiertos);
+  if (v.metrosDescubiertos !== undefined) set.metrosDescubiertos = num(v.metrosDescubiertos);
+  if (v.valorCents !== undefined) {
+    set.valorCents = v.valorCents;
+    set.moneda = v.valorCents == null ? null : moneda;
+  }
+  if (v.estado !== undefined) set.estado = v.estado;
+  if (v.dormitorios !== undefined) set.dormitorios = v.dormitorios;
+  if (v.banos !== undefined) set.banos = v.banos;
+  if (v.toilette !== undefined) set.toilette = v.toilette;
+  if (v.enSuite !== undefined) set.enSuite = v.enSuite;
+  return set;
+}
+
+/**
+ * Lee la lista de precios y la compara con las unidades del edificio. Con
+ * `aplicar`, además crea las nuevas y actualiza las que cambiaron, todo en una
+ * transacción. El servidor recalcula siempre desde el CSV: nunca aplica una
+ * vista previa que mandó el navegador. Las filas con error se saltean; las
+ * unidades que no vienen en el archivo no se tocan.
+ */
+export async function importarUnidadesCsv(input: {
+  organizationId: string;
+  edificioId: string;
+  csv: string;
+  /** La moneda del negocio, si el archivo no dice USD. */
+  monedaNegocio: string;
+  aplicar: boolean;
+}): Promise<ImportacionUnidades> {
+  const { organizationId, edificioId } = input;
+  const { departamentos } = await obtenerEdificio(organizationId, edificioId);
+  const lectura = leerUnidadesCsv(input.csv);
+  const comparacion = compararUnidades(departamentos, lectura);
+  const moneda = lectura.monedaDetectada ?? input.monedaNegocio;
+  if (!input.aplicar) return { ...comparacion, moneda };
+
+  await getDb().transaction(async (tx) => {
+    if (comparacion.nuevas.length) {
+      await tx.insert(schema.departamento).values(
+        comparacion.nuevas.map((n) => ({
+          id: newId("departamento"),
+          organizationId,
+          edificioId,
+          unidad: n.unidad,
+          estado: "disponible" as const,
+          ...columnasDesdeCsv(n.valores, moneda),
+        }))
+      );
+    }
+    for (const m of comparacion.modificadas) {
+      await tx
+        .update(schema.departamento)
+        .set({ ...columnasDesdeCsv(m.valores, moneda), updatedAt: new Date() })
+        .where(
+          scoped(
+            schema.departamento.organizationId,
+            organizationId,
+            eq(schema.departamento.id, m.id)
+          )
+        );
+    }
+  });
+  return {
+    ...comparacion,
+    moneda,
+    aplicado: { creadas: comparacion.nuevas.length, modificadas: comparacion.modificadas.length },
+  };
+}
+
+/** La lista del edificio como CSV (mismas columnas que lee el importador). */
+export async function exportarUnidadesCsv(
+  organizationId: string,
+  edificioId: string
+): Promise<{ nombre: string; csv: string }> {
+  const { edificio, departamentos } = await obtenerEdificio(organizationId, edificioId);
+  return { nombre: edificio.nombre, csv: generarCsvUnidades(departamentos) };
 }
