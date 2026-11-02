@@ -217,6 +217,14 @@ export function EdificiosClient() {
                   <Link href={`/edificios/${e.id}`} className="font-medium hover:underline">
                     {e.nombre}
                   </Link>
+                  {e.memoriaAgente && (
+                    <span
+                      className="ml-2 rounded-full border border-brand bg-brand-soft px-2 py-0.5 text-[11px] text-brand-text"
+                      title="El agente conoce este edificio"
+                    >
+                      En memoria del agente
+                    </span>
+                  )}
                 </Td>
                 <Td className="text-text-2">{e.direccion || "—"}</Td>
                 <Td>

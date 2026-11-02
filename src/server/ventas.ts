@@ -31,6 +31,7 @@ import {
   type Comparacion,
   type ValoresUnidad,
 } from "@/lib/unidades-csv";
+import { renderMemoriaAgente } from "@/lib/memoria-agente";
 
 /**
  * Ventas de la constructora. Las rutas solo autentican y traducen el body;
@@ -72,6 +73,9 @@ export const edificioSchema = z.object({
   direccion: texto(400),
   estado: estadoEdificio.optional(),
   enVenta: texto(400),
+  /** 0032 — Si no viene, no se cambia. */
+  memoriaAgente: z.boolean().optional(),
+  notasAgente: texto(4000),
 });
 
 /** Dormitorios, baños…: un entero chico, o nada. */
@@ -93,6 +97,7 @@ export const departamentoSchema = z.object({
   banos: cantidad,
   toilette: cantidad,
   enSuite: cantidad,
+  notasAgente: texto(1000),
 });
 
 export const oportunidadSchema = z.object({
@@ -130,6 +135,8 @@ export type EdificioDto = {
   estado: EstadoEdificio;
   enVenta: string | null;
   departamentos: number;
+  memoriaAgente: boolean;
+  notasAgente: string | null;
 };
 
 export type DepartamentoDto = {
@@ -151,6 +158,7 @@ export type DepartamentoDto = {
   banos: number | null;
   toilette: number | null;
   enSuite: number | null;
+  notasAgente: string | null;
 };
 
 export type OportunidadDto = {
@@ -246,6 +254,7 @@ function aDepartamento(fila: typeof schema.departamento.$inferSelect): Departame
     banos: fila.banos,
     toilette: fila.toilette,
     enSuite: fila.enSuite,
+    notasAgente: fila.notasAgente,
   };
 }
 
@@ -267,6 +276,7 @@ function valoresDepartamento(datos: z.infer<typeof departamentoSchema>) {
     banos: datos.banos ?? null,
     toilette: datos.toilette ?? null,
     enSuite: datos.enSuite ?? null,
+    notasAgente: oNulo(datos.notasAgente),
   } as const;
 }
 
@@ -315,6 +325,8 @@ export async function listarEdificios(organizationId: string): Promise<EdificioD
     estado: f.estado,
     enVenta: f.enVenta,
     departamentos: porEdificio.get(f.id) ?? 0,
+    memoriaAgente: f.memoriaAgente,
+    notasAgente: f.notasAgente,
   }));
 }
 
@@ -348,6 +360,8 @@ export async function obtenerEdificio(
       estado: fila.estado,
       enVenta: fila.enVenta,
       departamentos: unidades.length,
+      memoriaAgente: fila.memoriaAgente,
+      notasAgente: fila.notasAgente,
     },
     departamentos: unidades.map(aDepartamento),
   };
@@ -366,6 +380,8 @@ export async function crearEdificio(
       direccion: oNulo(datos.direccion),
       estado: datos.estado ?? "en_construccion",
       enVenta: oNulo(datos.enVenta),
+      memoriaAgente: datos.memoriaAgente ?? false,
+      notasAgente: oNulo(datos.notasAgente),
     })
     .returning();
   return {
@@ -375,6 +391,8 @@ export async function crearEdificio(
     estado: fila!.estado,
     enVenta: fila!.enVenta,
     departamentos: 0,
+    memoriaAgente: fila!.memoriaAgente,
+    notasAgente: fila!.notasAgente,
   };
 }
 
@@ -390,6 +408,8 @@ export async function editarEdificio(
       direccion: oNulo(datos.direccion),
       estado: datos.estado ?? "en_construccion",
       enVenta: oNulo(datos.enVenta),
+      ...(datos.memoriaAgente !== undefined ? { memoriaAgente: datos.memoriaAgente } : {}),
+      ...(datos.notasAgente !== undefined ? { notasAgente: oNulo(datos.notasAgente) } : {}),
       updatedAt: new Date(),
     })
     .where(scoped(schema.edificio.organizationId, organizationId, eq(schema.edificio.id, id)))
@@ -955,4 +975,64 @@ export async function exportarUnidadesCsv(
 ): Promise<{ nombre: string; csv: string }> {
   const { edificio, departamentos } = await obtenerEdificio(organizationId, edificioId);
   return { nombre: edificio.nombre, csv: generarCsvUnidades(departamentos) };
+}
+
+/* ============================================================
+ * Memoria del agente (edificios con el interruptor prendido)
+ * ============================================================ */
+
+/**
+ * Los edificios con «Memoria del agente» prendido, en texto, para sumarlos al
+ * conocimiento del cerebro y del juez del Laboratorio. Nunca lanza: si la
+ * lectura falla, el agente sigue con el resto de su conocimiento.
+ */
+export async function memoriaDeEdificios(organizationId: string): Promise<string> {
+  try {
+    const db = getDb();
+    const edificios = await db
+      .select()
+      .from(schema.edificio)
+      .where(
+        scoped(
+          schema.edificio.organizationId,
+          organizationId,
+          eq(schema.edificio.memoriaAgente, true)
+        )
+      )
+      .orderBy(asc(schema.edificio.nombre));
+    if (edificios.length === 0) return "";
+    const unidades = await db
+      .select()
+      .from(schema.departamento)
+      .where(
+        scoped(
+          schema.departamento.organizationId,
+          organizationId,
+          inArray(
+            schema.departamento.edificioId,
+            edificios.map((e) => e.id)
+          )
+        )
+      )
+      .orderBy(asc(schema.departamento.piso), asc(schema.departamento.unidad));
+    const porEdificio = new Map<string, DepartamentoDto[]>();
+    for (const u of unidades) {
+      const lista = porEdificio.get(u.edificioId) ?? [];
+      lista.push(aDepartamento(u));
+      porEdificio.set(u.edificioId, lista);
+    }
+    return renderMemoriaAgente(
+      edificios.map((e) => ({
+        nombre: e.nombre,
+        direccion: e.direccion,
+        estado: e.estado,
+        enVenta: e.enVenta,
+        notasAgente: e.notasAgente,
+        unidades: porEdificio.get(e.id) ?? [],
+      }))
+    );
+  } catch (err) {
+    console.error("[memoria] no se pudieron leer los edificios", err);
+    return "";
+  }
 }

@@ -70,3 +70,14 @@ En War lo que avanza en el embudo es la **oportunidad**, no el contacto
   (`src/lib/instrucciones-war.ts`).
 - Código: `src/server/oportunidades-war.ts`, panel del chat en
   `src/components/ventas/oportunidad-panel.tsx`.
+
+## Memoria del agente (edificios)
+
+Cada edificio tiene un interruptor **Memoria del agente** y un campo **Notas
+para el agente** (las unidades también tienen notas). Los edificios prendidos
+se suman al conocimiento que el CRM le pasa al agente (`GET /api/bot/profile`
+→ `kb`) y al juez del Laboratorio: datos del edificio, notas y las unidades
+Disponible / Consultar con metros, ambientes y precio (reservadas y vendidas
+solo se cuentan). Nea guarda el perfil ~5 min, así que un cambio de precio
+llega en ese plazo. Código: `src/lib/memoria-agente.ts`,
+`memoriaDeEdificios` en `src/server/ventas.ts`.

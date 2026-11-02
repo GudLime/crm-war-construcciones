@@ -7,6 +7,8 @@ import { Building2, Download, Upload } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { parseMoneyToCents } from "@/lib/money";
 import { ESTADOS_EDIFICIO, ESTADOS_UNIDAD, TIPOLOGIAS, etiqueta, metrosTexto } from "@/lib/ventas";
 import type { DepartamentoDto, EdificioDto } from "@/server/ventas";
@@ -43,6 +45,7 @@ type UnidadForm = {
   banos: string;
   toilette: string;
   enSuite: string;
+  notasAgente: string;
 };
 
 const unidadVacia: UnidadForm = {
@@ -60,6 +63,7 @@ const unidadVacia: UnidadForm = {
   banos: "",
   toilette: "",
   enSuite: "",
+  notasAgente: "",
 };
 
 function metrosCampo(n: number | null): string {
@@ -85,6 +89,7 @@ function desdeUnidad(u: DepartamentoDto): UnidadForm {
     banos: u.banos == null ? "" : String(u.banos),
     toilette: u.toilette == null ? "" : String(u.toilette),
     enSuite: u.enSuite == null ? "" : String(u.enSuite),
+    notasAgente: u.notasAgente ?? "",
   };
 }
 
@@ -104,7 +109,14 @@ export function EdificioDetalleClient() {
 
   const [edificio, setEdificio] = useState<EdificioDto | null>(null);
   const [unidades, setUnidades] = useState<DepartamentoDto[]>([]);
-  const [datos, setDatos] = useState({ nombre: "", direccion: "", estado: "en_construccion", enVenta: "" });
+  const [datos, setDatos] = useState({
+    nombre: "",
+    direccion: "",
+    estado: "en_construccion",
+    enVenta: "",
+    notasAgente: "",
+  });
+  const [memoriaAgente, setMemoriaAgente] = useState(false);
   const [unidad, setUnidad] = useState<UnidadForm>(unidadVacia);
   const [editando, setEditando] = useState<string | null>(null);
   const [errorEdificio, setErrorEdificio] = useState<string | null>(null);
@@ -130,7 +142,9 @@ export function EdificioDetalleClient() {
       direccion: data.edificio.direccion ?? "",
       estado: data.edificio.estado,
       enVenta: data.edificio.enVenta ?? "",
+      notasAgente: data.edificio.notasAgente ?? "",
     });
+    setMemoriaAgente(data.edificio.memoriaAgente);
   }, [id]);
 
   useEffect(() => {
@@ -148,9 +162,34 @@ export function EdificioDetalleClient() {
         direccion: datos.direccion || null,
         estado: datos.estado,
         enVenta: datos.enVenta || null,
+        notasAgente: datos.notasAgente || null,
       }),
     }).catch(() => null);
     if (!res?.ok) {
+      setErrorEdificio(res ? await mensajeDe(res) : "No se pudo guardar");
+      return;
+    }
+    void cargar();
+  }
+
+  /** El interruptor guarda en el acto: no hace falta «Guardar edificio». */
+  async function cambiarMemoria(prendido: boolean) {
+    if (!edificio) return;
+    setMemoriaAgente(prendido);
+    setErrorEdificio(null);
+    const res = await fetch(`/api/edificios/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        nombre: edificio.nombre,
+        direccion: edificio.direccion,
+        estado: edificio.estado,
+        enVenta: edificio.enVenta,
+        memoriaAgente: prendido,
+      }),
+    }).catch(() => null);
+    if (!res?.ok) {
+      setMemoriaAgente(!prendido);
       setErrorEdificio(res ? await mensajeDe(res) : "No se pudo guardar");
       return;
     }
@@ -188,6 +227,7 @@ export function EdificioDetalleClient() {
     }
     return {
       ...cantidades,
+      notasAgente: unidad.notasAgente || null,
       unidad: unidad.unidad,
       orientacionEdificio: unidad.orientacionEdificio || null,
       orientacionGeo: unidad.orientacionGeo || null,
@@ -273,6 +313,22 @@ export function EdificioDetalleClient() {
       }
       detalle={edificio.direccion || "Sin dirección"}
     >
+      <div className="mb-4 flex items-start justify-between gap-4 rounded-lg border bg-card p-4">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">Memoria del agente</p>
+          <p className="mt-0.5 text-xs text-text-3">
+            {memoriaAgente
+              ? "El agente conoce este edificio: sus datos, las notas y las unidades disponibles con precio. Los cambios le llegan en unos minutos."
+              : "Apagado: el agente no sabe de este edificio. Prendelo para que pueda ofrecerlo."}
+          </p>
+        </div>
+        <Switch
+          checked={memoriaAgente}
+          label="Memoria del agente"
+          onCheckedChange={(v) => void cambiarMemoria(v)}
+        />
+      </div>
+
       <Ficha titulo="Datos del edificio">
         <form onSubmit={guardarEdificio} className={grilla}>
           <Campo label="Nombre">
@@ -304,6 +360,15 @@ export function EdificioDetalleClient() {
               value={datos.enVenta}
               onChange={(e) => setDatos({ ...datos, enVenta: e.target.value })}
               maxLength={400}
+            />
+          </Campo>
+          <Campo label="Notas para el agente" className="sm:col-span-2 lg:col-span-3">
+            <Textarea
+              rows={4}
+              value={datos.notasAgente}
+              onChange={(e) => setDatos({ ...datos, notasAgente: e.target.value })}
+              maxLength={4000}
+              placeholder="Visitas martes, jueves y sábados de 10 a 17. Entrega estimada: marzo 2027. Amenities: SUM y terraza. Lista de precios en PDF: https://…"
             />
           </Campo>
           <Acciones error={errorEdificio}>
@@ -399,6 +464,11 @@ export function EdificioDetalleClient() {
                   <Td className="font-medium">
                     {u.unidad}
                     {u.piso != null && <span className="ml-2 text-xs text-text-3">piso {u.piso}</span>}
+                    {u.notasAgente && (
+                      <span className="ml-2 text-xs text-text-3" title={u.notasAgente}>
+                        · nota
+                      </span>
+                    )}
                   </Td>
                   <Td>{etiqueta(TIPOLOGIAS, u.tipologia)}</Td>
                   <Td>{u.orientacionEdificio || "—"}</Td>
@@ -535,6 +605,15 @@ export function EdificioDetalleClient() {
               onChange={(e) => setUnidad({ ...unidad, valor: e.target.value })}
               inputMode="decimal"
               placeholder="125.000"
+            />
+          </Campo>
+          <Campo label="Notas para el agente" className="sm:col-span-2 lg:col-span-3">
+            <Textarea
+              rows={2}
+              value={unidad.notasAgente}
+              onChange={(e) => setUnidad({ ...unidad, notasAgente: e.target.value })}
+              maxLength={1000}
+              placeholder="Vista abierta al pulmón de manzana. Se entrega con cochera."
             />
           </Campo>
           <Acciones error={errorUnidad}>
