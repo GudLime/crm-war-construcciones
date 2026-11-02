@@ -5,6 +5,8 @@ import { requireBotKey, resolveInstanceOrg } from "@/server/bot/auth";
 import { serializeBotProfile, type BotLlm } from "@/server/bot/profile";
 import { resolveAiProvider } from "@/lib/ai/provider";
 import { conInstruccionesWar } from "@/lib/instrucciones-war";
+import { conMemoria } from "@/lib/memoria-agente";
+import { memoriaDeEdificios } from "@/server/ventas";
 
 export const dynamic = "force-dynamic";
 
@@ -49,5 +51,8 @@ export async function GET(req: Request) {
   // de las instrucciones del negocio: son contrato con el CRM, no estilo.
   const out = serializeBotProfile(profile, kb, llm);
   out.profile.instructions = conInstruccionesWar(out.profile.instructions);
+  // War — Los edificios con «Memoria del agente» prendido van con el
+  // conocimiento: datos, unidades disponibles y notas para el agente.
+  out.kb = conMemoria(out.kb, await memoriaDeEdificios(organizationId));
   return Response.json(out);
 }

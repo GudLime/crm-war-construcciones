@@ -225,6 +225,13 @@
       "when": 1793682000000,
       "tag": "0031_unidad_ambientes",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793714400000,
+      "tag": "0032_memoria_agente",
+      "breakpoints": true
     }
   ]
 }

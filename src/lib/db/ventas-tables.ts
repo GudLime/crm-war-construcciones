@@ -1,4 +1,5 @@
 import {
+  boolean,
   index,
   integer,
   numeric,
@@ -32,6 +33,10 @@ export const edificio = pgTable(
       .default("en_construccion"),
     /** Texto libre, como en Notion («unidades de 2 y 3 ambientes»). */
     enVenta: text("en_venta"),
+    /** 0032 — Si está prendido, el edificio y sus unidades van en la memoria del agente. */
+    memoriaAgente: boolean("memoria_agente").notNull().default(false),
+    /** 0032 — Lo que el agente tiene que saber de este edificio (visitas, entrega, amenities…). */
+    notasAgente: text("notas_agente"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -78,6 +83,8 @@ export const departamento = pgTable(
     banos: integer("banos"),
     toilette: integer("toilette"),
     enSuite: integer("en_suite"),
+    /** 0032 — Comentario de esta unidad para el agente. */
+    notasAgente: text("notas_agente"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
