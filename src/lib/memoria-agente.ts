@@ -90,6 +90,60 @@ function lineaUnidad(u: UnidadParaMemoria): string {
   return linea;
 }
 
+/**
+ * Rangos por tipología, calculados acá y no por el modelo: precio mínimo y
+ * máximo (y metros) entre las unidades ofrecibles con precio. El agente da
+ * primero el rango de la tipología; si tiene que recorrer la lista y hacer la
+ * cuenta, un modelo rápido mezcla filas parecidas (caso 6B/6C, nov 2026).
+ */
+export function rangosPorTipologia(unidades: readonly UnidadParaMemoria[]): string[] {
+  const grupos = new Map<string, UnidadParaMemoria[]>();
+  for (const u of unidades) {
+    const clave = u.tipologia ? etiqueta(TIPOLOGIAS, u.tipologia) : "Sin tipología";
+    const lista = grupos.get(clave) ?? [];
+    lista.push(u);
+    grupos.set(clave, lista);
+  }
+  const orden = TIPOLOGIAS.map((t) => t.label as string);
+  const claves = [...grupos.keys()].sort((a, b) => {
+    const ia = orden.indexOf(a);
+    const ib = orden.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+  return claves.map((clave) => {
+    const lista = grupos.get(clave)!;
+    const partes: string[] = [`- ${clave}: ${plural(lista.length, "disponible", "disponibles")}`];
+    const conPrecio = lista.filter((u) => u.valorCents != null);
+    if (conPrecio.length > 0) {
+      const monedas = [...new Set(conPrecio.map((u) => (u.moneda ?? "").trim()))];
+      const moneda = monedas.length === 1 ? monedas[0] : "";
+      const valores = conPrecio.map((u) => u.valorCents! / 100);
+      const min = Math.min(...valores);
+      const max = Math.max(...valores);
+      const precio = (n: number) => `${moneda} ${fmt(n)}`.trim();
+      partes.push(min === max ? `precio ${precio(min)}` : `de ${precio(min)} a ${precio(max)}`);
+    }
+    if (conPrecio.length < lista.length) {
+      partes.push(`${lista.length - conPrecio.length} con precio a consultar`);
+    }
+    const metros = lista
+      .map((u) =>
+        metrosTotales({
+          cubiertos: u.metrosCubiertos,
+          semicubiertos: u.metrosSemicubiertos,
+          descubiertos: u.metrosDescubiertos,
+        })
+      )
+      .filter((m): m is number => m != null);
+    if (metros.length > 0) {
+      const mMin = Math.min(...metros);
+      const mMax = Math.max(...metros);
+      partes.push(mMin === mMax ? `${fmt(mMin)} m² totales` : `de ${fmt(mMin)} a ${fmt(mMax)} m² totales`);
+    }
+    return partes.join(" · ");
+  });
+}
+
 /** Un edificio en texto. */
 export function renderEdificioParaMemoria(e: EdificioParaMemoria): string {
   const lineas: string[] = [`### Edificio ${e.nombre}`];
@@ -113,7 +167,9 @@ export function renderEdificioParaMemoria(e: EdificioParaMemoria): string {
   } else if (ofrecibles.length === 0) {
     lineas.push(`Unidades: no quedan disponibles (${resumen}).`);
   } else {
-    lineas.push(`Unidades disponibles (${resumen}):`);
+    lineas.push("Rangos por tipología (calculados por el CRM; para dar un rango, copialo de acá):");
+    lineas.push(...rangosPorTipologia(ofrecibles));
+    lineas.push(`Unidades disponibles (${resumen}). Cada línea es una unidad: precio y metros se copian de su propia línea, sin mezclar con otra:`);
     for (const u of ofrecibles) lineas.push(lineaUnidad(u));
   }
   return lineas.join("\n");
