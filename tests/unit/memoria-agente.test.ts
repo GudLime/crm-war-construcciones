@@ -116,3 +116,32 @@ describe("la memoria completa", () => {
     expect(conMemoria("(knowledge base vacío)", memoria)).toBe(memoria);
   });
 });
+
+describe("rangos por tipología", () => {
+  const mono = (over: Partial<UnidadParaMemoria>) =>
+    unidad({ tipologia: "1_ambiente", dormitorios: null, metrosSemicubiertos: null, ...over });
+  const texto = renderEdificioParaMemoria(
+    edificio({
+      unidades: [
+        mono({ unidad: "2A", piso: 2, metrosCubiertos: 33, metrosSemicubiertos: 4, valorCents: 13_200_000 }),
+        mono({ unidad: "5A", piso: 5, metrosCubiertos: 33, metrosSemicubiertos: 4, valorCents: 14_200_000 }),
+        mono({ unidad: "6B", piso: 6, metrosCubiertos: 28, valorCents: 10_600_000, estado: "vendido" }),
+        mono({ unidad: "6C", piso: 6, metrosCubiertos: 28, valorCents: 10_500_000 }),
+        unidad({ unidad: "3A", piso: 3 }),
+      ],
+    })
+  );
+
+  it("da mínimo y máximo de cada tipología, solo con lo que se puede ofrecer", () => {
+    expect(texto).toContain("Rangos por tipología");
+    expect(texto).toContain("- 1 ambiente: 3 disponibles · de USD 105.000 a USD 142.000 · de 28 a 37 m² totales");
+    expect(texto).toContain("- 2 ambientes: 1 disponible · precio USD 150.000 · 55 m² totales");
+    // La vendida no entra ni en el rango ni en la lista.
+    expect(texto).not.toContain("106.000");
+    expect(texto).not.toContain("Unidad 6B");
+  });
+
+  it("el rango va antes del listado de unidades", () => {
+    expect(texto.indexOf("Rangos por tipología")).toBeLessThan(texto.indexOf("Unidad 2A"));
+  });
+});
