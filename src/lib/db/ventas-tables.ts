@@ -218,3 +218,21 @@ export const oportunidadTipologia = pgTable(
   },
   (t) => [primaryKey({ columns: [t.oportunidadId, t.tipologia] })]
 );
+
+/**
+ * War — Versiones anteriores de las instrucciones del agente. Se guarda la
+ * anterior cada vez que cambian (las últimas 20), para poder volver atrás si
+ * un .md nuevo hace que el agente responda peor.
+ */
+export const agentInstruccionesVersion = pgTable(
+  "agent_instrucciones_version",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    instructions: text("instructions").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("agent_instrucciones_version_org_idx").on(t.organizationId, t.createdAt)]
+);

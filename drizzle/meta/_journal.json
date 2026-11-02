@@ -232,6 +232,13 @@
       "when": 1793714400000,
       "tag": "0032_memoria_agente",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793725200000,
+      "tag": "0033_instrucciones_version",
+      "breakpoints": true
     }
   ]
 }
