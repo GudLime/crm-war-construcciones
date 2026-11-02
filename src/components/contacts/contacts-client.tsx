@@ -15,6 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { emailOpcionalValido } from "@/lib/email";
+import { TIPOS_CONTACTO, etiqueta, type TipoContacto } from "@/lib/ventas";
 import type { ContactDto } from "@/lib/types";
 import { formatPhone } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
@@ -202,6 +203,12 @@ export function ContactsClient() {
                     {/* Solo la fuente que alguien capturó: presentar una
                         deducción como dato la volvería un número inventado en
                         cuanto se cuente por fuente. */}
+                    {/* 068 */}
+                    {c.tipoContacto && (
+                      <Badge variant={c.tipoContacto === "lead" ? "default" : "secondary"}>
+                        {etiqueta(TIPOS_CONTACTO, c.tipoContacto)}
+                      </Badge>
+                    )}
                     {c.source?.source === "capturada" && (
                       <Badge variant="secondary">
                         {SOURCE_LABELS[c.source.value]}
@@ -333,11 +340,15 @@ function EditDialog({
     name: string;
     notes: string;
     email?: string | null;
+    tipoContacto?: TipoContacto | null;
     aiPaused?: boolean;
   }) => Promise<void>;
 }) {
   const [name, setName] = useState(contact.name);
   const [email, setEmail] = useState(contact.email ?? "");
+  const [tipoContacto, setTipoContacto] = useState<TipoContacto | "">(
+    contact.tipoContacto ?? ""
+  );
   const [notes, setNotes] = useState(contact.notes ?? "");
   const emailValido = emailOpcionalValido(email);
   const [aiPaused, setAiPaused] = useState(contact.aiPaused ?? false);
@@ -362,6 +373,24 @@ function EditDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" htmlFor="edit-tipo">
+              Tipo de contacto
+            </label>
+            <select
+              id="edit-tipo"
+              value={tipoContacto}
+              onChange={(e) => setTipoContacto(e.target.value as TipoContacto | "")}
+              className="h-9 w-full rounded-md border border-input bg-card px-2 text-sm"
+            >
+              <option value="">Sin clasificar</option>
+              {TIPOS_CONTACTO.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="edit-email">
@@ -421,6 +450,9 @@ function EditDialog({
                 name: name.trim(),
                 notes,
                 // Solo si cambió; vacío lo borra.
+                ...(tipoContacto !== (contact.tipoContacto ?? "")
+                  ? { tipoContacto: tipoContacto || null }
+                  : {}),
                 ...(email.trim() !== (contact.email ?? "")
                   ? { email: email.trim() || null }
                   : {}),

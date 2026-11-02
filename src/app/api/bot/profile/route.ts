@@ -4,6 +4,7 @@ import { apiError } from "@/lib/api";
 import { requireBotKey, resolveInstanceOrg } from "@/server/bot/auth";
 import { serializeBotProfile, type BotLlm } from "@/server/bot/profile";
 import { resolveAiProvider } from "@/lib/ai/provider";
+import { conInstruccionesWar } from "@/lib/instrucciones-war";
 
 export const dynamic = "force-dynamic";
 
@@ -44,5 +45,9 @@ export async function GET(req: Request) {
   const ia = await resolveAiProvider(organizationId);
   const llm: BotLlm = ia.ok && ia.provider.model ? { path: "/api/bot/llm", model: ia.provider.model } : null;
 
-  return Response.json(serializeBotProfile(profile, kb, llm));
+  // 068 (War) — Las reglas de clasificación y oportunidad van siempre, después
+  // de las instrucciones del negocio: son contrato con el CRM, no estilo.
+  const out = serializeBotProfile(profile, kb, llm);
+  out.profile.instructions = conInstruccionesWar(out.profile.instructions);
+  return Response.json(out);
 }

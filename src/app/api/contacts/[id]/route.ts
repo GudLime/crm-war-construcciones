@@ -1,5 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { VALORES_TIPO_CONTACTO, type TipoContacto } from "@/lib/ventas";
+import { clasificarContacto } from "@/server/oportunidades-war";
 import { apiError, parseBody, withAuth } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
@@ -51,6 +53,11 @@ export const GET = withAuth(async (session, _req: Request, ctx: Params) => {
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   notes: z.string().max(4000).nullable().optional(),
+  /** 068 — Tipo de contacto (lo decide una persona); `null` = sin clasificar. */
+  tipoContacto: z
+    .enum(VALORES_TIPO_CONTACTO as [TipoContacto, ...TipoContacto[]])
+    .nullable()
+    .optional(),
   /** War: correo opcional; `null` lo borra. */
   email: z.string().trim().max(254).email("Correo no válido").nullable().optional(),
   /** 027 — El agente no le responde a esta persona; se lleva a su conversación. */
@@ -110,6 +117,21 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
     )
     .returning();
   if (!updated[0]) return apiError(404, "not_found", "Contacto no encontrado");
+  // 068 — Clasificar abre la oportunidad o apaga el agente: va por su puerta.
+  if (body.data.tipoContacto !== undefined) {
+    await clasificarContacto({
+      organizationId: session.organizationId,
+      contactId: id,
+      tipo: body.data.tipoContacto,
+      fuente: "persona",
+    });
+    const [fresco] = await getDb()
+      .select()
+      .from(schema.contact)
+      .where(eq(schema.contact.id, id))
+      .limit(1);
+    if (fresco) updated[0] = fresco;
+  }
   // 027: la pausa se lleva a la conversación que ya exista; sin esto no
   // tendría efecto hasta que naciera otra.
   if (body.data.aiPaused !== undefined) {

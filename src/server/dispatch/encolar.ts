@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
+import { tipoExcluyeDeVenta } from "@/lib/ventas";
 import { encolarDespacho } from "@/server/dispatch/outbox";
 import { iniciarWorker, programarTanda } from "@/server/dispatch/worker";
 
@@ -27,6 +28,7 @@ export async function despacharAlCerebro(
         aiEnabled: schema.conversation.aiEnabled,
         handoffAt: schema.conversation.handoffAt,
         isTest: schema.conversation.isTest,
+        contactId: schema.conversation.contactId,
       })
       .from(schema.conversation)
       .where(
@@ -51,6 +53,21 @@ export async function despacharAlCerebro(
       .where(eq(schema.agentProfile.organizationId, organizationId))
       .limit(1);
     if (!perfil?.enabled) return;
+
+    // 068 (War) — Comprador, inmobiliaria, proveedor y propio no van a la IA.
+    // Cuando los clasifica la propia IA, el turno en curso termina (se
+    // despide y deriva) y el corte llega aquí, en el mensaje siguiente.
+    const [contacto] = await getDb()
+      .select({ tipoContacto: schema.contact.tipoContacto })
+      .from(schema.contact)
+      .where(
+        and(
+          eq(schema.contact.organizationId, organizationId),
+          eq(schema.contact.id, conv.contactId)
+        )
+      )
+      .limit(1);
+    if (tipoExcluyeDeVenta(contacto?.tipoContacto)) return;
 
     // 025 — El despacho anota qué entrante lo provoca: es lo que le debe al
     // cerebro, aunque después la conversación tenga una respuesta.

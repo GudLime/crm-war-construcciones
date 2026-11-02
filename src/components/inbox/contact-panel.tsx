@@ -5,7 +5,6 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Cable,
-  Check,
   ChevronRight,
   Inbox,
   Power,
@@ -23,7 +22,6 @@ import type {
   ConversationDto,
   FichaDto,
   FichaValue,
-  StageDto,
 } from "@/lib/types";
 import { cn, formatPhone } from "@/lib/utils";
 import { AnuncioOrigen } from "@/components/anuncio-origen";
@@ -32,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { FichaPanel } from "@/components/ficha-panel";
+import { OportunidadPanel } from "@/components/ventas/oportunidad-panel";
 import { DeleteConversationDialog } from "./delete-conversation-dialog";
 
 
@@ -60,9 +59,6 @@ export function ContactPanel({
   const [ficha, setFicha] = useState<FichaDto>({});
   const [notesLoaded, setNotesLoaded] = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
-  const [stages, setStages] = useState<StageDto[]>([]);
-  const [currentStageId, setCurrentStageId] = useState<string | null>(null);
-  const [leadId, setLeadId] = useState<string | null>(null);
   // 018: de qué anuncio llegó; null si escribió por su cuenta.
   const [anuncio, setAnuncio] = useState<AnuncioDto | null>(null);
   // Quién responde: el agente conectado (036: el CRM no trae uno), conectado
@@ -92,19 +88,16 @@ export function ContactPanel({
   // Carga inicial (incluye notas): se re-ejecuta al cambiar de contacto.
   const refetch = useCallback(async () => {
     void loadBrain();
-    const [detail, stagesRes] = await Promise.all([
-      fetch(`/api/contacts/${contactId}`).then((r) => (r.ok ? r.json() : null)),
-      fetch("/api/pipeline/stages").then((r) => (r.ok ? r.json() : null)),
-    ]).catch(() => [null, null]);
+    // 068 — La etapa ya no es del lead: la oportunidad la carga su propio panel.
+    const detail = await fetch(`/api/contacts/${contactId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null);
     if (detail) {
       setNotes(detail.contact?.notes ?? "");
       setEmail(detail.contact?.email ?? null);
       setFicha(detail.contact?.ficha ?? {});
-      setCurrentStageId(detail.stage?.id ?? null);
-      setLeadId(detail.lead?.id ?? null);
       setAnuncio(detail.anuncio ?? null);
     }
-    if (stagesRes) setStages(stagesRes.stages);
     setNotesLoaded(true);
   }, [contactId, loadBrain]);
 
@@ -120,8 +113,6 @@ export function ContactPanel({
       // conversación ocurre, y verla aparecer sola es justo para lo que sirve.
       // No pisa una edición a medias — el borrador vive dentro del panel.
       setFicha(detail.contact?.ficha ?? {});
-      setCurrentStageId(detail.stage?.id ?? null);
-      setLeadId(detail.lead?.id ?? null);
       // La imagen del creativo se copia después de que entra el mensaje: este
       // refetch en vivo es lo que la hace aparecer sin recargar.
       setAnuncio(detail.anuncio ?? null);
@@ -139,17 +130,6 @@ export function ContactPanel({
     if (!notesLoaded) return; // la carga inicial ya trae el estado fresco
     void refreshLive();
   }, [refreshKey, notesLoaded, refreshLive]);
-
-  async function moveToStage(stageId: string) {
-    if (!leadId || stageId === currentStageId) return;
-    setCurrentStageId(stageId); // optimista
-    await fetch(`/api/pipeline/leads/${leadId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ stageId, position: 0 }),
-    }).catch(() => null);
-    void refreshLive();
-  }
 
   /** Manda SOLO lo que cambió: el servidor hace merge (ver `server/bot/ficha`). */
   async function saveFicha(patch: Record<string, FichaValue | null>) {
@@ -179,7 +159,6 @@ export function ContactPanel({
     setSavingNotes(false);
   }
 
-  const currentIndex = stages.findIndex((s) => s.id === currentStageId);
 
   return (
     <div className="flex h-full flex-col">
@@ -330,51 +309,9 @@ export function ContactPanel({
           )}
         </section>
 
-        {/* Stepper de etapa */}
-        {stages.length > 0 && leadId && (
-          <section className="border-b p-4">
-            <p className="kicker mb-3">Etapa del pipeline</p>
-            <ol>
-              {stages.map((s, i) => {
-                const done = currentIndex >= 0 && i < currentIndex;
-                const current = s.id === currentStageId;
-                return (
-                  <li key={s.id} className="relative flex gap-3 pb-4 last:pb-0">
-                    {i < stages.length - 1 && (
-                      <span
-                        className={cn(
-                          "absolute left-[7px] top-4 h-full w-px",
-                          done ? "bg-brand" : "bg-border-strong"
-                        )}
-                      />
-                    )}
-                    <button
-                      onClick={() => void moveToStage(s.id)}
-                      aria-label={`Mover a ${s.name}`}
-                      className={cn(
-                        "relative z-10 mt-0.5 flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full transition-colors",
-                        done && "bg-brand text-brand-fg",
-                        current && "bg-brand ring-4 ring-brand-soft",
-                        !done && !current && "border border-border-strong bg-background hover:border-brand"
-                      )}
-                    >
-                      {done && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
-                    </button>
-                    <button
-                      onClick={() => void moveToStage(s.id)}
-                      className={cn(
-                        "text-left text-[13px]",
-                        current ? "font-[650] text-brand-text" : "text-text-2 hover:text-foreground"
-                      )}
-                    >
-                      {s.name}
-                    </button>
-                  </li>
-                );
-              })}
-            </ol>
-          </section>
-        )}
+        {/* 068 — En War avanza la OPORTUNIDAD, no el contacto: tipo de
+            contacto + oportunidad abierta reemplazan el stepper del pipeline. */}
+        <OportunidadPanel contactId={contactId} refreshKey={refreshKey} />
 
         {/* Ficha: lo que se SABE del lead. Va antes de Notas —lo que alguien
             OPINA— porque es lo que se consulta a mitad de una conversación. */}

@@ -10,8 +10,11 @@ import {
   ESTADOS_OPORTUNIDAD,
   MOTIVOS_CIERRE,
   ORIGENES_OPORTUNIDAD,
+  TIPOLOGIAS,
   TIPOS_OPORTUNIDAD,
+  etiqueta,
 } from "@/lib/ventas";
+import { Chips } from "./oportunidad-panel";
 import type { DepartamentoDto, EdificioDto, OportunidadDto } from "@/server/ventas";
 import {
   Acciones,
@@ -35,7 +38,9 @@ type Formulario = {
   nombre: string;
   origen: string;
   contactId: string;
-  edificioId: string;
+  /** 068 — Varios edificios y tipologías de interés. */
+  edificioIds: string[];
+  tipologias: string[];
   departamentoId: string;
   estado: string;
   tipo: string;
@@ -47,7 +52,8 @@ const vacio: Formulario = {
   nombre: "",
   origen: "",
   contactId: "",
-  edificioId: "",
+  edificioIds: [],
+  tipologias: [],
   departamentoId: "",
   estado: "recibido",
   tipo: "venta",
@@ -60,7 +66,12 @@ function desde(o: OportunidadDto): Formulario {
     nombre: o.nombre,
     origen: o.origen ?? "",
     contactId: o.contactId ?? "",
-    edificioId: o.edificioId ?? "",
+    edificioIds: o.edificios.length
+      ? o.edificios.map((e) => e.id)
+      : o.edificioId
+        ? [o.edificioId]
+        : [],
+    tipologias: o.tipologias,
     departamentoId: o.departamentoId ?? "",
     estado: o.estado,
     tipo: o.tipo ?? "",
@@ -73,8 +84,15 @@ function desde(o: OportunidadDto): Formulario {
 }
 
 function interes(o: OportunidadDto): string {
-  if (o.edificioNombre && o.unidad) return `${o.edificioNombre} · ${o.unidad}`;
-  return o.edificioNombre || "—";
+  const edificios = o.edificios.length
+    ? o.edificios.map((e) => e.nombre).join(", ")
+    : o.edificioNombre ?? "";
+  const partes = [
+    edificios,
+    o.unidad ? `U. ${o.unidad}` : "",
+    o.tipologias.map((t) => etiqueta(TIPOLOGIAS, t)).join(", "),
+  ].filter(Boolean);
+  return partes.length ? partes.join(" · ") : "—";
 }
 
 export function OportunidadesClient() {
@@ -82,7 +100,7 @@ export function OportunidadesClient() {
   const [filas, setFilas] = useState<OportunidadDto[]>([]);
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [edificios, setEdificios] = useState<EdificioDto[]>([]);
-  const [unidades, setUnidades] = useState<DepartamentoDto[]>([]);
+  const [unidades, setUnidades] = useState<(DepartamentoDto & { edificioNombre: string })[]>([]);
   const [abierto, setAbierto] = useState(false);
   const [editando, setEditando] = useState<string | null>(null);
   const [form, setForm] = useState<Formulario>(vacio);
@@ -115,18 +133,34 @@ export function OportunidadesClient() {
     })();
   }, [cargar]);
 
+  // 068 — Las unidades de todos los edificios elegidos, para fijar una.
+  const edificiosClave = form.edificioIds.join(",");
   useEffect(() => {
-    if (!form.edificioId) {
+    const ids = edificiosClave ? edificiosClave.split(",") : [];
+    if (ids.length === 0) {
       setUnidades([]);
       return;
     }
+    let vigente = true;
     void (async () => {
-      const res = await fetch(`/api/edificios/${form.edificioId}`).catch(() => null);
-      if (!res?.ok) return;
-      const data = (await res.json()) as { departamentos: DepartamentoDto[] };
-      setUnidades(data.departamentos);
+      const respuestas = await Promise.all(
+        ids.map(async (id) => {
+          const res = await fetch(`/api/edificios/${id}`).catch(() => null);
+          if (!res?.ok) return [];
+          const data = (await res.json()) as {
+            edificio?: { nombre?: string };
+            departamentos: DepartamentoDto[];
+          };
+          const nombre = data.edificio?.nombre ?? "";
+          return data.departamentos.map((d) => ({ ...d, edificioNombre: nombre }));
+        })
+      );
+      if (vigente) setUnidades(respuestas.flat());
     })();
-  }, [form.edificioId]);
+    return () => {
+      vigente = false;
+    };
+  }, [edificiosClave]);
 
   function abrirNueva() {
     setEditando(null);
@@ -158,7 +192,8 @@ export function OportunidadesClient() {
         nombre: form.nombre,
         origen: form.origen || null,
         contactId: form.contactId || null,
-        edificioId: form.edificioId || null,
+        edificioIds: form.edificioIds,
+        tipologias: form.tipologias,
         departamentoId: form.departamentoId || null,
         estado: form.estado,
         tipo: form.tipo || null,
@@ -250,28 +285,38 @@ export function OportunidadesClient() {
                 {form.contactId && !contacto && <option value={form.contactId}>Contacto</option>}
               </SelectNativo>
             </Campo>
-            <Campo label="Interés · edificio">
-              <SelectNativo
-                value={form.edificioId}
-                onChange={(edificioId) => setForm({ ...form, edificioId, departamentoId: "" })}
-              >
-                <option value="">Sin edificio</option>
-                {edificios.map((ed) => (
-                  <option key={ed.id} value={ed.id}>
-                    {ed.nombre}
-                  </option>
-                ))}
-              </SelectNativo>
-            </Campo>
-            <Campo label="Interés · departamento">
+            <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2 lg:col-span-3">
+              <span className="text-xs font-medium text-text-2">Interés · edificios</span>
+              <Chips
+                opciones={edificios.map((ed) => ({ value: ed.id, label: ed.nombre }))}
+                elegidos={form.edificioIds}
+                vacio="Todavía no hay edificios cargados."
+                onCambio={(edificioIds) => {
+                  const unidad = unidades.find((u) => u.id === form.departamentoId);
+                  const sigue = unidad && edificioIds.includes(unidad.edificioId);
+                  setForm({ ...form, edificioIds, departamentoId: sigue ? form.departamentoId : "" });
+                }}
+              />
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2 lg:col-span-3">
+              <span className="text-xs font-medium text-text-2">Interés · tipologías</span>
+              <Chips
+                opciones={TIPOLOGIAS.map((t) => ({ value: t.value, label: t.label }))}
+                elegidos={form.tipologias}
+                onCambio={(tipologias) => setForm({ ...form, tipologias })}
+              />
+            </div>
+            <Campo label="Departamento puntual">
               <SelectNativo
                 value={form.departamentoId}
                 onChange={(departamentoId) => setForm({ ...form, departamentoId })}
               >
-                <option value="">{form.edificioId ? "El edificio, sin unidad" : "Elegí un edificio"}</option>
+                <option value="">
+                  {form.edificioIds.length ? "Todavía sin unidad" : "Elegí un edificio"}
+                </option>
                 {unidades.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.unidad}
+                    {form.edificioIds.length > 1 ? `${u.edificioNombre} · ${u.unidad}` : u.unidad}
                   </option>
                 ))}
               </SelectNativo>

@@ -1,5 +1,7 @@
 import { desc, eq, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
+import { VALORES_TIPO_CONTACTO, type TipoContacto } from "@/lib/ventas";
+import { clasificarContacto } from "@/server/oportunidades-war";
 import { apiError, parseBody, withAuth } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
@@ -115,6 +117,8 @@ const createSchema = z.object({
     .string()
     .trim()
     .regex(/^\d{7,15}$/, "Teléfono en dígitos, con código de país (ej. 5215512345678)"),
+  /** 068 — Tipo de contacto elegido al darlo de alta; sin él queda sin clasificar. */
+  tipoContacto: z.enum(VALORES_TIPO_CONTACTO as [TipoContacto, ...TipoContacto[]]).optional(),
   /** War: correo opcional. Informativo; la identidad sigue siendo el teléfono. */
   email: z.string().trim().max(254).email("Correo no válido").optional(),
   notes: z.string().max(4000).optional(),
@@ -176,8 +180,25 @@ export const POST = withAuth(async (session, req: Request) => {
     );
   }
 
+  // 068 — Clasificarlo abre su oportunidad (si es Lead) o le apaga el agente.
+  let creado = inserted[0];
+  if (body.data.tipoContacto) {
+    await clasificarContacto({
+      organizationId: session.organizationId,
+      contactId: creado.id,
+      tipo: body.data.tipoContacto,
+      fuente: "persona",
+    });
+    const [fresco] = await db
+      .select()
+      .from(schema.contact)
+      .where(eq(schema.contact.id, creado.id))
+      .limit(1);
+    if (fresco) creado = fresco;
+  }
+
   return Response.json(
-    { contact: serializeContact(inserted[0]), lead: { id: lead.id } },
+    { contact: serializeContact(creado), lead: { id: lead.id } },
     { status: 201 }
   );
 });

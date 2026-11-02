@@ -171,3 +171,167 @@ export function metrosTexto(n: number | null): string {
   if (n == null) return "—";
   return `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 }).format(n)} m²`;
 }
+
+/* ============================================================
+ * 068 — Tipo de contacto y reglas de la oportunidad abierta
+ * ============================================================ */
+
+export const TIPOS_CONTACTO = [
+  { value: "lead", label: "Lead" },
+  { value: "comprador", label: "Comprador" },
+  { value: "inmobiliaria", label: "Inmobiliaria" },
+  { value: "proveedor", label: "Proveedor" },
+  { value: "propio", label: "Propio de WAR" },
+] as const;
+
+export type TipoContacto = (typeof TIPOS_CONTACTO)[number]["value"];
+export const VALORES_TIPO_CONTACTO = valores(TIPOS_CONTACTO) as TipoContacto[];
+
+/** Solo un lead entra a la venta (oportunidades) y lo atiende la IA. */
+export function tipoExcluyeDeVenta(tipo: TipoContacto | null | undefined): boolean {
+  return tipo != null && tipo !== "lead";
+}
+
+/** Lo que la IA puede clasificar sola. `propio` es siempre manual. */
+export const TIPOS_QUE_CLASIFICA_LA_IA: readonly TipoContacto[] = [
+  "lead",
+  "comprador",
+  "inmobiliaria",
+  "proveedor",
+];
+
+/** Abiertas = la oportunidad sigue viva. Solo puede haber una por contacto. */
+export const ESTADOS_ABIERTOS: readonly EstadoOportunidad[] = [
+  "recibido",
+  "no_responde",
+  "en_charlas",
+  "conoce_informacion",
+  "visito",
+  "reservo",
+];
+
+export function estaAbierta(estado: EstadoOportunidad): boolean {
+  return ESTADOS_ABIERTOS.includes(estado);
+}
+
+/** El camino principal, en orden: lo que muestra el panel como pasos. */
+export const CAMINO_OPORTUNIDAD: readonly EstadoOportunidad[] = [
+  "recibido",
+  "en_charlas",
+  "conoce_informacion",
+  "visito",
+  "reservo",
+  "compro",
+];
+
+/** Hasta dónde llega la IA sola, en orden. Lo demás lo marca una persona. */
+export const ESTADOS_DE_LA_IA: readonly EstadoOportunidad[] = [
+  "recibido",
+  "en_charlas",
+  "conoce_informacion",
+];
+
+/**
+ * A qué etapas puede mover la IA una oportunidad que está en `actual`: solo
+ * hacia adelante y dentro de las suyas. Desde una etapa que no es de la IA
+ * (Visitó, No responde…) no mueve nada: ahí manda una persona.
+ */
+export function siguientesParaLaIA(actual: EstadoOportunidad): EstadoOportunidad[] {
+  const i = ESTADOS_DE_LA_IA.indexOf(actual);
+  if (i < 0) return [];
+  return ESTADOS_DE_LA_IA.slice(i + 1);
+}
+
+function sinAcentos(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+/** El valor de un estado a partir de lo que mande el cerebro: clave o etiqueta. */
+export function resolverEstadoOportunidad(pedido: string): EstadoOportunidad | null {
+  const p = sinAcentos(pedido).replace(/\s+/g, "_");
+  const hit = ESTADOS_OPORTUNIDAD.find(
+    (e) => e.value === p || sinAcentos(e.label).replace(/\s+/g, "_") === p
+  );
+  return hit?.value ?? null;
+}
+
+/**
+ * Tipo de contacto a partir de lo que escribe la IA en la ficha. Tolera
+ * mayúsculas, acentos, plurales y sinónimos comunes; lo que no reconoce es
+ * `null` (no clasifica: mejor sin clasificar que mal clasificado).
+ */
+export function normalizarTipoContacto(raw: unknown): TipoContacto | null {
+  if (typeof raw !== "string") return null;
+  const v = sinAcentos(raw).replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
+  if (!v) return null;
+  const sinonimos: [RegExp, TipoContacto][] = [
+    [/^(lead|prospecto|interesado|cliente potencial|potencial)s?$/, "lead"],
+    [/^(comprador|ya compro|cliente actual|propietario)(es|s)?$/, "comprador"],
+    [/^(inmobiliaria|corredor|broker|martillero)s?$/, "inmobiliaria"],
+    [/^(proveedor|contratista)(es|s)?$/, "proveedor"],
+    [/^(propio|propio de war|interno|empleado)s?$/, "propio"],
+  ];
+  return sinonimos.find(([re]) => re.test(v))?.[1] ?? null;
+}
+
+/**
+ * Tipologías a partir de texto libre ("2 ambientes, monoambiente", "tres
+ * amb", "triplex"). Devuelve las reconocidas, sin repetir y en el orden del
+ * catálogo.
+ */
+export function normalizarTipologias(raw: unknown): Tipologia[] {
+  if (typeof raw !== "string") return [];
+  const palabras: Record<string, number> = { un: 1, uno: 1, dos: 2, tres: 3, cuatro: 4 };
+  const encontradas = new Set<Tipologia>();
+  for (const parte of sinAcentos(raw).split(/[,;/]|\sy\s|\so\s/)) {
+    const t = parte.trim();
+    if (!t) continue;
+    if (/tri ?plex/.test(t)) {
+      encontradas.add("triplex");
+      continue;
+    }
+    if (/mono ?ambiente/.test(t)) {
+      encontradas.add("1_ambiente");
+      continue;
+    }
+    const m = t.match(/(\d+|un|uno|dos|tres|cuatro)\s*(amb|ambiente|ambientes)\b/);
+    if (!m) continue;
+    const n = /^\d+$/.test(m[1]!) ? Number(m[1]) : palabras[m[1]!];
+    if (n === 1) encontradas.add("1_ambiente");
+    else if (n === 2) encontradas.add("2_ambientes");
+    else if (n === 3) encontradas.add("3_ambientes");
+    else if (n === 4) encontradas.add("4_ambientes");
+  }
+  return VALORES_TIPOLOGIA.filter((t): t is Tipologia =>
+    encontradas.has(t as Tipologia)
+  );
+}
+
+/**
+ * Edificios a partir de texto libre: cada parte separada por coma se compara,
+ * sin acentos, con el nombre y la dirección. Una parte puede ser solo la
+ * calle ("Olazábal") o el número de calle ("Gallo 716").
+ */
+export function resolverEdificiosPorNombre<T extends { id: string; nombre: string; direccion: string | null }>(
+  raw: unknown,
+  edificios: readonly T[]
+): T[] {
+  if (typeof raw !== "string") return [];
+  const elegidos = new Map<string, T>();
+  for (const parte of raw.split(/[,;/]|\sy\s/)) {
+    const p = sinAcentos(parte);
+    if (p.length < 3) continue;
+    for (const e of edificios) {
+      const nombre = sinAcentos(e.nombre);
+      const dir = sinAcentos(e.direccion ?? "");
+      if (nombre.includes(p) || p.includes(nombre) || (dir && (dir.includes(p) || p.includes(dir)))) {
+        elegidos.set(e.id, e);
+      }
+    }
+  }
+  return [...elegidos.values()];
+}

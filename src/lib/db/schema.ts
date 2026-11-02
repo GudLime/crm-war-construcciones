@@ -148,6 +148,14 @@ export const contact = pgTable(
      * una persona al dar de alta o editar el contacto.
      */
     email: text("email"),
+    /**
+     * 068 (War) — Qué es este contacto para la constructora. NULL = sin
+     * clasificar. Solo `lead` entra al proceso de venta (oportunidades) y a
+     * la IA; los demás los atiende una persona. Ver specs/068.
+     */
+    tipoContacto: text("tipo_contacto", {
+      enum: ["lead", "comprador", "inmobiliaria", "proveedor", "propio"],
+    }),
     /** Business-Scoped User ID si se conoce (003). */
     waUserId: text("wa_user_id"),
     name: text("name").notNull(),

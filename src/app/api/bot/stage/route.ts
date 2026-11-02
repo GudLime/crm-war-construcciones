@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { apiError, parseBody } from "@/lib/api";
 import { requireBotKey, resolveInstanceOrg } from "@/server/bot/auth";
-import { moverEtapaPorElCerebro } from "@/server/bot/stage";
+import { moverOportunidadPorElCerebro } from "@/server/oportunidades-war";
 import { publish } from "@/server/events/bus";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +33,9 @@ export async function POST(req: Request) {
   const body = await parseBody(req, bodySchema);
   if (!body.ok) return body.response;
 
-  const res = await moverEtapaPorElCerebro({ organizationId, ...body.data });
+  // 068 (War) — Lo que avanza es la oportunidad abierta, no el lead de
+  // Vocero: mismas guardas, hasta «Conoce información» (specs/068).
+  const res = await moverOportunidadPorElCerebro({ organizationId, ...body.data });
   if (!res.ok) return apiError(res.status, res.code, res.message);
 
   if (res.changed) {
