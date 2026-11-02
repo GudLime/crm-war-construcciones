@@ -89,7 +89,8 @@ jobs:
   #
   # Necesita dos secretos del repo (Settings → Secrets and variables → Actions):
   #   COOLIFY_URL   — URL del panel de Coolify, p. ej. https://coolify.gudlime.com.ar
-  #   COOLIFY_TOKEN — token del equipo War con permiso `deploy` SOLAMENTE
+  #   DEPLOY_WAR_COOLIFY_API — token del equipo War con permiso `deploy`
+  #                            SOLAMENTE (también acepta COOLIFY_TOKEN)
   # Sin ellos, el paso avisa y termina en verde: no rompe el workflow.
   # Volver atrás: en Coolify, poner en la app el tag `sha-<commit anterior>`
   # y redesplegar.
@@ -106,13 +107,13 @@ jobs:
       contents: read
     env:
       COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
-      COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+      COOLIFY_TOKEN: ${{ secrets.DEPLOY_WAR_COOLIFY_API || secrets.COOLIFY_TOKEN }}
       COOLIFY_APP_UUID: znisfv3ruzuwspfsqcgm2vfq
     steps:
       - name: Pedir el redeploy
         run: |
           if [ -z "$COOLIFY_URL" ] || [ -z "$COOLIFY_TOKEN" ]; then
-            echo "::notice::Faltan los secretos COOLIFY_URL / COOLIFY_TOKEN: no se despliega solo. Redesplegá a mano en Coolify."
+            echo "::notice::Faltan los secretos COOLIFY_URL / DEPLOY_WAR_COOLIFY_API: no se despliega solo. Redesplegá a mano en Coolify."
             exit 0
           fi
           url="${COOLIFY_URL%/}/api/v1/deploy?uuid=${COOLIFY_APP_UUID}&force=false"

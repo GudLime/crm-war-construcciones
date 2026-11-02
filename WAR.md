@@ -48,7 +48,7 @@ Después: un push a `main` → GitHub Actions publica la imagen en
 → el job `desplegar` del workflow «Imagen» le pide a Coolify que redespliegue la
 app `vocero-crm` del equipo War, que usa el tag `:main`. No hay que tocar Coolify.
 
-- Secretos del repo que necesita: `COOLIFY_URL` y `COOLIFY_TOKEN` (token del
+- Secretos del repo que necesita: `COOLIFY_URL` y `DEPLOY_WAR_COOLIFY_API` (token del
   equipo War con permiso `deploy` solamente). Sin ellos, el job avisa y no despliega.
 - Volver atrás: en Coolify, poner el tag `sha-<commit anterior>` y redesplegar
   (y volver a `:main` cuando esté arreglado).
