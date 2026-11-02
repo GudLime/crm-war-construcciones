@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { emailOpcionalValido } from "@/lib/email";
+import { TIPOS_CONTACTO, type TipoContacto } from "@/lib/ventas";
 import type { SourceValue, StageDto } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,8 @@ export function NewContactDialog({
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  // 068 — Alta manual: casi siempre es un prospecto, por eso arranca en Lead.
+  const [tipoContacto, setTipoContacto] = useState<TipoContacto | "">("lead");
   const [source, setSource] = useState<SourceValue>("referido");
   const [notes, setNotes] = useState("");
   const [stages, setStages] = useState<StageDto[]>([]);
@@ -65,6 +68,7 @@ export function NewContactDialog({
         name: name.trim(),
         phone: phone.trim(),
         email: email.trim() || undefined,
+        tipoContacto: tipoContacto || undefined,
         source,
         notes: notes.trim() || undefined,
         stageId: stageId || undefined,
@@ -166,6 +170,29 @@ export function NewContactDialog({
                 Revisá el correo: tiene que ser del tipo nombre@dominio.com
               </p>
             )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" htmlFor="nc-tipo">
+              Tipo de contacto
+            </label>
+            <select
+              id="nc-tipo"
+              value={tipoContacto}
+              onChange={(e) => setTipoContacto(e.target.value as TipoContacto | "")}
+              className="h-9 w-full rounded-md border border-input bg-card px-2 text-sm"
+            >
+              <option value="">Sin clasificar</option>
+              {TIPOS_CONTACTO.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-text-3">
+              Como Lead se le abre una oportunidad. Comprador, Inmobiliaria,
+              Proveedor y Propio quedan fuera de la venta y sin IA.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

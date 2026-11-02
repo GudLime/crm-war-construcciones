@@ -53,3 +53,20 @@ app `vocero-crm` del equipo War, que usa el tag `:main`. No hay que tocar Coolif
 - Volver atrás: en Coolify, poner el tag `sha-<commit anterior>` y redesplegar
   (y volver a `:main` cuando esté arreglado).
 - Como todo lo que entra a `main` sale a producción, los cambios van por PR.
+
+## Oportunidades (spec 068)
+
+En War lo que avanza en el embudo es la **oportunidad**, no el contacto
+(detalle en `specs/068-oportunidades-war/spec.md`):
+
+- `contact.tipo_contacto`: lead · comprador · inmobiliaria · proveedor · propio
+  (vacío = sin clasificar). Solo el lead entra a la venta y a la IA.
+- Una oportunidad abierta por contacto (índice único parcial); varios
+  edificios y tipologías de interés por oportunidad.
+- La IA (Nea, sin cambios) clasifica con la clave de ficha `tipo_contacto`,
+  suma interés con `edificios_interes` / `tipologias_interes`, y mueve la
+  oportunidad abierta hasta «Conoce información» con `POST /api/bot/stage`.
+  Las reglas se le agregan solas a las instrucciones del agente
+  (`src/lib/instrucciones-war.ts`).
+- Código: `src/server/oportunidades-war.ts`, panel del chat en
+  `src/components/ventas/oportunidad-panel.tsx`.

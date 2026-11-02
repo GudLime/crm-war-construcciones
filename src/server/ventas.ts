@@ -1,4 +1,4 @@
-import { asc, count, desc, eq } from "drizzle-orm";
+import { asc, count, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
@@ -23,6 +23,7 @@ import {
   type TipoOportunidad,
   type TipoTarea,
 } from "@/lib/ventas";
+import { reemplazarInteres } from "@/server/oportunidades-war";
 
 /**
  * Ventas de la constructora. Las rutas solo autentican y traducen el body;
@@ -86,6 +87,10 @@ export const oportunidadSchema = z.object({
   contactId: idOpcional,
   edificioId: idOpcional,
   departamentoId: idOpcional,
+  /** 068 — Varios edificios de interés. Si viene, reemplaza los que había. */
+  edificioIds: z.array(z.string().min(1)).max(50).optional(),
+  /** 068 — Varias tipologías de interés. Si viene, reemplaza las que había. */
+  tipologias: z.array(tipologia).max(5).optional(),
   estado: estadoOportunidad.optional(),
   tipo: tipoOportunidad.nullable().optional(),
   motivoCierre: motivo.nullable().optional(),
@@ -145,6 +150,10 @@ export type OportunidadDto = {
   motivoCierre: string | null;
   valorCents: number | null;
   moneda: string | null;
+  /** 068 — Todos los edificios de interés (el `edificioId` de arriba es el principal). */
+  edificios: { id: string; nombre: string }[];
+  /** 068 — Tipologías de interés. */
+  tipologias: Tipologia[];
 };
 
 export type TareaDto = {
@@ -459,9 +468,63 @@ async function interesDe(
   return resuelto;
 }
 
+type InteresOportunidad = { edificios: { id: string; nombre: string }[]; tipologias: Tipologia[] };
+
+/** 068 — El interés (edificios y tipologías) de varias oportunidades en dos consultas. */
+async function interesDeOportunidades(
+  organizationId: string,
+  ids: readonly string[]
+): Promise<Map<string, InteresOportunidad>> {
+  const mapa = new Map<string, InteresOportunidad>();
+  for (const id of ids) mapa.set(id, { edificios: [], tipologias: [] });
+  if (ids.length === 0) return mapa;
+  const db = getDb();
+  const [edificios, tipologias] = await Promise.all([
+    db
+      .select({
+        oportunidadId: schema.oportunidadEdificio.oportunidadId,
+        id: schema.edificio.id,
+        nombre: schema.edificio.nombre,
+      })
+      .from(schema.oportunidadEdificio)
+      .innerJoin(schema.edificio, eq(schema.edificio.id, schema.oportunidadEdificio.edificioId))
+      .where(
+        scoped(
+          schema.oportunidadEdificio.organizationId,
+          organizationId,
+          inArray(schema.oportunidadEdificio.oportunidadId, [...ids])
+        )
+      )
+      .orderBy(asc(schema.edificio.nombre)),
+    db
+      .select({
+        oportunidadId: schema.oportunidadTipologia.oportunidadId,
+        tipologia: schema.oportunidadTipologia.tipologia,
+      })
+      .from(schema.oportunidadTipologia)
+      .where(
+        scoped(
+          schema.oportunidadTipologia.organizationId,
+          organizationId,
+          inArray(schema.oportunidadTipologia.oportunidadId, [...ids])
+        )
+      ),
+  ]);
+  for (const e of edificios) {
+    mapa.get(e.oportunidadId)?.edificios.push({ id: e.id, nombre: e.nombre });
+  }
+  for (const t of tipologias) mapa.get(t.oportunidadId)?.tipologias.push(t.tipologia);
+  for (const v of mapa.values()) {
+    const set = new Set(v.tipologias);
+    v.tipologias = (VALORES_TIPOLOGIA as Tipologia[]).filter((t) => set.has(t));
+  }
+  return mapa;
+}
+
 function aOportunidad(
   fila: typeof schema.oportunidad.$inferSelect,
-  extra: { contactoNombre: string | null; edificioNombre: string | null; unidad: string | null }
+  extra: { contactoNombre: string | null; edificioNombre: string | null; unidad: string | null },
+  interes: InteresOportunidad = { edificios: [], tipologias: [] }
 ): OportunidadDto {
   return {
     id: fila.id,
@@ -478,6 +541,8 @@ function aOportunidad(
     motivoCierre: fila.motivoCierre,
     valorCents: fila.valorCents,
     moneda: fila.moneda,
+    edificios: interes.edificios,
+    tipologias: interes.tipologias,
   };
 }
 
@@ -495,12 +560,20 @@ export async function listarOportunidades(organizationId: string): Promise<Oport
     .leftJoin(schema.departamento, eq(schema.departamento.id, schema.oportunidad.departamentoId))
     .where(scoped(schema.oportunidad.organizationId, organizationId))
     .orderBy(desc(schema.oportunidad.updatedAt));
+  const intereses = await interesDeOportunidades(
+    organizationId,
+    filas.map((f) => f.op.id)
+  );
   return filas.map((f) =>
-    aOportunidad(f.op, {
-      contactoNombre: f.contactoNombre,
-      edificioNombre: f.edificioNombre,
-      unidad: f.unidad,
-    })
+    aOportunidad(
+      f.op,
+      {
+        contactoNombre: f.contactoNombre,
+        edificioNombre: f.edificioNombre,
+        unidad: f.unidad,
+      },
+      intereses.get(f.op.id)
+    )
   );
 }
 
@@ -514,13 +587,20 @@ async function valoresOportunidad(
     datos.contactId,
     "Ese contacto no existe"
   );
-  const interes = await interesDe(organizationId, datos.edificioId, datos.departamentoId);
+  // 068 — Varios edificios: el principal (`edificio_id`) es el del
+  // departamento si hay uno, si no el primero de la lista.
+  const lista = datos.edificioIds ?? (datos.edificioId ? [datos.edificioId] : []);
+  const interes = await interesDe(organizationId, null, datos.departamentoId);
+  const principal = interes.edificioId ?? lista[0] ?? null;
+  if (principal && !interes.edificioId) {
+    await exigirEnOrganizacion(organizationId, "edificio", principal, "Ese edificio no existe");
+  }
   const valorCents = datos.valorCents ?? null;
   return {
     nombre: datos.nombre.trim(),
     origen: datos.origen ?? null,
     contactId: datos.contactId ?? null,
-    edificioId: interes.edificioId,
+    edificioId: principal,
     departamentoId: interes.departamentoId,
     estado: datos.estado ?? "recibido",
     tipo: datos.tipo ?? null,
@@ -548,11 +628,40 @@ async function oportunidadConNombres(
     .where(scoped(schema.oportunidad.organizationId, organizationId, eq(schema.oportunidad.id, id)))
     .limit(1);
   if (!fila) throw new VentasError(404, "not_found", "Esa oportunidad no existe");
-  return aOportunidad(fila.op, {
-    contactoNombre: fila.contactoNombre,
-    edificioNombre: fila.edificioNombre,
-    unidad: fila.unidad,
-  });
+  const intereses = await interesDeOportunidades(organizationId, [id]);
+  return aOportunidad(
+    fila.op,
+    {
+      contactoNombre: fila.contactoNombre,
+      edificioNombre: fila.edificioNombre,
+      unidad: fila.unidad,
+    },
+    intereses.get(id)
+  );
+}
+
+/** 068 — El índice único parcial frena una segunda oportunidad abierta. */
+function esSegundaAbierta(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: unknown }).code === "23505"
+  );
+}
+
+const SEGUNDA_ABIERTA =
+  "Ese contacto ya tiene una oportunidad abierta: cerrala (Compró, Perdido o No calificado) antes de abrir otra";
+
+/** 068 — Lo que se guarda como interés: la lista nueva, o el edificio único heredado. */
+function interesPedido(datos: z.infer<typeof oportunidadSchema>, principal: string | null) {
+  const edificioIds =
+    datos.edificioIds ?? (datos.edificioId !== undefined ? (principal ? [principal] : []) : undefined);
+  const conPrincipal =
+    edificioIds && principal && !edificioIds.includes(principal)
+      ? [principal, ...edificioIds]
+      : edificioIds;
+  return { edificioIds: conPrincipal, tipologias: datos.tipologias };
 }
 
 export async function crearOportunidad(
@@ -560,10 +669,17 @@ export async function crearOportunidad(
   datos: z.infer<typeof oportunidadSchema>
 ): Promise<OportunidadDto> {
   const valores = await valoresOportunidad(organizationId, datos);
-  const [fila] = await getDb()
-    .insert(schema.oportunidad)
-    .values({ id: newId("oportunidad"), organizationId, ...valores })
-    .returning({ id: schema.oportunidad.id });
+  let fila: { id: string } | undefined;
+  try {
+    [fila] = await getDb()
+      .insert(schema.oportunidad)
+      .values({ id: newId("oportunidad"), organizationId, ...valores })
+      .returning({ id: schema.oportunidad.id });
+  } catch (err) {
+    if (esSegundaAbierta(err)) throw new VentasError(409, "ya_tiene_abierta", SEGUNDA_ABIERTA);
+    throw err;
+  }
+  await reemplazarInteres(organizationId, fila!.id, interesPedido(datos, valores.edificioId));
   return oportunidadConNombres(organizationId, fila!.id);
 }
 
@@ -573,12 +689,19 @@ export async function editarOportunidad(
   datos: z.infer<typeof oportunidadSchema>
 ): Promise<OportunidadDto> {
   const valores = await valoresOportunidad(organizationId, datos);
-  const [fila] = await getDb()
-    .update(schema.oportunidad)
-    .set({ ...valores, updatedAt: new Date() })
-    .where(scoped(schema.oportunidad.organizationId, organizationId, eq(schema.oportunidad.id, id)))
-    .returning({ id: schema.oportunidad.id });
+  let fila: { id: string } | undefined;
+  try {
+    [fila] = await getDb()
+      .update(schema.oportunidad)
+      .set({ ...valores, updatedAt: new Date() })
+      .where(scoped(schema.oportunidad.organizationId, organizationId, eq(schema.oportunidad.id, id)))
+      .returning({ id: schema.oportunidad.id });
+  } catch (err) {
+    if (esSegundaAbierta(err)) throw new VentasError(409, "ya_tiene_abierta", SEGUNDA_ABIERTA);
+    throw err;
+  }
   if (!fila) throw new VentasError(404, "not_found", "Esa oportunidad no existe");
+  await reemplazarInteres(organizationId, id, interesPedido(datos, valores.edificioId));
   return oportunidadConNombres(organizationId, id);
 }
 

@@ -95,6 +95,20 @@ describe("el despacho respeta el interruptor", () => {
     expect(encolarDespacho).not.toHaveBeenCalled();
   });
 
+  it("068 — un contacto fuera de la venta (inmobiliaria…) no va a la IA", async () => {
+    cola.push([CONV_ABIERTA], [{ enabled: true }], [{ tipoContacto: "inmobiliaria" }]);
+    await despacharAlCerebro("cv_1", "org_1", "msg_1");
+    expect(encolarDespacho).not.toHaveBeenCalled();
+  });
+
+  it("068 — un lead o un contacto sin clasificar sí va a la IA", async () => {
+    cola.push([CONV_ABIERTA], [{ enabled: true }], [{ tipoContacto: null }]);
+    await despacharAlCerebro("cv_1", "org_1", "msg_1");
+    cola.push([CONV_ABIERTA], [{ enabled: true }], [{ tipoContacto: "lead" }]);
+    await despacharAlCerebro("cv_1", "org_1", "msg_1");
+    expect(encolarDespacho).toHaveBeenCalledTimes(2);
+  });
+
   it("la conversación pausada sigue mandando, aunque el interruptor esté encendido", async () => {
     cola.push([{ ...CONV_ABIERTA, aiEnabled: false }], [{ enabled: true }]);
     await despacharAlCerebro("cv_1", "org_1", "msg_1");

@@ -140,6 +140,8 @@ export type ContactDto = {
   phone: string | null;
   /** War: correo opcional que carga una persona. */
   email?: string | null;
+  /** 068 — Lead, comprador, inmobiliaria, proveedor, propio; null = sin clasificar. */
+  tipoContacto?: "lead" | "comprador" | "inmobiliaria" | "proveedor" | "propio" | null;
   notes: string | null;
   /** Etapa del embudo del lead asociado; null si el contacto no tiene lead. */
   stageName: string | null;

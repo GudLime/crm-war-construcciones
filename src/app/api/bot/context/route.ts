@@ -8,7 +8,7 @@ import { isWindowOpen, windowRemainingMs } from "@/server/inbox/window";
 import { windowMsFor } from "@/server/channels/capabilities";
 import { citasParaContexto } from "@/server/agenda/context";
 import { anuncioDelContacto } from "@/server/attribution/store";
-import { siguientesDelLead } from "@/server/bot/stage";
+import { leadParaElCerebro } from "@/server/oportunidades-war";
 
 export const dynamic = "force-dynamic";
 
@@ -102,27 +102,13 @@ export async function GET(req: Request) {
     return apiError(404, "not_found", "Conversación no encontrada");
   }
 
-  const [leadRows, booking, anuncio] = await Promise.all([
-    db
-      .select({ lead: schema.lead, stage: schema.pipelineStage })
-      .from(schema.lead)
-      .innerJoin(
-        schema.pipelineStage,
-        eq(schema.lead.stageId, schema.pipelineStage.id)
-      )
-      .where(
-        and(
-          eq(schema.lead.organizationId, organizationId),
-          eq(schema.lead.contactId, contact.id)
-        )
-      )
-      .limit(1),
+  // 068 (War) — `lead` es la OPORTUNIDAD abierta del contacto, con las
+  // etapas a las que la IA puede llevarla. El Laboratorio no la ve.
+  const [lead, booking, anuncio] = await Promise.all([
+    conversation.isTest ? Promise.resolve(null) : leadParaElCerebro(organizationId, contact.id),
     citasParaContexto(organizationId, contact.id),
     anuncioDelContacto(organizationId, contact.id),
   ]);
-  const nextStages = leadRows[0]
-    ? await siguientesDelLead(organizationId, leadRows[0].lead.stageId)
-    : [];
 
   return Response.json({
     contact: {
@@ -135,6 +121,8 @@ export async function GET(req: Request) {
       channel: contact.channel,
       phone: contact.phone,
       ficha: serializeFicha(contact),
+      /** 068 — Lead, comprador, inmobiliaria, proveedor, propio; null = sin clasificar. */
+      tipoContacto: contact.tipoContacto,
     },
     conversation: {
       id: conversation.id,
@@ -154,9 +142,7 @@ export async function GET(req: Request) {
         windowMsFor(conversation.channel)
       ),
     },
-    lead: leadRows[0]
-      ? { id: leadRows[0].lead.id, stageName: leadRows[0].stage.name, nextStages }
-      : null,
+    lead,
     adOrigen: anuncio
       ? {
           headline: anuncio.headline,

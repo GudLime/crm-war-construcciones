@@ -4,6 +4,7 @@ import { getDb, schema } from "@/lib/db";
 import { apiError, parseBody } from "@/lib/api";
 import { requireBotKey, resolveInstanceOrg } from "@/server/bot/auth";
 import { upsertFicha } from "@/server/bot/ficha";
+import { aplicarFichaDelCerebro } from "@/server/oportunidades-war";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,7 @@ export async function PUT(req: Request) {
 
   const db = getDb();
   const rows = await db
-    .select({ contactId: schema.conversation.contactId })
+    .select({ contactId: schema.conversation.contactId, isTest: schema.conversation.isTest })
     .from(schema.conversation)
     .where(
       and(
@@ -51,5 +52,12 @@ export async function PUT(req: Request) {
     ficha: body.data.ficha,
   });
   if (!result) return apiError(404, "not_found", "Contacto no encontrado");
+  // 068 (War) — Clasificación e interés: el CRM los aplica después de guardar.
+  await aplicarFichaDelCerebro({
+    organizationId,
+    contactId: rows[0].contactId,
+    esPrueba: rows[0].isTest,
+    ficha: body.data.ficha,
+  });
   return Response.json(result);
 }

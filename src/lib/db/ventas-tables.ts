@@ -1,4 +1,13 @@
-import { index, integer, numeric, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
+  numeric,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 import { contact, organization } from "./schema";
 
 /**
@@ -153,4 +162,47 @@ export const tareaVenta = pgTable(
     index("tarea_venta_org_estado_idx").on(t.organizationId, t.estado, t.fecha),
     index("tarea_venta_oportunidad_idx").on(t.organizationId, t.oportunidadId),
   ]
+);
+
+/**
+ * 068 — Los edificios que le interesan a una oportunidad. Varios: un cliente
+ * mira más de uno antes de decidirse. El departamento puntual, cuando se
+ * define, sigue en `oportunidad.departamento_id`.
+ */
+export const oportunidadEdificio = pgTable(
+  "oportunidad_edificio",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    oportunidadId: text("oportunidad_id")
+      .notNull()
+      .references(() => oportunidad.id, { onDelete: "cascade" }),
+    edificioId: text("edificio_id")
+      .notNull()
+      .references(() => edificio.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.oportunidadId, t.edificioId] }),
+    index("oportunidad_edificio_edificio_idx").on(t.organizationId, t.edificioId),
+  ]
+);
+
+/** 068 — Las tipologías que le interesan a una oportunidad (varias). */
+export const oportunidadTipologia = pgTable(
+  "oportunidad_tipologia",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    oportunidadId: text("oportunidad_id")
+      .notNull()
+      .references(() => oportunidad.id, { onDelete: "cascade" }),
+    tipologia: text("tipologia", {
+      enum: ["1_ambiente", "2_ambientes", "3_ambientes", "4_ambientes", "triplex"],
+    }).notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.oportunidadId, t.tipologia] })]
 );
