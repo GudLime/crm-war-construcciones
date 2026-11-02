@@ -138,6 +138,8 @@ export type ContactDto = {
   name: string;
   /** null en contactos que llegaron solo con BSUID (003). */
   phone: string | null;
+  /** War: correo opcional que carga una persona. */
+  email?: string | null;
   notes: string | null;
   /** Etapa del embudo del lead asociado; null si el contacto no tiene lead. */
   stageName: string | null;

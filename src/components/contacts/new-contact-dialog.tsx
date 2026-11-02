@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
+import { emailOpcionalValido } from "@/lib/email";
 import type { SourceValue, StageDto } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,7 @@ export function NewContactDialog({
 }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [source, setSource] = useState<SourceValue>("referido");
   const [notes, setNotes] = useState("");
   const [stages, setStages] = useState<StageDto[]>([]);
@@ -62,6 +64,7 @@ export function NewContactDialog({
       body: JSON.stringify({
         name: name.trim(),
         phone: phone.trim(),
+        email: email.trim() || undefined,
         source,
         notes: notes.trim() || undefined,
         stageId: stageId || undefined,
@@ -91,7 +94,10 @@ export function NewContactDialog({
 
   // 11 dígitos = código de país + número. Ver la nota del endpoint sobre por
   // qué el código de país no puede faltar ni asumirse.
-  const listo = name.trim().length > 0 && phone.replace(/\D/g, "").length >= 11;
+  // El correo es opcional; si se escribió, tiene que tener forma de correo.
+  const emailValido = emailOpcionalValido(email);
+  const listo =
+    name.trim().length > 0 && phone.replace(/\D/g, "").length >= 11 && emailValido;
 
   return (
     <div
@@ -139,6 +145,27 @@ export function NewContactDialog({
               él, WhatsApp no lo reconoce como la misma persona que te escriba
               después.
             </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" htmlFor="nc-email">
+              Correo electrónico (opcional)
+            </label>
+            <Input
+              id="nc-email"
+              type="email"
+              inputMode="email"
+              autoComplete="off"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="nombre@empresa.com"
+              aria-invalid={!emailValido}
+            />
+            {!emailValido && (
+              <p className="text-[11px] text-danger-text">
+                Revisá el correo: tiene que ser del tipo nombre@dominio.com
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">

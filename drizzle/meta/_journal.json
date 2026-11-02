@@ -204,6 +204,13 @@
       "when": 1793574000000,
       "tag": "0028_ventas_war",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793660400000,
+      "tag": "0029_contacto_email",
+      "breakpoints": true
     }
   ]
 }

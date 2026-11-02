@@ -55,6 +55,8 @@ export function ContactPanel({
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [notes, setNotes] = useState("");
+  // War: el correo viene del detalle del contacto (la conversación no lo trae).
+  const [email, setEmail] = useState<string | null>(null);
   const [ficha, setFicha] = useState<FichaDto>({});
   const [notesLoaded, setNotesLoaded] = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
@@ -96,6 +98,7 @@ export function ContactPanel({
     ]).catch(() => [null, null]);
     if (detail) {
       setNotes(detail.contact?.notes ?? "");
+      setEmail(detail.contact?.email ?? null);
       setFicha(detail.contact?.ficha ?? {});
       setCurrentStageId(detail.stage?.id ?? null);
       setLeadId(detail.lead?.id ?? null);
@@ -209,6 +212,14 @@ export function ContactPanel({
               <p className="text-xs text-text-3">
                 {formatPhone(conversation.contact.phone)}
               </p>
+              {email && (
+                <a
+                  href={`mailto:${email}`}
+                  className="block truncate text-xs text-text-3 hover:underline"
+                >
+                  {email}
+                </a>
+              )}
             </div>
           </div>
 

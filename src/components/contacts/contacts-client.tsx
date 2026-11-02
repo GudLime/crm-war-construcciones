@@ -14,6 +14,7 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
+import { emailOpcionalValido } from "@/lib/email";
 import type { ContactDto } from "@/lib/types";
 import { formatPhone } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
@@ -209,6 +210,7 @@ export function ContactsClient() {
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {formatPhone(c.phone)}
+                    {c.email ? ` · ${c.email}` : ""}
                     {c.notes ? ` · ${c.notes.slice(0, 60)}` : ""}
                   </p>
                 </div>
@@ -327,10 +329,17 @@ function EditDialog({
 }: {
   contact: ContactDto;
   onClose: () => void;
-  onSave: (patch: { name: string; notes: string; aiPaused?: boolean }) => Promise<void>;
+  onSave: (patch: {
+    name: string;
+    notes: string;
+    email?: string | null;
+    aiPaused?: boolean;
+  }) => Promise<void>;
 }) {
   const [name, setName] = useState(contact.name);
+  const [email, setEmail] = useState(contact.email ?? "");
   const [notes, setNotes] = useState(contact.notes ?? "");
+  const emailValido = emailOpcionalValido(email);
   const [aiPaused, setAiPaused] = useState(contact.aiPaused ?? false);
 
   return (
@@ -353,6 +362,26 @@ function EditDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" htmlFor="edit-email">
+              Correo electrónico (opcional)
+            </label>
+            <Input
+              id="edit-email"
+              type="email"
+              inputMode="email"
+              autoComplete="off"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="nombre@empresa.com"
+              aria-invalid={!emailValido}
+            />
+            {!emailValido && (
+              <p className="text-[11px] text-danger-text">
+                Revisá el correo: tiene que ser del tipo nombre@dominio.com
+              </p>
+            )}
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="edit-notes">
@@ -386,11 +415,15 @@ function EditDialog({
             Cancelar
           </Button>
           <Button
-            disabled={!name.trim()}
+            disabled={!name.trim() || !emailValido}
             onClick={() =>
               void onSave({
                 name: name.trim(),
                 notes,
+                // Solo si cambió; vacío lo borra.
+                ...(email.trim() !== (contact.email ?? "")
+                  ? { email: email.trim() || null }
+                  : {}),
                 // Solo si cambió: mandarlo siempre reescribiría el interruptor
                 // de la Bandeja cada vez que alguien corrige un nombre.
                 ...(aiPaused !== (contact.aiPaused ?? false) ? { aiPaused } : {}),
