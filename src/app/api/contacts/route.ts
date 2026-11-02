@@ -63,7 +63,9 @@ export const GET = withAuth(async (session, req: Request) => {
           qDigits.length >= 3
             ? sql`regexp_replace(coalesce(${schema.contact.phone}, ''), '\\D', '', 'g')
                   like ${`%${qDigits}%`}`
-            : undefined
+            : undefined,
+          // War: también por correo (se guarda en minúsculas).
+          sql`lower(coalesce(${schema.contact.email}, '')) like ${`%${qLike}%`}`
         )
       : undefined;
 
@@ -113,6 +115,8 @@ const createSchema = z.object({
     .string()
     .trim()
     .regex(/^\d{7,15}$/, "Teléfono en dígitos, con código de país (ej. 5215512345678)"),
+  /** War: correo opcional. Informativo; la identidad sigue siendo el teléfono. */
+  email: z.string().trim().max(254).email("Correo no válido").optional(),
   notes: z.string().max(4000).optional(),
   source: z.enum(["anuncio", "organico", "referido", "conocido", "otro"]).optional(),
   /** Etapa inicial del lead; si no viene, la primera abierta del tablero. */
@@ -134,6 +138,7 @@ export const POST = withAuth(async (session, req: Request) => {
       name: body.data.name,
       phone,
       waIdentity: phone,
+      email: body.data.email?.toLowerCase() ?? null,
       notes: body.data.notes ?? null,
       source: body.data.source ?? null,
     })

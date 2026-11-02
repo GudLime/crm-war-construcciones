@@ -51,6 +51,8 @@ export const GET = withAuth(async (session, _req: Request, ctx: Params) => {
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   notes: z.string().max(4000).nullable().optional(),
+  /** War: correo opcional; `null` lo borra. */
+  email: z.string().trim().max(254).email("Correo no válido").nullable().optional(),
   /** 027 — El agente no le responde a esta persona; se lleva a su conversación. */
   aiPaused: z.boolean().optional(),
   archived: z.boolean().optional(),
@@ -87,6 +89,9 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
     set.nameSource = "manual";
   }
   if (body.data.notes !== undefined) set.notes = body.data.notes;
+  if (body.data.email !== undefined) {
+    set.email = body.data.email?.toLowerCase() ?? null;
+  }
   if (body.data.archived !== undefined) {
     set.archivedAt = body.data.archived ? new Date() : null;
   }
