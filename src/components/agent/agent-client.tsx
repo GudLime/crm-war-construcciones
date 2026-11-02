@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Pencil, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { Download, History, Pencil, Plus, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { BrainStatusCard } from "@/components/agent/brain-status-card";
 import { externalDown, type BrainStatusDto } from "@/lib/brain-status";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,8 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
 import { Resumen } from "@/components/ui/seccion-editable";
+import { Markdown } from "@/components/ui/markdown";
+import { decodificarArchivo } from "@/lib/unidades-csv";
 import {
   HERRAMIENTAS,
   ROLES,
@@ -296,6 +298,20 @@ function RolSection({
   );
 }
 
+/** War — Límite de las instrucciones (lo que viaja en cada respuesta del agente). */
+const MAX_INSTRUCCIONES = 8000;
+
+function descargarTexto(nombre: string, texto: string) {
+  const url = URL.createObjectURL(new Blob([texto], { type: "text/markdown;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nombre;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+type VersionInstrucciones = { id: string; instructions: string; createdAt: string };
+
 function ProfileSection({
   profile,
   onSave,
@@ -306,130 +322,306 @@ function ProfileSection({
   const [form, setForm] = useState(profile);
   // Plegado por defecto: se edita con el lápiz y al guardar se vuelve a plegar.
   const [editando, setEditando] = useState(false);
+  const [vista, setVista] = useState<"editar" | "previa">("editar");
+  const [historial, setHistorial] = useState<VersionInstrucciones[] | null>(null);
+  const [abierta, setAbierta] = useState<string | null>(null);
+  const archivo = useRef<HTMLInputElement>(null);
+  const avisar = useAvisoGuardado();
   useEffect(() => {
     if (!editando) setForm(profile);
   }, [profile, editando]);
 
+  const largo = (form.instructions ?? "").length;
+  const excedido = largo > MAX_INSTRUCCIONES;
+
+  function cerrar() {
+    setForm(profile);
+    setEditando(false);
+    setVista("editar");
+  }
+
+  async function cargarMd(file: File | undefined) {
+    if (!file) return;
+    const texto = decodificarArchivo(await file.arrayBuffer()).replace(/^\uFEFF/, "").trim();
+    if (archivo.current) archivo.current.value = "";
+    if (!texto) {
+      avisar("El archivo está vacío", "error");
+      return;
+    }
+    if (texto.length > MAX_INSTRUCCIONES) {
+      avisar(
+        `El archivo tiene ${texto.length.toLocaleString("es-AR")} caracteres; el máximo es ${MAX_INSTRUCCIONES.toLocaleString("es-AR")}. Acortalo y volvé a cargarlo.`,
+        "error"
+      );
+      return;
+    }
+    // Se abre para revisar: nada se guarda hasta «Guardar cambios».
+    setForm({ ...profile, instructions: texto });
+    setEditando(true);
+    setVista("previa");
+  }
+
+  async function abrirHistorial() {
+    if (historial) {
+      setHistorial(null);
+      return;
+    }
+    const res = await fetch("/api/agent/profile/versiones").catch(() => null);
+    if (!res?.ok) {
+      avisar("No se pudo leer el historial", "error");
+      return;
+    }
+    const data = (await res.json()) as { versiones: VersionInstrucciones[] };
+    setHistorial(data.versiones);
+  }
+
+  async function restaurar(v: VersionInstrucciones) {
+    if (!window.confirm("¿Volver a estas instrucciones? Las actuales quedan guardadas en el historial.")) return;
+    const ok = await onSave({ instructions: v.instructions });
+    if (ok) {
+      setHistorial(null);
+      setAbierta(null);
+    }
+  }
+
   return (
-    <Card>
+    <Card className="lg:col-span-2">
       <CardHeader>
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <CardTitle>Comportamiento</CardTitle>
             <CardDescription>
-              Cómo se presenta y actúa el agente al responder a tus clientes.
+              Cómo se presenta y actúa el agente. Las instrucciones se escriben en
+              Markdown: podés armarlas en otro chat y cargar el .md.
             </CardDescription>
           </div>
           {editando ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              aria-label="Cerrar sin guardar"
-              onClick={() => {
-                setForm(profile);
-                setEditando(false);
-              }}
-            >
+            <Button size="sm" variant="ghost" aria-label="Cerrar sin guardar" onClick={cerrar}>
               <X className="h-4 w-4" strokeWidth={1.8} />
             </Button>
           ) : (
-            <Button size="sm" variant="outline" onClick={() => setEditando(true)}>
-              <Pencil className="h-3.5 w-3.5" strokeWidth={1.8} />
-              Editar
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <input
+                ref={archivo}
+                type="file"
+                accept=".md,.markdown,.txt,text/markdown,text/plain"
+                className="hidden"
+                onChange={(e) => void cargarMd(e.target.files?.[0])}
+              />
+              <Button size="sm" variant="outline" onClick={() => archivo.current?.click()}>
+                <Upload className="h-3.5 w-3.5" strokeWidth={1.8} />
+                Cargar .md
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!profile.instructions}
+                onClick={() =>
+                  descargarTexto("instrucciones-agente.md", profile.instructions ?? "")
+                }
+              >
+                <Download className="h-3.5 w-3.5" strokeWidth={1.8} />
+                Descargar .md
+              </Button>
+              <Button size="sm" variant={historial ? "secondary" : "outline"} onClick={() => void abrirHistorial()}>
+                <History className="h-3.5 w-3.5" strokeWidth={1.8} />
+                Historial
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setEditando(true)}>
+                <Pencil className="h-3.5 w-3.5" strokeWidth={1.8} />
+                Editar
+              </Button>
+            </div>
           )}
         </div>
       </CardHeader>
+
+      {historial && !editando && (
+        <CardContent className="pt-0">
+          <div className="rounded-md border bg-subtle p-3">
+            <p className="mb-2 text-xs font-medium text-text-2">
+              Versiones anteriores de las instrucciones (se guardan las últimas 20)
+            </p>
+            {historial.length === 0 ? (
+              <p className="text-xs text-text-3">Todavía no hay versiones anteriores.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {historial.map((v) => (
+                  <li key={v.id} className="rounded-md border bg-card p-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[13px]">
+                        {new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeStyle: "short" }).format(
+                          new Date(v.createdAt)
+                        )}
+                        <span className="ml-2 text-xs text-text-3">
+                          {v.instructions.length.toLocaleString("es-AR")} caracteres
+                        </span>
+                      </span>
+                      <span className="flex gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setAbierta(abierta === v.id ? null : v.id)}
+                        >
+                          {abierta === v.id ? "Ocultar" : "Ver"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => descargarTexto("instrucciones-agente-anterior.md", v.instructions)}
+                        >
+                          <Download className="h-3.5 w-3.5" strokeWidth={1.8} />
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => void restaurar(v)}>
+                          Restaurar
+                        </Button>
+                      </span>
+                    </div>
+                    {abierta === v.id && (
+                      <div className="mt-2 max-h-80 overflow-y-auto border-t pt-2">
+                        <Markdown texto={v.instructions} />
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </CardContent>
+      )}
+
       {!editando ? (
-        <CardContent>
+        <CardContent className="space-y-4">
           <Resumen
-            className="sm:grid-cols-1 lg:grid-cols-1"
             items={[
               { etiqueta: "Nombre del agente", valor: profile.name },
               { etiqueta: "Tono", valor: profile.tone },
-              {
-                etiqueta: "Instrucciones",
-                valor: profile.instructions ? (
-                  <span className="line-clamp-6">{profile.instructions}</span>
-                ) : null,
-              },
-              { etiqueta: "Reglas de escalado", valor: profile.escalationRules },
               { etiqueta: "Saludo", valor: profile.greeting },
+              { etiqueta: "Reglas de escalado", valor: profile.escalationRules, ancho: true },
             ]}
           />
+          <div>
+            <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-text-3">
+              Instrucciones
+              {profile.instructions && (
+                <span className="ml-2 normal-case tracking-normal">
+                  · {profile.instructions.length.toLocaleString("es-AR")} /{" "}
+                  {MAX_INSTRUCCIONES.toLocaleString("es-AR")} caracteres
+                </span>
+              )}
+            </p>
+            <div className="max-h-96 overflow-y-auto rounded-md border bg-subtle p-3">
+              <Markdown texto={profile.instructions ?? ""} />
+            </div>
+          </div>
         </CardContent>
       ) : (
-      <CardContent className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="agent-name">Nombre del agente</Label>
-          <Input
-            id="agent-name"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="agent-tone">Tono</Label>
-          <Input
-            id="agent-tone"
-            placeholder="p. ej. cercano y directo, con usted"
-            value={form.tone ?? ""}
-            onChange={(e) => setForm({ ...form, tone: e.target.value })}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="agent-instructions">Instrucciones</Label>
-          <Textarea
-            id="agent-instructions"
-            rows={5}
-            placeholder="Qué debe y no debe hacer el agente…"
-            value={form.instructions ?? ""}
-            onChange={(e) => setForm({ ...form, instructions: e.target.value })}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="agent-escalation">Reglas de escalado</Label>
-          <Textarea
-            id="agent-escalation"
-            rows={3}
-            placeholder="Cuándo pasar la conversación a un humano…"
-            value={form.escalationRules ?? ""}
-            onChange={(e) => setForm({ ...form, escalationRules: e.target.value })}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="agent-greeting">Saludo</Label>
-          <Input
-            id="agent-greeting"
-            placeholder="Saludo para conversaciones nuevas"
-            value={form.greeting ?? ""}
-            onChange={(e) => setForm({ ...form, greeting: e.target.value })}
-          />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={async () => {
-              // 034 — Solo lo de esta tarjeta: el formulario guarda una copia
-              // del perfil de cuando se abrió, y mandarla entera pisaría las
-              // herramientas cambiadas después en la tarjeta del rol.
-              const { name, tone, instructions, escalationRules, greeting } = form;
-              const ok = await onSave({ name, tone, instructions, escalationRules, greeting });
-              if (ok) setEditando(false);
-            }}
-          >
-            Guardar cambios
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setForm(profile);
-              setEditando(false);
-            }}
-          >
-            Cancelar
-          </Button>
-        </div>
-      </CardContent>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="agent-name">Nombre del agente</Label>
+              <Input
+                id="agent-name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="agent-tone">Tono</Label>
+              <Input
+                id="agent-tone"
+                placeholder="p. ej. cercano y directo, con usted"
+                value={form.tone ?? ""}
+                onChange={(e) => setForm({ ...form, tone: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label htmlFor="agent-instructions">Instrucciones (Markdown)</Label>
+              <div className="flex items-center gap-3">
+                <span className={excedido ? "text-xs font-medium text-danger-text" : "text-xs text-text-3"}>
+                  {largo.toLocaleString("es-AR")} / {MAX_INSTRUCCIONES.toLocaleString("es-AR")}
+                </span>
+                <div className="flex rounded-full border p-0.5 text-xs">
+                  {(["editar", "previa"] as const).map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setVista(v)}
+                      className={
+                        vista === v
+                          ? "rounded-full bg-secondary px-2.5 py-1 font-medium"
+                          : "rounded-full px-2.5 py-1 text-text-3 hover:text-foreground"
+                      }
+                    >
+                      {v === "editar" ? "Editar" : "Vista previa"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            {vista === "editar" ? (
+              <Textarea
+                id="agent-instructions"
+                rows={18}
+                className="font-mono text-[13px]"
+                placeholder={"# Quién sos\nSos Mateo, asesor de ventas de WAR…\n\n## Precios\n- Primero un rango…"}
+                value={form.instructions ?? ""}
+                onChange={(e) => setForm({ ...form, instructions: e.target.value })}
+              />
+            ) : (
+              <div className="max-h-[32rem] min-h-40 overflow-y-auto rounded-md border bg-subtle p-3">
+                <Markdown texto={form.instructions ?? ""} />
+              </div>
+            )}
+            {excedido && (
+              <p className="text-xs text-danger-text">
+                Pasaste el máximo por {(largo - MAX_INSTRUCCIONES).toLocaleString("es-AR")} caracteres.
+              </p>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="agent-escalation">Reglas de escalado</Label>
+            <Textarea
+              id="agent-escalation"
+              rows={3}
+              placeholder="Cuándo pasar la conversación a un humano… (también pueden ir dentro de las instrucciones)"
+              value={form.escalationRules ?? ""}
+              onChange={(e) => setForm({ ...form, escalationRules: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="agent-greeting">Saludo</Label>
+            <Input
+              id="agent-greeting"
+              placeholder="Saludo para conversaciones nuevas"
+              value={form.greeting ?? ""}
+              onChange={(e) => setForm({ ...form, greeting: e.target.value })}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              disabled={excedido}
+              onClick={async () => {
+                // 034 — Solo lo de esta tarjeta: el formulario guarda una copia
+                // del perfil de cuando se abrió, y mandarla entera pisaría las
+                // herramientas cambiadas después en la tarjeta del rol.
+                const { name, tone, instructions, escalationRules, greeting } = form;
+                const ok = await onSave({ name, tone, instructions, escalationRules, greeting });
+                if (ok) {
+                  setEditando(false);
+                  setVista("editar");
+                }
+              }}
+            >
+              Guardar cambios
+            </Button>
+            <Button variant="ghost" onClick={cerrar}>
+              Cancelar
+            </Button>
+          </div>
+        </CardContent>
       )}
     </Card>
   );

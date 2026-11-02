@@ -12,6 +12,7 @@ import {
 import { agendaEnabled } from "@/server/agenda/flag";
 import { leerConfigDespacho, urlSaludCerebro } from "@/server/brains/config";
 import { getBrainHealth } from "@/server/bot/status";
+import { guardarVersionAnterior } from "@/server/agente/instrucciones-versiones";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +71,11 @@ export const PUT = withAuth(async (session, req: Request) => {
   if (body.data.enabled === true) {
     const problema = await problemaDelCerebro();
     if (problema) return apiError(409, "sin_cerebro", problema);
+  }
+
+  // War — La versión anterior de las instrucciones queda en el historial.
+  if (body.data.instructions !== undefined) {
+    await guardarVersionAnterior(session.organizationId, body.data.instructions);
   }
 
   const db = getDb();

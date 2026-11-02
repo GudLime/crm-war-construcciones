@@ -46,6 +46,8 @@ const prefixes = {
   departamento: "dpt",
   oportunidad: "opt",
   tareaVenta: "trv",
+  // War — historial de instrucciones del agente
+  instruccionVersion: "inv",
 } as const;
 
 export type IdKind = keyof typeof prefixes;
