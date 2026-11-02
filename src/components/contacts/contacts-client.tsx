@@ -21,6 +21,7 @@ import { formatPhone } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,6 +33,7 @@ import { NewContactDialog } from "./new-contact-dialog";
 import { StartConversation } from "./start-conversation";
 
 export function ContactsClient() {
+  const avisar = useAvisoGuardado();
   const router = useRouter();
   const [contacts, setContacts] = useState<ContactDto[]>([]);
   const [query, setQuery] = useState("");
@@ -83,12 +85,13 @@ export function ContactsClient() {
     return () => clearTimeout(t);
   }, [refetch]);
 
-  async function patch(id: string, body: Record<string, unknown>) {
-    await fetch(`/api/contacts/${id}`, {
+  async function patch(id: string, body: Record<string, unknown>, aviso?: string) {
+    const res = await fetch(`/api/contacts/${id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     }).catch(() => null);
+    if (aviso) avisar(res?.ok ? aviso : "No se pudieron guardar los cambios", res?.ok ? "ok" : "error");
     void refetch();
   }
 
@@ -269,7 +272,7 @@ export function ContactsClient() {
           contact={editing}
           onClose={() => setEditing(null)}
           onSave={async (patchBody) => {
-            await patch(editing.id, patchBody);
+            await patch(editing.id, patchBody, "Cambios aplicados");
             setEditing(null);
           }}
         />
@@ -317,6 +320,7 @@ export function ContactsClient() {
           onClose={() => setCreando(false)}
           onCreated={() => {
             setCreando(false);
+            avisar("Contacto creado");
             void refetch();
           }}
           onOpenExisting={(contactId) => {

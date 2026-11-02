@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Plus, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { parseMoneyToCents } from "@/lib/money";
@@ -97,6 +98,7 @@ function interes(o: OportunidadDto): string {
 
 export function OportunidadesClient() {
   const moneda = useMoneda();
+  const avisar = useAvisoGuardado();
   const [filas, setFilas] = useState<OportunidadDto[]>([]);
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [edificios, setEdificios] = useState<EdificioDto[]>([]);
@@ -206,6 +208,7 @@ export function OportunidadesClient() {
       setError(res ? await mensajeDe(res) : "No se pudo guardar");
       return;
     }
+    avisar(editando ? "Cambios aplicados" : "Oportunidad creada");
     setAbierto(false);
     setEditando(null);
     setForm(vacio);
@@ -219,6 +222,7 @@ export function OportunidadesClient() {
       setError(res ? await mensajeDe(res) : "No se pudo borrar");
       return;
     }
+    avisar("Oportunidad eliminada");
     setAbierto(false);
     setEditando(null);
     void cargar();

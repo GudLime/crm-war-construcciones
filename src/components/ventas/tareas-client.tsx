@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { ListTodo, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -47,6 +48,7 @@ const vacio: Formulario = {
 };
 
 export function TareasClient() {
+  const avisar = useAvisoGuardado();
   const [filas, setFilas] = useState<TareaDto[]>([]);
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [oportunidades, setOportunidades] = useState<OportunidadDto[]>([]);
@@ -130,6 +132,7 @@ export function TareasClient() {
       setError(res ? await mensajeDe(res) : "No se pudo guardar");
       return;
     }
+    avisar(editando ? "Cambios aplicados" : "Tarea creada");
     setAbierto(false);
     setEditando(null);
     void cargar();
@@ -142,6 +145,7 @@ export function TareasClient() {
       setError(res ? await mensajeDe(res) : "No se pudo borrar");
       return;
     }
+    avisar("Tarea eliminada");
     setAbierto(false);
     void cargar();
   }

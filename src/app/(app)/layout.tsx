@@ -11,6 +11,7 @@ import { enabledChannels } from "@/server/channels/enabled";
 import { navKicker } from "@/lib/channels";
 import { avisoIaDe } from "@/server/ai/aviso";
 import { AvisoIaBanner } from "@/components/avisos/aviso-ia";
+import { AvisoGuardadoProvider } from "@/components/ui/aviso-guardado";
 
 export default async function AppLayout({
   children,
@@ -45,7 +46,8 @@ export default async function AppLayout({
       kicker={navKicker([...enabledChannels()])}
       aviso={<AvisoIaBanner aviso={aviso} />}
     >
-      {children}
+      {/* «Cambios aplicados»: el aviso temporal de cada guardado. */}
+      <AvisoGuardadoProvider>{children}</AvisoGuardadoProvider>
     </AppShell>
   );
 }
