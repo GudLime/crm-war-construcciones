@@ -4,11 +4,13 @@ import { getEnv } from "@/lib/env";
 import * as baseSchema from "./schema";
 import * as ventasSchema from "./ventas-tables";
 
-/** Las tablas de Ventas viven aparte para no reescribir el esquema base. */
-const schemaValue = { ...baseSchema, ...ventasSchema };
-export { schemaValue as schema };
-/** Mismo nombre que el valor, para `import type { schema }`. */
-export type schema = typeof schemaValue;
+/**
+ * Las tablas de Ventas viven aparte para no reescribir el esquema base.
+ * `schema` tiene que ser un binding local: `export { x as schema }` no
+ * crea esa variable, y `getDb` (y el runtime) la necesitan por nombre.
+ */
+const schema = { ...baseSchema, ...ventasSchema };
+export { schema };
 
 /**
  * Opciones de conexión comunes a TODA conexión que abra este repo (app, seeds,
