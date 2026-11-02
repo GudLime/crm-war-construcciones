@@ -117,12 +117,12 @@ jobs:
             exit 0
           fi
           url="${COOLIFY_URL%/}/api/v1/deploy?uuid=${COOLIFY_APP_UUID}&force=false"
-          code=$(curl -sS -o respuesta.json -w '%{http_code}' \
+          code=$(curl -sS -X POST -o respuesta.json -w '%{http_code}' \
             -H "Authorization: Bearer ${COOLIFY_TOKEN}" "$url")
           echo "Coolify respondió HTTP $code"
           # Solo el id del deploy; nunca se imprime el token.
           grep -o '"deployment_uuid":"[^"]*"' respuesta.json || cat respuesta.json
           if [ "$code" -ge 300 ]; then
-            echo "::error::Coolify no aceptó el deploy (HTTP $code). Revisá el token (equipo War, permiso deploy) y la URL."
+            echo "::error::Coolify no aceptó el deploy (HTTP $code). 401 = token inválido (equipo War, permiso deploy); 404 = UUID de la app o URL; 405 = método."
             exit 1
           fi
