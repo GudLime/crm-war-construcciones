@@ -84,6 +84,19 @@ function desde(o: OportunidadDto): Formulario {
   };
 }
 
+/** War — "hace 5 min", "hace 3 h", "ayer", o la fecha corta. */
+function haceCuanto(iso: string, ahora: number = Date.now()): string {
+  const min = Math.max(0, Math.round((ahora - new Date(iso).getTime()) / 60_000));
+  if (min < 1) return "recién";
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `hace ${h} h`;
+  const d = Math.round(h / 24);
+  if (d === 1) return "ayer";
+  if (d < 7) return `hace ${d} días`;
+  return new Date(iso).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+}
+
 function interes(o: OportunidadDto): string {
   const edificios = o.edificios.length
     ? o.edificios.map((e) => e.nombre).join(", ")
@@ -396,6 +409,7 @@ export function OportunidadesClient() {
               <Th>Contacto</Th>
               <Th>Interés</Th>
               <Th>Estado</Th>
+              <Th>Última interacción</Th>
               <Th className="text-right">Valor</Th>
             </tr>
           </thead>
@@ -407,11 +421,21 @@ export function OportunidadesClient() {
                 onClick={() => abrir(o)}
               >
                 <Td className="font-medium">{o.nombre}</Td>
-                <Td>{o.origen || "—"}</Td>
+                <Td>
+                  {o.origen || "—"}
+                  {o.formularios > 1 && (
+                    <span className="ml-1.5 text-xs text-text-3">· {o.formularios} formularios</span>
+                  )}
+                </Td>
                 <Td>{o.contactoNombre || "—"}</Td>
                 <Td>{interes(o)}</Td>
                 <Td>
                   <EstadoPill opciones={ESTADOS_OPORTUNIDAD} value={o.estado} />
+                </Td>
+                <Td className="whitespace-nowrap text-text-2">
+                  <span title={new Date(o.ultimaInteraccion).toLocaleString("es-AR")}>
+                    {haceCuanto(o.ultimaInteraccion)}
+                  </span>
                 </Td>
                 <Td className="text-right tabular-nums">{plata(o.valorCents, o.moneda, moneda)}</Td>
               </tr>

@@ -2,6 +2,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   primaryKey,
@@ -132,12 +133,61 @@ export const oportunidad = pgTable(
     motivoCierre: text("motivo_cierre"),
     valorCents: integer("valor_cents"),
     moneda: text("moneda"),
+    /**
+     * War — lo último que pasó con esta oportunidad: un formulario nuevo o un
+     * mensaje de WhatsApp. La lista se ordena por acá, así lo que se movió
+     * vuelve arriba. Se toca solo con interacciones del interesado.
+     */
+    ultimaInteraccion: timestamp("ultima_interaccion").notNull().defaultNow(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (t) => [
     index("oportunidad_org_estado_idx").on(t.organizationId, t.estado, t.updatedAt),
     index("oportunidad_contacto_idx").on(t.organizationId, t.contactId),
+    index("oportunidad_org_ultima_idx").on(t.organizationId, t.ultimaInteraccion),
+  ]
+);
+
+/**
+ * War — Cada formulario de anuncio (o portal) que llegó por Make. El lead ID
+ * vive acá, en la oportunidad, no en el contacto: una misma persona puede
+ * llenar varios formularios. El UNIQUE por lead ID hace idempotente el
+ * reintento de Make.
+ */
+export const oportunidadLead = pgTable(
+  "oportunidad_lead",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    oportunidadId: text("oportunidad_id")
+      .notNull()
+      .references(() => oportunidad.id, { onDelete: "cascade" }),
+    contactId: text("contact_id").references(() => contact.id, { onDelete: "set null" }),
+    leadId: text("lead_id").notNull(),
+    origen: text("origen").notNull(),
+    edificioId: text("edificio_id").references(() => edificio.id, { onDelete: "set null" }),
+    /** Lo que escribió la persona, tal cual: sirve para revisar los que no cerraron. */
+    telefonoCrudo: text("telefono_crudo"),
+    campaignId: text("campaign_id"),
+    campaignName: text("campaign_name"),
+    adsetId: text("adset_id"),
+    adsetName: text("adset_name"),
+    adId: text("ad_id"),
+    adName: text("ad_name"),
+    formId: text("form_id"),
+    formName: text("form_name"),
+    plataforma: text("plataforma"),
+    /** Respuestas extra del formulario, sin interpretar. */
+    respuestas: jsonb("respuestas").$type<Record<string, unknown>>(),
+    recibidoAt: timestamp("recibido_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("oportunidad_lead_org_lead_uq").on(t.organizationId, t.leadId),
+    index("oportunidad_lead_oportunidad_idx").on(t.organizationId, t.oportunidadId),
   ]
 );
 

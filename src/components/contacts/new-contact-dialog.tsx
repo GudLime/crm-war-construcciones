@@ -2,6 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { emailOpcionalValido } from "@/lib/email";
+import {
+  explicarMotivoTelefono,
+  formatearTelefono,
+  normalizarTelefono,
+} from "@/lib/telefono";
 import { TIPOS_CONTACTO, type TipoContacto } from "@/lib/ventas";
 import type { SourceValue, StageDto } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -66,7 +71,7 @@ export function NewContactDialog({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         name: name.trim(),
-        phone: phone.trim(),
+        phone: telefono.ok ? telefono.telefono : phone.trim(),
         email: email.trim() || undefined,
         tipoContacto: tipoContacto || undefined,
         source,
@@ -96,12 +101,23 @@ export function NewContactDialog({
     onCreated();
   }
 
-  // 11 dígitos = código de país + número. Ver la nota del endpoint sobre por
-  // qué el código de país no puede faltar ni asumirse.
+  // War: el número se normaliza igual que en el servidor (`lib/telefono.ts`).
+  // Sin `+` se lee como argentino y el celular queda con su 9.
+  const telefono = normalizarTelefono(phone);
+  const extranjero = phone.trim().startsWith("+");
   // El correo es opcional; si se escribió, tiene que tener forma de correo.
   const emailValido = emailOpcionalValido(email);
-  const listo =
-    name.trim().length > 0 && phone.replace(/\D/g, "").length >= 11 && emailValido;
+  const listo = name.trim().length > 0 && telefono.ok && emailValido;
+
+  /** Un número completo pegado (`+54 9 11…`, `5491151191447`) se acomoda solo. */
+  function cambiarTelefono(valor: string) {
+    const res = normalizarTelefono(valor);
+    if (res.ok && res.telefono.startsWith("549") && /^\s*(\+|00|54)/.test(valor)) {
+      setPhone(res.telefono.slice(3));
+      return;
+    }
+    setPhone(valor);
+  }
 
   return (
     <div
@@ -135,19 +151,35 @@ export function NewContactDialog({
 
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="nc-phone">
-              Teléfono con código de país
+              Celular
             </label>
-            <Input
-              id="nc-phone"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="52 555 000 1234"
-            />
+            <div className="flex items-center gap-2">
+              {!extranjero && (
+                <span className="shrink-0 rounded-md border bg-secondary/40 px-2.5 py-2 text-sm tabular-nums text-text-2">
+                  +54 9
+                </span>
+              )}
+              <Input
+                id="nc-phone"
+                value={phone}
+                inputMode="tel"
+                onChange={(e) => cambiarTelefono(e.target.value)}
+                placeholder="11 5119-1447"
+              />
+            </div>
             <p className="text-[11px] text-text-3">
-              Escríbelo con espacios si quieres, pero{" "}
-              <strong>incluye el código de país</strong> (52 para México). Sin
-              él, WhatsApp no lo reconoce como la misma persona que te escriba
-              después.
+              {phone.trim() === "" ? (
+                <>
+                  Código de área sin 0 y número sin 15. Para otro país, empezá con{" "}
+                  <strong>+</strong> y su código.
+                </>
+              ) : telefono.ok ? (
+                <>
+                  Se guarda como <strong>{formatearTelefono(telefono.telefono)}</strong>
+                </>
+              ) : (
+                <span className="text-danger-text">{explicarMotivoTelefono(telefono.motivo)}</span>
+              )}
             </p>
           </div>
 

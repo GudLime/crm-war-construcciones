@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  ESTADOS_ABIERTOS,
   estaAbierta,
   normalizarTipoContacto,
   normalizarTipologias,
@@ -27,18 +26,14 @@ describe("abiertas y cerradas", () => {
     expect(estaAbierta("no_calificado")).toBe(false);
   });
 
-  it("coincide con el índice único de la migración 0030", async () => {
+  it("0034 permite varias abiertas por contacto (una por edificio)", async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
     const sql = fs.readFileSync(
-      path.join(process.cwd(), "drizzle", "0030_oportunidades_war.sql"),
+      path.join(process.cwd(), "drizzle", "0034_leads_telefonos.sql"),
       "utf8"
     );
-    const indice = sql.slice(sql.indexOf("oportunidad_una_abierta_uq"));
-    for (const e of ESTADOS_ABIERTOS) expect(indice).toContain(`'${e}'`);
-    for (const e of ["compro", "perdido", "no_calificado"]) {
-      expect(indice).not.toContain(`'${e}'`);
-    }
+    expect(sql).toContain('DROP INDEX IF EXISTS "oportunidad_una_abierta_uq"');
   });
 });
 

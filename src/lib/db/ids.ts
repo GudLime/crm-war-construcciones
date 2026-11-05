@@ -46,6 +46,8 @@ const prefixes = {
   departamento: "dpt",
   oportunidad: "opt",
   tareaVenta: "trv",
+  // War — leads de formularios (Make)
+  oportunidadLead: "olead",
   // War — historial de instrucciones del agente
   instruccionVersion: "inv",
 } as const;

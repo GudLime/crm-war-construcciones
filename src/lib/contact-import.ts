@@ -1,4 +1,4 @@
-import { normalizeMx } from "@/lib/meta/client";
+import { normalizarTelefono } from "@/lib/telefono";
 
 /**
  * Importación de contactos desde un CSV: la parte PURA.
@@ -107,18 +107,17 @@ export function detectColumns(
 /**
  * Teléfono a identidad de WhatsApp, o el motivo por el que no sirve.
  *
- * Exige código de país igual que el alta manual: diez dígitos son un número
- * local en varios países, y asumir uno produciría un contacto que jamás casa
- * con quien escriba después.
+ * War: la misma normalización que el resto del CRM (`lib/telefono.ts`): sin
+ * código de país se lee como número argentino, y el celular queda con su 9.
  */
 export function normalizeImportPhone(
   raw: string
 ): { ok: true; phone: string } | { ok: false; reason: ImportProblem["reason"] } {
-  const digits = raw.replace(/\D/g, "");
-  if (!digits) return { ok: false, reason: "sin_telefono" };
-  if (digits.length > 15) return { ok: false, reason: "telefono_invalido" };
-  if (digits.length < 11) return { ok: false, reason: "sin_codigo_pais" };
-  return { ok: true, phone: normalizeMx(digits) };
+  const res = normalizarTelefono(raw);
+  if (res.ok) return { ok: true, phone: res.telefono };
+  if (res.motivo === "vacio") return { ok: false, reason: "sin_telefono" };
+  if (res.motivo === "sin_codigo_pais") return { ok: false, reason: "sin_codigo_pais" };
+  return { ok: false, reason: "telefono_invalido" };
 }
 
 /** Filas crudas a filas importables + lo que se quedó fuera y por qué. */

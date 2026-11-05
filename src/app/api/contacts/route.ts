@@ -6,7 +6,7 @@ import { apiError, parseBody, withAuth } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
-import { normalizeMx } from "@/lib/meta/client";
+import { explicarMotivoTelefono, normalizarTelefono } from "@/lib/telefono";
 import { digitsOnly, normalizeText } from "@/lib/search";
 import { serializeContact } from "@/server/contacts";
 import { createLeadForContact } from "@/server/inbox/lead-activity";
@@ -107,16 +107,11 @@ export const GET = withAuth(async (session, req: Request) => {
 const createSchema = z.object({
   name: z.string().trim().min(1).max(120),
   /**
-   * EXIGE código de país. Un número local crearía un contacto que jamás casaría
-   * con los mensajes entrantes —Meta siempre manda la identidad completa— y el
-   * dueño acabaría con dos fichas de la misma persona. No se asume un país:
-   * diez dígitos son válidos en varios, y asumir mal produce un número
-   * silenciosamente equivocado.
+   * War: se acepta como lo escriban (`11 5119-1447`, `+54 9 11…`, `011 15…`)
+   * y se normaliza con `lib/telefono.ts` a E.164 sin `+`: el mismo número con
+   * el que WhatsApp reporta a esa persona, para que nunca haya dos fichas.
    */
-  phone: z
-    .string()
-    .trim()
-    .regex(/^\d{7,15}$/, "Teléfono en dígitos, con código de país (ej. 5215512345678)"),
+  phone: z.string().trim().min(1, "Falta el teléfono").max(40),
   /** 068 — Tipo de contacto elegido al darlo de alta; sin él queda sin clasificar. */
   tipoContacto: z.enum(VALORES_TIPO_CONTACTO as [TipoContacto, ...TipoContacto[]]).optional(),
   /** War: correo opcional. Informativo; la identidad sigue siendo el teléfono. */
@@ -133,7 +128,11 @@ export const POST = withAuth(async (session, req: Request) => {
 
   const db = getDb();
   // 003: la identidad WhatsApp se deriva del teléfono normalizado.
-  const phone = normalizeMx(body.data.phone);
+  const normalizado = normalizarTelefono(body.data.phone);
+  if (!normalizado.ok) {
+    return apiError(422, "telefono_invalido", explicarMotivoTelefono(normalizado.motivo));
+  }
+  const phone = normalizado.telefono;
   const inserted = await db
     .insert(schema.contact)
     .values({

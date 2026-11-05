@@ -95,7 +95,9 @@ export async function oportunidadAbierta(
         inArray(schema.oportunidad.estado, ABIERTOS)
       )
     )
-    .orderBy(desc(schema.oportunidad.updatedAt))
+    // War: puede haber varias abiertas (una por edificio); manda la que tuvo
+    // la última interacción del interesado.
+    .orderBy(desc(schema.oportunidad.ultimaInteraccion), desc(schema.oportunidad.updatedAt))
     .limit(1);
   return op ?? null;
 }
@@ -227,7 +229,46 @@ export async function abrirOportunidad(
   }
 }
 
-async function avisarConversaciones(organizationId: string, contactId: string) {
+/**
+ * War — El interesado escribió por WhatsApp.
+ *
+ * - Si tiene una oportunidad abierta, la más reciente toma esta última
+ *   interacción y vuelve arriba en la lista.
+ * - Si es Lead y no tiene ninguna abierta (las anteriores se cerraron), se
+ *   abre una nueva: volvió a consultar. Si vino de un anuncio, el origen
+ *   queda en Meta Ads.
+ *
+ * Nunca frena la ingesta: quien la llama atrapa cualquier error.
+ */
+export async function registrarInteraccionDelContacto(input: {
+  organizationId: string;
+  contactId: string;
+  at: Date;
+  desdeAnuncio: boolean;
+}): Promise<void> {
+  const { organizationId, contactId, at } = input;
+  const abierta = await oportunidadAbierta(organizationId, contactId);
+  if (abierta) {
+    await getDb()
+      .update(schema.oportunidad)
+      .set({ ultimaInteraccion: at, updatedAt: new Date() })
+      .where(eq(schema.oportunidad.id, abierta.id));
+    return;
+  }
+  const contacto = await contactoDe(organizationId, contactId);
+  if (contacto?.tipoContacto !== "lead") return;
+  const nueva = await abrirOportunidad(organizationId, contactId);
+  await getDb()
+    .update(schema.oportunidad)
+    .set({
+      ultimaInteraccion: at,
+      ...(input.desdeAnuncio && !nueva.origen ? { origen: "Meta Ads" } : {}),
+    })
+    .where(eq(schema.oportunidad.id, nueva.id));
+  await avisarConversaciones(organizationId, contactId);
+}
+
+export async function avisarConversaciones(organizationId: string, contactId: string) {
   const convs = await getDb()
     .select({ id: schema.conversation.id })
     .from(schema.conversation)

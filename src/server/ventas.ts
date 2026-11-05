@@ -180,6 +180,10 @@ export type OportunidadDto = {
   edificios: { id: string; nombre: string }[];
   /** 068 — Tipologías de interés. */
   tipologias: Tipologia[];
+  /** War — último formulario o mensaje del interesado (ISO). Ordena la lista. */
+  ultimaInteraccion: string;
+  /** War — cuántos formularios de anuncio o portal sumó esta oportunidad. */
+  formularios: number;
 };
 
 export type TareaDto = {
@@ -570,7 +574,8 @@ async function interesDeOportunidades(
 function aOportunidad(
   fila: typeof schema.oportunidad.$inferSelect,
   extra: { contactoNombre: string | null; edificioNombre: string | null; unidad: string | null },
-  interes: InteresOportunidad = { edificios: [], tipologias: [] }
+  interes: InteresOportunidad = { edificios: [], tipologias: [] },
+  formularios = 0
 ): OportunidadDto {
   return {
     id: fila.id,
@@ -589,7 +594,29 @@ function aOportunidad(
     moneda: fila.moneda,
     edificios: interes.edificios,
     tipologias: interes.tipologias,
+    ultimaInteraccion: fila.ultimaInteraccion.toISOString(),
+    formularios,
   };
+}
+
+/** War — Formularios recibidos por oportunidad. */
+async function formulariosDeOportunidades(
+  organizationId: string,
+  ids: readonly string[]
+): Promise<Map<string, number>> {
+  if (!ids.length) return new Map();
+  const filas = await getDb()
+    .select({ oportunidadId: schema.oportunidadLead.oportunidadId, n: count() })
+    .from(schema.oportunidadLead)
+    .where(
+      scoped(
+        schema.oportunidadLead.organizationId,
+        organizationId,
+        inArray(schema.oportunidadLead.oportunidadId, [...ids])
+      )
+    )
+    .groupBy(schema.oportunidadLead.oportunidadId);
+  return new Map(filas.map((f) => [f.oportunidadId, Number(f.n)]));
 }
 
 export async function listarOportunidades(organizationId: string): Promise<OportunidadDto[]> {
@@ -605,11 +632,13 @@ export async function listarOportunidades(organizationId: string): Promise<Oport
     .leftJoin(schema.edificio, eq(schema.edificio.id, schema.oportunidad.edificioId))
     .leftJoin(schema.departamento, eq(schema.departamento.id, schema.oportunidad.departamentoId))
     .where(scoped(schema.oportunidad.organizationId, organizationId))
-    .orderBy(desc(schema.oportunidad.updatedAt));
-  const intereses = await interesDeOportunidades(
-    organizationId,
-    filas.map((f) => f.op.id)
-  );
+    // War: lo que tuvo movimiento del interesado (formulario o WhatsApp) arriba.
+    .orderBy(desc(schema.oportunidad.ultimaInteraccion), desc(schema.oportunidad.updatedAt));
+  const ids = filas.map((f) => f.op.id);
+  const [intereses, formularios] = await Promise.all([
+    interesDeOportunidades(organizationId, ids),
+    formulariosDeOportunidades(organizationId, ids),
+  ]);
   return filas.map((f) =>
     aOportunidad(
       f.op,
@@ -618,7 +647,8 @@ export async function listarOportunidades(organizationId: string): Promise<Oport
         edificioNombre: f.edificioNombre,
         unidad: f.unidad,
       },
-      intereses.get(f.op.id)
+      intereses.get(f.op.id),
+      formularios.get(f.op.id) ?? 0
     )
   );
 }
@@ -674,7 +704,10 @@ async function oportunidadConNombres(
     .where(scoped(schema.oportunidad.organizationId, organizationId, eq(schema.oportunidad.id, id)))
     .limit(1);
   if (!fila) throw new VentasError(404, "not_found", "Esa oportunidad no existe");
-  const intereses = await interesDeOportunidades(organizationId, [id]);
+  const [intereses, formularios] = await Promise.all([
+    interesDeOportunidades(organizationId, [id]),
+    formulariosDeOportunidades(organizationId, [id]),
+  ]);
   return aOportunidad(
     fila.op,
     {
@@ -682,7 +715,8 @@ async function oportunidadConNombres(
       edificioNombre: fila.edificioNombre,
       unidad: fila.unidad,
     },
-    intereses.get(id)
+    intereses.get(id),
+    formularios.get(id) ?? 0
   );
 }
 
