@@ -68,15 +68,15 @@ describe("un edificio en la memoria", () => {
   it("lista solo lo que se puede ofrecer, y cuenta el resto", () => {
     expect(texto).toContain("Unidades disponibles (3 disponibles de 5, 1 reservada, 1 vendida)");
     // 2A (vendida) y 2B (reservada) no se listan; 3A (consultar) sí.
-    expect(texto).toContain("Unidad 1A");
-    expect(texto).toContain("Unidad 1B");
-    expect(texto).toContain("Unidad 3A");
-    expect(texto).not.toContain("Unidad 2A");
-    expect(texto).not.toContain("Unidad 2B");
+    expect(texto).toContain("código 1A");
+    expect(texto).toContain("código 1B");
+    expect(texto).toContain("código 3A");
+    expect(texto).not.toContain("código 2A");
+    expect(texto).not.toContain("código 2B");
   });
 
   it("cada unidad con ambientes, baños, metros, precio y su nota", () => {
-    const linea = texto.split("\n").find((l) => l.includes("Unidad 1B"))!;
+    const linea = texto.split("\n").find((l) => l.includes("código 1B"))!;
     expect(linea).toContain("piso 1");
     expect(linea).toContain("3 ambientes");
     expect(linea).toContain("2 dormitorios");
@@ -84,11 +84,11 @@ describe("un edificio en la memoria", () => {
     expect(linea).toContain("toilette");
     expect(linea).toContain("178 m² totales (70 cubiertos + 8 semicubiertos + 100 descubiertos)");
     expect(linea).toContain("precio USD 250.000");
-    expect(texto).toContain("  Nota: Terraza propia con parrilla.");
+    expect(linea).toContain("nota: Terraza propia con parrilla.");
   });
 
   it("sin precio o para consultar, lo dice", () => {
-    const linea = texto.split("\n").find((l) => l.includes("Unidad 3A"))!;
+    const linea = texto.split("\n").find((l) => l.includes("código 3A"))!;
     expect(linea).toContain("precio a consultar");
     expect(linea).toContain("disponibilidad a confirmar con el equipo");
   });
@@ -138,10 +138,43 @@ describe("rangos por tipología", () => {
     expect(texto).toContain("- 2 ambientes: 1 disponible · precio USD 150.000 · 55 m² totales");
     // La vendida no entra ni en el rango ni en la lista.
     expect(texto).not.toContain("106.000");
-    expect(texto).not.toContain("Unidad 6B");
+    expect(texto).not.toContain("código 6B");
   });
 
   it("el rango va antes del listado de unidades", () => {
-    expect(texto.indexOf("Rangos por tipología")).toBeLessThan(texto.indexOf("Unidad 2A"));
+    expect(texto.indexOf("Rangos por tipología")).toBeLessThan(texto.indexOf("código 2A"));
+  });
+});
+
+describe("unidades legibles dentro del JSON de Nea", () => {
+  const mono = (over: Partial<UnidadParaMemoria>) =>
+    unidad({ tipologia: "1_ambiente", dormitorios: null, metrosSemicubiertos: null, ...over });
+  const texto = renderEdificioParaMemoria(
+    edificio({
+      nombre: "Olazábal 2649",
+      unidades: [
+        mono({ unidad: "5A", piso: 5, metrosCubiertos: 33, metrosSemicubiertos: 4, valorCents: 14_200_000 }),
+        mono({ unidad: "6C", piso: 6, metrosCubiertos: 28, valorCents: 10_500_000, notasAgente: "Vende\ninversor" }),
+        mono({ unidad: "2A", piso: 2, metrosCubiertos: 33, metrosSemicubiertos: 4, valorCents: 13_200_000 }),
+      ],
+    })
+  );
+  const filas = texto.split("\n").filter((l) => l.startsWith("- Olazábal 2649"));
+
+  it("cada línea repite edificio y tipología y deja el código al final", () => {
+    expect(filas).toHaveLength(3);
+    for (const f of filas) {
+      expect(f).toMatch(/^- Olazábal 2649 · 1 ambiente · piso \d/);
+      expect(f).toMatch(/· código [0-9A-Z]+$/);
+    }
+  });
+
+  it("ordena de la más barata a la más cara dentro de la tipología", () => {
+    expect(filas.map((f) => f.match(/código (\w+)$/)![1])).toEqual(["6C", "2A", "5A"]);
+    expect(texto).toContain("1 ambiente en Olazábal 2649, de la más barata a la más cara (3 unidades):");
+  });
+
+  it("la nota va en la misma línea, sin saltos", () => {
+    expect(filas[0]).toContain("nota: Vende inversor");
   });
 });
