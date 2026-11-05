@@ -60,6 +60,11 @@ vi.mock("@/server/inbox/lead-activity", () => ({
   onLeadActivity: vi.fn(async () => {}),
 }));
 vi.mock("@/server/brains/config", () => ({ despachoActivo: () => false }));
+// War — la última interacción de la oportunidad no es lo que se prueba aquí
+// (y consumiría los `select` en cola de este doble de la base).
+vi.mock("@/server/oportunidades-war", () => ({
+  registrarInteraccionDelContacto: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock("@/server/dispatch/encolar", () => ({
   despacharAlCerebro: vi.fn(async () => {}),
 }));

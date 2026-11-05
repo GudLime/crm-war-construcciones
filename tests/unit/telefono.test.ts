@@ -81,7 +81,7 @@ describe("normalizarTelefono — lo que no sirve", () => {
 
 describe("formatearTelefono", () => {
   it("muestra el formato internacional legible", () => {
-    expect(formatearTelefono(CELU)).toBe("+54 9 11 5119-1447");
+    expect(formatearTelefono(CELU)).toBe("+54 9 11 5119 1447");
   });
 
   it("sin teléfono lo dice", () => {
