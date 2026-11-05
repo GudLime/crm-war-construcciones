@@ -81,3 +81,31 @@ Disponible / Consultar con metros, ambientes y precio (reservadas y vendidas
 solo se cuentan). Nea guarda el perfil ~5 min, así que un cambio de precio
 llega en ese plazo. Código: `src/lib/memoria-agente.ts`,
 `memoriaDeEdificios` en `src/server/ventas.ts`.
+
+## Leads de formularios y teléfonos (Make)
+
+Mientras la app de Meta no tenga Ads Management, los leads de los formularios
+de Meta Ads (y de los portales) entran por **Make**: un escenario por
+formulario manda el lead a `POST /api/integraciones/leads` con el header
+`X-API-Key: <LEADS_API_KEY>` (variable de entorno, distinta de `BOT_API_KEY`).
+
+Cuerpo (JSON): `leadId` y `origen` (uno de `ORIGENES_OPORTUNIDAD`, ej.
+`Meta Ads`) obligatorios; `edificio` (id, o nombre / dirección de un único
+edificio), `nombreCompleto` o `nombre` + `apellido`, `telefono`, `email`,
+`campaignId/Name`, `adsetId/Name`, `adId/Name`, `formId/Name`, `plataforma`,
+`creadoEn` y `respuestas` (objeto libre) opcionales. Responde 201 si abrió
+una oportunidad, 200 si se sumó a una o si el `leadId` ya había entrado.
+
+- **Teléfonos** (`src/lib/telefono.ts`, libphonenumber de Google): todo
+  número que entra —alta manual, importación, leads— se guarda en E.164 sin
+  `+`. El celular argentino lleva el 9 (`5491151191447`), igual que el `wa_id`
+  de WhatsApp, así que el contacto del formulario y el mensaje que llega
+  después son el mismo. Sin código de país se lee como argentino; sin 9, se le
+  agrega. La migración 0034 pasa los `54` + 10 dígitos ya cargados a `549`.
+- **Oportunidades**: el lead ID vive en `oportunidad_lead`, no en el contacto.
+  Si la persona tiene una abierta del mismo edificio (o una abierta sin
+  edificio, la del WhatsApp que llegó antes), el lead se suma; si no, se abre
+  otra. Ya no hay una sola abierta por contacto (0034 borra ese índice).
+- **Última interacción** (`oportunidad.ultima_interaccion`): la tocan un lead
+  nuevo y cada mensaje de WhatsApp; ordena la lista de Oportunidades. Si un
+  Lead escribe y no tiene ninguna abierta, se le abre una nueva.

@@ -50,10 +50,21 @@ describe("normalizeImportPhone", () => {
     });
   });
 
-  it("rechaza un número local: sin código de país nunca casaría con quien escriba", () => {
+  it("War: sin código de país se lee como celular argentino, con su 9", () => {
+    expect(normalizeImportPhone("011 15 5119-1447")).toEqual({
+      ok: true,
+      phone: "5491151191447",
+    });
+    expect(normalizeImportPhone("+541151191447")).toEqual({
+      ok: true,
+      phone: "5491151191447",
+    });
+  });
+
+  it("un número local que no existe en Argentina no entra", () => {
     expect(normalizeImportPhone("55 1234 5678")).toEqual({
       ok: false,
-      reason: "sin_codigo_pais",
+      reason: "telefono_invalido",
     });
   });
 

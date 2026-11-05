@@ -62,6 +62,10 @@ export const envSchema = z.object({
   // API key de un cerebro externo que conduzca la conversación por /api/bot/*.
   // Sin ella, toda esa superficie responde 401.
   BOT_API_KEY: z.string().optional(),
+  // War — llave de las automatizaciones (Make) que mandan leads de
+  // formularios y portales a POST /api/integraciones/leads. Sin ella (o con
+  // menos de 16 caracteres), esa entrada responde 401.
+  LEADS_API_KEY: z.string().optional(),
   // «Quién responde a tus clientes»: el /health del cerebro externo (Nea),
   // consultado desde el servidor. Ej.: http://nea:8000/health (alias de la
   // red de Coolify). Sin ella, la tarjeta del Agente no pregunta a nadie.

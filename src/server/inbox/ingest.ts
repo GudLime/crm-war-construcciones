@@ -26,6 +26,7 @@ import { registrarAnuncioDeOrigen } from "@/server/attribution/store";
 import { onLeadActivity } from "@/server/inbox/lead-activity";
 import { despachoActivo } from "@/server/brains/config";
 import { despacharAlCerebro } from "@/server/dispatch/encolar";
+import { registrarInteraccionDelContacto } from "@/server/oportunidades-war";
 import {
   aCitaDto,
   citaDelWebhook,
@@ -536,6 +537,23 @@ export async function ingestInboundMessage(input: {
     .where(eq(schema.conversation.id, conversation.id));
 
   await onLeadActivity(organizationId, contact.id, waTimestamp);
+
+  // War — la oportunidad abierta vuelve arriba; si es Lead y no tenía ninguna
+  // abierta, volvió a consultar y se le abre otra. Es contexto: si falla, el
+  // mensaje entra igual.
+  try {
+    await registrarInteraccionDelContacto({
+      organizationId,
+      contactId: contact.id,
+      at: waTimestamp,
+      desdeAnuncio: Boolean(input.anuncio),
+    });
+  } catch (err) {
+    console.warn(
+      `[oportunidades] no se registró la interacción de ${contact.id}:`,
+      err instanceof Error ? err.message : err
+    );
+  }
 
   publish(organizationId, {
     type: "message.new",

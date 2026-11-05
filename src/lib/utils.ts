@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { formatearTelefono } from "@/lib/telefono-formato";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -44,6 +45,7 @@ export function avatarColor(seed: string): string {
 }
 
 export function formatPhone(phone: string | null | undefined): string {
-  // 003: contactos BSUID pueden no tener teléfono.
-  return phone ? `+${phone}` : "Sin teléfono";
+  // 003: contactos BSUID pueden no tener teléfono. War: formato internacional
+  // legible (`+54 9 11 5119-1447`) con libphonenumber.
+  return formatearTelefono(phone);
 }
