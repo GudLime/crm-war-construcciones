@@ -1,9 +1,10 @@
 import { apiError, parseBody } from "@/lib/api";
-import { leadBodySchema as bodySchema, nombreDelLead, origenCanonico } from "@/lib/leads";
-import { ORIGENES_OPORTUNIDAD } from "@/lib/ventas";
+import { leadBodySchema as bodySchema, nombreDelLead } from "@/lib/leads";
+import { origenCanonico } from "@/lib/origenes";
 import { resolveInstanceOrg } from "@/server/bot/auth";
 import { exigirLlaveLeads } from "@/server/integraciones/auth";
 import { LeadError, recibirLead } from "@/server/integraciones/leads";
+import { listarOrigenes } from "@/server/origenes";
 
 export const dynamic = "force-dynamic";
 
@@ -38,12 +39,14 @@ export async function POST(req: Request) {
   if (!body.ok) return body.response;
   const d = body.data;
 
-  const origen = origenCanonico(d.origen);
+  // Los válidos son los de Configuración → Orígenes.
+  const nombres = (await listarOrigenes(organizationId)).map((o) => o.nombre);
+  const origen = origenCanonico(d.origen, nombres);
   if (!origen) {
     return apiError(
       422,
       "origen_desconocido",
-      `Origen «${d.origen}» desconocido. Válidos: ${ORIGENES_OPORTUNIDAD.join(", ")}`
+      `Origen «${d.origen}» desconocido. Válidos: ${nombres.join(", ")}`
     );
   }
 

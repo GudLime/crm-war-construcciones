@@ -286,3 +286,29 @@ export const agentInstruccionesVersion = pgTable(
   },
   (t) => [index("agent_instrucciones_version_org_idx").on(t.organizationId, t.createdAt)]
 );
+
+/**
+ * War 0035 — Orígenes de las oportunidades (Ajustes → Orígenes). El nombre es
+ * lo que se guarda en `oportunidad.origen` (texto, sin FK: borrar un origen
+ * no le cambia nada a las oportunidades que ya lo tienen) y lo que manda Make.
+ */
+export const origenOportunidad = pgTable(
+  "origen_oportunidad",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    nombre: text("nombre").notNull(),
+    /** Clave de `ICONOS_ORIGEN` (`src/lib/origenes.ts`). */
+    icono: text("icono").notNull().default("tag"),
+    /** Posición en la lista y en el desplegable. */
+    orden: integer("orden").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("origen_oportunidad_org_nombre_uq").on(t.organizationId, t.nombre),
+    index("origen_oportunidad_org_orden_idx").on(t.organizationId, t.orden),
+  ]
+);

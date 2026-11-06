@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { leadBodySchema } from "@/lib/leads";
-import { ORIGENES_OPORTUNIDAD } from "@/lib/ventas";
 import contrato from "../../docs/openapi-integraciones.json";
 
 /**
@@ -20,7 +19,7 @@ type Doc = {
     schemas: {
       LeadEntrante: {
         required: string[];
-        properties: Record<string, { enum?: string[] }>;
+        properties: Record<string, { enum?: string[]; description?: string }>;
       };
     };
   };
@@ -50,8 +49,11 @@ describe("POST /api/integraciones/leads contra el código", () => {
     expect([...lead.required].sort()).toEqual(["leadId", "origen"]);
   });
 
-  it("los orígenes son los de las oportunidades", () => {
-    expect(lead.properties.origen!.enum).toEqual([...ORIGENES_OPORTUNIDAD]);
+  it("los orígenes no son una lista fija: se configuran en la app", () => {
+    // 0035 — Configuración → Orígenes. Un enum en el contrato quedaría viejo
+    // apenas alguien agrega uno.
+    expect(lead.properties.origen!.enum).toBeUndefined();
+    expect(lead.properties.origen!.description).toMatch(/Configuración → Orígenes/);
   });
 
   it("los 422 son los que devuelven la ruta y el servidor", () => {

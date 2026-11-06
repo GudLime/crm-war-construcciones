@@ -25,9 +25,12 @@ describe("el body de ventas", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("rechaza una unidad vacía y un origen desconocido", () => {
+  it("rechaza una unidad vacía; el origen se valida contra Configuración → Orígenes", () => {
     expect(edificioSchema.safeParse({ nombre: "  " }).success).toBe(false);
-    expect(oportunidadSchema.safeParse({ nombre: "García", origen: "Cartel inventado" }).success).toBe(false);
+    // 0035 — Los orígenes ya no son una lista fija: el body acepta texto y
+    // `valoresOportunidad` exige que exista en la base al guardar.
+    expect(oportunidadSchema.safeParse({ nombre: "García", origen: "Properati" }).success).toBe(true);
+    expect(oportunidadSchema.safeParse({ nombre: "García", origen: "x".repeat(61) }).success).toBe(false);
     expect(tareaSchema.safeParse({ titulo: "Llamar", tipo: "llamada", fecha: null }).success).toBe(true);
   });
 });

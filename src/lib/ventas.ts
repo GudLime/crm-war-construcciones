@@ -28,25 +28,10 @@ export const TIPOLOGIAS = [
   { value: "triplex", label: "Triplex" },
 ] as const;
 
-/** Origen de la oportunidad: las fuentes del tablero de Notion. */
-export const ORIGENES_OPORTUNIDAD = [
-  "Newsletter",
-  "MercadoLibre",
-  "Argenprop",
-  "Zonaprop",
-  "Página Web",
-  "Google Ads",
-  "Referido",
-  "Cartel",
-  "Meta Ads",
-  "Facebook",
-  "Instagram",
-  "Cartel Showroom",
-  "Inmobiliaria",
-  "Google",
-  "Mail",
-  "Tik Tok",
-] as const;
+/**
+ * El origen de la oportunidad ya no es una lista fija: se configura en
+ * Ajustes → Orígenes (nombre e ícono). Ver `src/lib/origenes.ts`.
+ */
 
 export const ESTADOS_OPORTUNIDAD = [
   { value: "recibido", label: "Recibido" },
@@ -102,7 +87,6 @@ export const ESTADOS_TAREA = [
 export type EstadoEdificio = (typeof ESTADOS_EDIFICIO)[number]["value"];
 export type EstadoUnidad = (typeof ESTADOS_UNIDAD)[number]["value"];
 export type Tipologia = (typeof TIPOLOGIAS)[number]["value"];
-export type OrigenOportunidad = (typeof ORIGENES_OPORTUNIDAD)[number];
 export type EstadoOportunidad = (typeof ESTADOS_OPORTUNIDAD)[number]["value"];
 export type TipoOportunidad = (typeof TIPOS_OPORTUNIDAD)[number]["value"];
 export type TipoTarea = (typeof TIPOS_TAREA)[number]["value"];
@@ -114,7 +98,6 @@ const valores = <T extends readonly { value: string }[] | readonly string[]>(opc
 export const VALORES_ESTADO_EDIFICIO = valores(ESTADOS_EDIFICIO);
 export const VALORES_ESTADO_UNIDAD = valores(ESTADOS_UNIDAD);
 export const VALORES_TIPOLOGIA = valores(TIPOLOGIAS);
-export const VALORES_ORIGEN = valores(ORIGENES_OPORTUNIDAD);
 export const VALORES_ESTADO_OPORTUNIDAD = valores(ESTADOS_OPORTUNIDAD);
 export const VALORES_TIPO_OPORTUNIDAD = valores(TIPOS_OPORTUNIDAD);
 export const VALORES_MOTIVO = valores(MOTIVOS_CIERRE);

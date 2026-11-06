@@ -28,7 +28,7 @@ responde 401.
 | Campo | Obligatorio | Qué es |
 |---|---|---|
 | `leadId` | sí | ID del lead en Meta (o del portal). Hace la entrada idempotente. |
-| `origen` | sí | Uno de los orígenes de las oportunidades (`Meta Ads`, `Zonaprop`, `Argenprop`…). Acepta `meta_ads`, `META ADS`, etc. |
+| `origen` | sí | Uno de los orígenes de **Configuración → Orígenes** (`Meta Ads`, `Zonaprop`, `Argenprop`…). Acepta `meta_ads`, `META ADS`, etc. Si se renombra o se borra un origen allá, hay que cambiarlo también en el escenario de Make. |
 | `edificio` | no | Id del edificio, o su nombre o dirección tal como está en el CRM. |
 | `nombre`, `apellido` / `nombreCompleto` | no | Nombre de la persona. |
 | `telefono` | no* | Como lo escribió la persona: el CRM lo normaliza. |

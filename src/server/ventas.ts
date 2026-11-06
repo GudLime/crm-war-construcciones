@@ -11,7 +11,6 @@ import {
   VALORES_ESTADO_TAREA,
   VALORES_ESTADO_UNIDAD,
   VALORES_MOTIVO,
-  VALORES_ORIGEN,
   VALORES_TIPO_OPORTUNIDAD,
   VALORES_TIPO_TAREA,
   VALORES_TIPOLOGIA,
@@ -32,6 +31,8 @@ import {
   type ValoresUnidad,
 } from "@/lib/unidades-csv";
 import { renderMemoriaAgente } from "@/lib/memoria-agente";
+import { NOMBRE_ORIGEN_MAX } from "@/lib/origenes";
+import { existeOrigen } from "@/server/origenes";
 
 /**
  * Ventas de la constructora. Las rutas solo autentican y traducen el body;
@@ -53,7 +54,8 @@ const estadoEdificio = z.enum(
 );
 const estadoUnidad = z.enum(VALORES_ESTADO_UNIDAD as [EstadoUnidad, ...EstadoUnidad[]]);
 const tipologia = z.enum(VALORES_TIPOLOGIA as [Tipologia, ...Tipologia[]]);
-const origen = z.enum(VALORES_ORIGEN as unknown as [string, ...string[]]);
+/** War 0035 — Uno de Ajustes → Orígenes; se valida contra la base al guardar. */
+const origen = z.string().trim().min(1).max(NOMBRE_ORIGEN_MAX);
 const estadoOportunidad = z.enum(
   VALORES_ESTADO_OPORTUNIDAD as [EstadoOportunidad, ...EstadoOportunidad[]]
 );
@@ -655,8 +657,18 @@ export async function listarOportunidades(organizationId: string): Promise<Oport
 
 async function valoresOportunidad(
   organizationId: string,
-  datos: z.infer<typeof oportunidadSchema>
+  datos: z.infer<typeof oportunidadSchema>,
+  /** Al editar: el origen que ya tenía, que vale aunque se haya borrado de Ajustes. */
+  origenActual: string | null = null
 ) {
+  const origenNuevo = datos.origen && datos.origen !== origenActual;
+  if (origenNuevo && !(await existeOrigen(organizationId, datos.origen!))) {
+    throw new VentasError(
+      422,
+      "invalid_body",
+      `El origen «${datos.origen}» no existe: agregalo en Configuración → Orígenes`
+    );
+  }
   await exigirEnOrganizacion(
     organizationId,
     "contact",
@@ -768,7 +780,13 @@ export async function editarOportunidad(
   id: string,
   datos: z.infer<typeof oportunidadSchema>
 ): Promise<OportunidadDto> {
-  const valores = await valoresOportunidad(organizationId, datos);
+  const [previa] = await getDb()
+    .select({ origen: schema.oportunidad.origen })
+    .from(schema.oportunidad)
+    .where(scoped(schema.oportunidad.organizationId, organizationId, eq(schema.oportunidad.id, id)))
+    .limit(1);
+  if (!previa) throw new VentasError(404, "not_found", "Esa oportunidad no existe");
+  const valores = await valoresOportunidad(organizationId, datos, previa.origen);
   let fila: { id: string } | undefined;
   try {
     [fila] = await getDb()

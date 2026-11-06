@@ -111,6 +111,7 @@ export function Select({
   placeholder = "Elegí una opción",
   buscador,
   className,
+  iconoDe,
   "aria-label": ariaLabel,
   "aria-labelledby": ariaLabelledby,
 }: {
@@ -125,6 +126,8 @@ export function Select({
   buscador?: boolean;
   /** Clases del botón (ancho, alto, tamaño de letra). */
   className?: string;
+  /** Un ícono delante de cada opción (y de la elegida). `null` = sin ícono. */
+  iconoDe?: (value: string) => ReactNode;
   "aria-label"?: string;
   "aria-labelledby"?: string;
 }) {
@@ -354,6 +357,7 @@ export function Select({
           className
         )}
       >
+        {elegida && iconoDe?.(elegida.value)}
         <span className={cn("min-w-0 flex-1 truncate", !elegida && "text-text-3")}>
           {elegida?.label || placeholder}
         </span>
@@ -449,6 +453,7 @@ export function Select({
                         o.disabled && "cursor-not-allowed opacity-50"
                       )}
                     >
+                      {iconoDe?.(o.value)}
                       <span className="min-w-0 flex-1 truncate">{o.label || " "}</span>
                       {sel && <Check aria-hidden className="size-4 shrink-0 text-brand-ink" />}
                     </li>
