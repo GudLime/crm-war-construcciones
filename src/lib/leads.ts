@@ -1,41 +1,23 @@
 import { z } from "zod";
-import { ORIGENES_OPORTUNIDAD } from "@/lib/ventas";
 
 /**
  * War — Reglas puras de los leads que llegan por Make (formularios de Meta,
  * portales). Sin base de datos, para poder probarlas como tabla.
+ *
+ * Los orígenes válidos son los de Ajustes → Orígenes: el canónico se busca
+ * con `origenCanonico` de `@/lib/origenes`.
  */
 
-export type OrigenOportunidad = (typeof ORIGENES_OPORTUNIDAD)[number];
-
-function plano(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]/gi, "")
-    .toLowerCase();
-}
-
-/** "meta ads", "META_ADS", "Meta Ads" → "Meta Ads". Lo que no está en la lista: null. */
-export function origenCanonico(raw: string | null | undefined): OrigenOportunidad | null {
-  if (!raw) return null;
-  const buscado = plano(raw);
-  if (!buscado) return null;
-  return ORIGENES_OPORTUNIDAD.find((o) => plano(o) === buscado) ?? null;
-}
-
-const ORIGENES_DE_ANUNCIO: readonly OrigenOportunidad[] = [
-  "Meta Ads",
-  "Google Ads",
-  "Facebook",
-  "Instagram",
-  "Tik Tok",
-];
+/** Orígenes de los que viene la gente por un anuncio (por nombre). */
+const ORIGENES_DE_ANUNCIO = ["Meta Ads", "Google Ads", "Facebook", "Instagram", "Tik Tok"].map(
+  (n) => n.toLowerCase()
+);
 
 /** La fuente del contacto (`contact.source`) que corresponde a un origen. */
-export function fuenteDelContacto(origen: OrigenOportunidad): "anuncio" | "referido" | "otro" {
-  if (ORIGENES_DE_ANUNCIO.includes(origen)) return "anuncio";
-  if (origen === "Referido") return "referido";
+export function fuenteDelContacto(origen: string): "anuncio" | "referido" | "otro" {
+  const o = origen.trim().toLowerCase();
+  if (ORIGENES_DE_ANUNCIO.includes(o)) return "anuncio";
+  if (o === "referido") return "referido";
   return "otro";
 }
 

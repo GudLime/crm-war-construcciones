@@ -148,6 +148,8 @@ export function settingsSections({
     { href: "/settings/templates", label: "Plantillas" },
     // 049 — lo que el equipo inserta con «/atajo» en la Bandeja.
     { href: "/settings/quick-replies", label: "Respuestas rápidas" },
+    // War — de dónde llegan las oportunidades (nombre e ícono).
+    { href: "/settings/origenes", label: "Orígenes" },
     { href: "/settings/team", label: "Equipo" },
   ];
   if (atribucion) negocio.push({ href: "/settings/ads", label: "Anuncios" });

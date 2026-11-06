@@ -50,6 +50,8 @@ const prefixes = {
   oportunidadLead: "olead",
   // War — historial de instrucciones del agente
   instruccionVersion: "inv",
+  // War 0035 — orígenes de las oportunidades
+  origenOportunidad: "ori",
 } as const;
 
 export type IdKind = keyof typeof prefixes;

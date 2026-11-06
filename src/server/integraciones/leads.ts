@@ -5,7 +5,6 @@ import { scoped } from "@/lib/db/tenant";
 import {
   fuenteDelContacto,
   oportunidadParaElLead,
-  type OrigenOportunidad,
 } from "@/lib/leads";
 import { normalizarTelefono } from "@/lib/telefono";
 import { ESTADOS_ABIERTOS, resolverEdificiosPorNombre, type EstadoOportunidad } from "@/lib/ventas";
@@ -30,7 +29,8 @@ const ABIERTOS = ESTADOS_ABIERTOS as EstadoOportunidad[];
 
 export type LeadEntrante = {
   leadId: string;
-  origen: OrigenOportunidad;
+  /** Ya canónico: uno de Ajustes → Orígenes. */
+  origen: string;
   nombre: string | null;
   telefono: string | null;
   email: string | null;

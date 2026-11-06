@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Plus, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
@@ -10,12 +10,13 @@ import { parseMoneyToCents } from "@/lib/money";
 import {
   ESTADOS_OPORTUNIDAD,
   MOTIVOS_CIERRE,
-  ORIGENES_OPORTUNIDAD,
   TIPOLOGIAS,
   TIPOS_OPORTUNIDAD,
   etiqueta,
 } from "@/lib/ventas";
 import { Chips } from "./oportunidad-panel";
+import { OrigenIcono } from "./origen-icono";
+import type { OrigenDto } from "@/lib/origenes";
 import type { DepartamentoDto, EdificioDto, OportunidadDto } from "@/server/ventas";
 import {
   Acciones,
@@ -115,12 +116,15 @@ export function OportunidadesClient() {
   const [filas, setFilas] = useState<OportunidadDto[]>([]);
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [edificios, setEdificios] = useState<EdificioDto[]>([]);
+  const [origenes, setOrigenes] = useState<OrigenDto[]>([]);
   const [unidades, setUnidades] = useState<(DepartamentoDto & { edificioNombre: string })[]>([]);
   const [abierto, setAbierto] = useState(false);
   const [editando, setEditando] = useState<string | null>(null);
   const [form, setForm] = useState<Formulario>(vacio);
   const [error, setError] = useState<string | null>(null);
   const [listo, setListo] = useState(false);
+  /** Nombre del origen → clave de su ícono (Configuración → Orígenes). */
+  const iconoDe = useMemo(() => new Map(origenes.map((o) => [o.nombre, o.icono])), [origenes]);
 
   const cargar = useCallback(async () => {
     const res = await fetch("/api/oportunidades").catch(() => null);
@@ -133,10 +137,15 @@ export function OportunidadesClient() {
   useEffect(() => {
     void cargar();
     void (async () => {
-      const [c, e] = await Promise.all([
+      const [c, e, o] = await Promise.all([
         fetch("/api/contacts").catch(() => null),
         fetch("/api/edificios").catch(() => null),
+        fetch("/api/origenes").catch(() => null),
       ]);
+      if (o?.ok) {
+        const data = (await o.json()) as { origenes: OrigenDto[] };
+        setOrigenes(data.origenes);
+      }
       if (c?.ok) {
         const data = (await c.json()) as { contacts: Contacto[] };
         setContactos(data.contacts);
@@ -267,14 +276,21 @@ export function OportunidadesClient() {
               />
             </Campo>
             <Campo label="Origen">
-              <Select value={form.origen} onValueChange={(origen) => setForm({ ...form, origen })}>
+              <Select
+                value={form.origen}
+                onValueChange={(origen) => setForm({ ...form, origen })}
+                iconoDe={(nombre) =>
+                  nombre ? <OrigenIcono icono={iconoDe.get(nombre)} /> : null
+                }
+              >
                 <option value="">Sin origen</option>
-                {ORIGENES_OPORTUNIDAD.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
+                {origenes.map((o) => (
+                  <option key={o.id} value={o.nombre}>
+                    {o.nombre}
                   </option>
                 ))}
-                {form.origen && !(ORIGENES_OPORTUNIDAD as readonly string[]).includes(form.origen) && (
+                {/* Uno que se borró de Configuración: se conserva en esta oportunidad. */}
+                {form.origen && !iconoDe.has(form.origen) && (
                   <option value={form.origen}>{form.origen}</option>
                 )}
               </Select>
@@ -422,7 +438,14 @@ export function OportunidadesClient() {
               >
                 <Td className="font-medium">{o.nombre}</Td>
                 <Td>
-                  {o.origen || "—"}
+                  {o.origen ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <OrigenIcono icono={iconoDe.get(o.origen)} />
+                      {o.origen}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
                   {o.formularios > 1 && (
                     <span className="ml-1.5 text-xs text-text-3">· {o.formularios} formularios</span>
                   )}

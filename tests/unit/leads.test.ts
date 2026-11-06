@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import {
-  fuenteDelContacto,
-  nombreDelLead,
-  oportunidadParaElLead,
-  origenCanonico,
-} from "@/lib/leads";
+import { fuenteDelContacto, nombreDelLead, oportunidadParaElLead } from "@/lib/leads";
+import { ORIGENES_POR_DEFECTO, origenCanonico as canonico } from "@/lib/origenes";
+
+const NOMBRES = ORIGENES_POR_DEFECTO.map((o) => o.nombre);
+const origenCanonico = (raw: string | null) => canonico(raw, NOMBRES);
 
 /** War — Reglas de los leads de formularios (Make). */
 
@@ -23,10 +22,16 @@ describe("origen", () => {
     expect(origenCanonico(null)).toBeNull();
   });
 
+  it("vale lo que esté configurado, aunque sea nuevo", () => {
+    expect(canonico("properati", [...NOMBRES, "Properati"])).toBe("Properati");
+    expect(canonico("Meta Ads", ["Zonaprop"])).toBeNull();
+  });
+
   it("un origen de anuncio marca al contacto como llegado por anuncio", () => {
     expect(fuenteDelContacto("Meta Ads")).toBe("anuncio");
     expect(fuenteDelContacto("Referido")).toBe("referido");
     expect(fuenteDelContacto("Zonaprop")).toBe("otro");
+    expect(fuenteDelContacto("Un origen nuevo")).toBe("otro");
   });
 });
 

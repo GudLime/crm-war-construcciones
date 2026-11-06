@@ -71,6 +71,24 @@ En War lo que avanza en el embudo es la **oportunidad**, no el contacto
 - Código: `src/server/oportunidades-war.ts`, panel del chat en
   `src/components/ventas/oportunidad-panel.tsx`.
 
+## Orígenes de los leads (0035)
+
+**Configuración → Orígenes** (Negocio): nombre e ícono de cada origen, en el
+orden del desplegable de Oportunidades. Tabla `origen_oportunidad`
+(`src/lib/db/ventas-tables.ts`), catálogo de íconos y valores por defecto en
+`src/lib/origenes.ts`, lógica en `src/server/origenes.ts`, API `/api/origenes`
+(GET todos; POST/PATCH/DELETE/PUT orden solo quien configura).
+
+- `oportunidad.origen` sigue siendo texto (el nombre). Renombrar un origen lo
+  cambia también en las oportunidades y en `oportunidad_lead`. Borrarlo no
+  toca las oportunidades: lo siguen mostrando con el ícono genérico.
+- La entrada de Make (`POST /api/integraciones/leads`) acepta los nombres
+  configurados; lo demás da 422 `origen_desconocido` con la lista vigente.
+- La migración siembra los 16 de siempre en cada organización; una
+  organización nueva los recibe al abrir la lista. No se puede borrar el último.
+- «Anuncio» como fuente del contacto se sigue decidiendo por nombre (Meta Ads,
+  Google Ads, Facebook, Instagram, Tik Tok); un origen nuevo cuenta como «otro».
+
 ## Memoria del agente (edificios)
 
 Cada edificio tiene un interruptor **Memoria del agente** y un campo **Notas

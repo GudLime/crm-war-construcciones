@@ -203,25 +203,12 @@
           },
           "origen": {
             "type": "string",
-            "enum": [
-              "Newsletter",
-              "MercadoLibre",
-              "Argenprop",
-              "Zonaprop",
-              "Página Web",
-              "Google Ads",
-              "Referido",
-              "Cartel",
+            "examples": [
               "Meta Ads",
-              "Facebook",
-              "Instagram",
-              "Cartel Showroom",
-              "Inmobiliaria",
-              "Google",
-              "Mail",
-              "Tik Tok"
+              "Zonaprop",
+              "Argenprop"
             ],
-            "description": "Se acepta sin importar mayúsculas, espacios o guiones bajos (`meta_ads` → `Meta Ads`)."
+            "description": "Uno de los orígenes configurados en Configuración → Orígenes del CRM (al instalar: Newsletter, MercadoLibre, Argenprop, Zonaprop, Página Web, Google Ads, Referido, Cartel, Meta Ads, Facebook, Instagram, Cartel Showroom, Inmobiliaria, Google, Mail, Tik Tok). Se acepta sin importar mayúsculas, espacios o guiones bajos (`meta_ads` → `Meta Ads`). Si no está, 422 `origen_desconocido` con la lista vigente."
           },
           "edificio": {
             "type": [
