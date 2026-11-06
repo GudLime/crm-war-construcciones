@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS "origen_oportunidad" (
   "nombre" text NOT NULL,
   "icono" text DEFAULT 'tag' NOT NULL,
   "orden" integer DEFAULT 0 NOT NULL,
+  "imagen_mime" text,
+  "imagen_version" bigint,
   "created_at" timestamp DEFAULT now() NOT NULL,
   "updated_at" timestamp DEFAULT now() NOT NULL
 );
