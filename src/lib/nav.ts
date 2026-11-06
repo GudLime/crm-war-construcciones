@@ -150,6 +150,8 @@ export function settingsSections({
     { href: "/settings/quick-replies", label: "Respuestas rápidas" },
     // War — de dónde llegan las oportunidades (nombre e ícono).
     { href: "/settings/origenes", label: "Orígenes" },
+    // War — sin respuesta, cierre por silencio y reapertura.
+    { href: "/settings/ventas", label: "Ventas" },
     { href: "/settings/team", label: "Equipo" },
   ];
   if (atribucion) negocio.push({ href: "/settings/ads", label: "Anuncios" });

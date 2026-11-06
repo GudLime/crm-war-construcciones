@@ -18,7 +18,7 @@ import {
 import type { EstadoComercialDto } from "@/server/oportunidades-war";
 import { Select } from "@/components/ui/select";
 
-const CIERRES: EstadoOportunidad[] = ["no_responde", "no_calificado", "perdido"];
+const CIERRES: EstadoOportunidad[] = ["no_calificado", "perdido"];
 
 const AVISO_EXCLUIDO: Record<Exclude<TipoContacto, "lead">, string> = {
   comprador: "Ya compró: fuera del proceso de venta. Lo atiende una persona, sin IA.",
@@ -207,14 +207,18 @@ export function OportunidadPanel({
                   );
                 })}
               </ol>
-              {abierta.estado === "no_responde" && (
-                <p className="mt-2 text-[12px] font-medium text-warning-text">
-                  Marcada como «No responde».
-                </p>
+              {abierta.sinRespuesta && (
+                <p className="mt-2 text-[12px] font-medium text-warning-text">{abierta.sinRespuesta}</p>
               )}
+              <a
+                href={`/oportunidades/${abierta.id}`}
+                className="mt-2 inline-block text-[12px] font-medium text-brand-ink hover:underline"
+              >
+                Ver la oportunidad completa →
+              </a>
 
               <div className="mt-3 rounded-md border bg-subtle p-2.5">
-                <p className="mb-1.5 text-[11px] font-medium text-text-2">Cerrar o pausar</p>
+                <p className="mb-1.5 text-[11px] font-medium text-text-2">Cerrar</p>
                 <Select
                   aria-label="Motivo"
                   value={motivo}
@@ -236,10 +240,7 @@ export function OportunidadPanel({
                       variant="outline"
                       disabled={guardando || abierta.estado === estado}
                       onClick={() =>
-                        cambiarOportunidad({
-                          estado,
-                          ...(estado !== "no_responde" ? { motivoCierre: motivo || null } : {}),
-                        })
+                        cambiarOportunidad({ estado, motivoCierre: motivo || null })
                       }
                     >
                       {etiqueta(ESTADOS_OPORTUNIDAD, estado)}

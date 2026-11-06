@@ -10,7 +10,7 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   const body = await parseBody(req, tareaSchema);
   if (!body.ok) return body.response;
   try {
-    return Response.json({ tarea: await editarTarea(session.organizationId, id, body.data) });
+    return Response.json({ tarea: await editarTarea(session.organizationId, id, body.data, session.userId) });
   } catch (err) {
     if (err instanceof VentasError) return apiError(err.status, err.code, err.message);
     throw err;

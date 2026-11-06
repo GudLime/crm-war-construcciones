@@ -10,7 +10,7 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { contact, organization } from "./schema";
+import { contact, organization, user } from "./schema";
 
 /**
  * Tablas de Ventas de la constructora. Viven aparte del esquema base para
@@ -117,7 +117,6 @@ export const oportunidad = pgTable(
     estado: text("estado", {
       enum: [
         "recibido",
-        "no_responde",
         "en_charlas",
         "conoce_informacion",
         "visito",
@@ -139,6 +138,20 @@ export const oportunidad = pgTable(
      * vuelve arriba. Se toca solo con interacciones del interesado.
      */
     ultimaInteraccion: timestamp("ultima_interaccion").notNull().defaultNow(),
+    /** War — Desde cuándo está en el estado actual (para medir tiempos). */
+    estadoDesde: timestamp("estado_desde").notNull().defaultNow(),
+    /** War — Cuándo se cerró (Compró, Perdido, No calificado); null si está abierta. */
+    cerradaAt: timestamp("cerrada_at"),
+    /**
+     * War — «Sin respuesta»: tandas de mensajes nuestros (o llamadas no
+     * atendidas) desde lo último que escribió la persona. Vuelve a 0 cuando
+     * responde. Ver `server/oportunidad-historial.ts`.
+     */
+    intentosSinRespuesta: integer("intentos_sin_respuesta").notNull().default(0),
+    ultimoIntentoAt: timestamp("ultimo_intento_at"),
+    ultimaRespuestaAt: timestamp("ultima_respuesta_at"),
+    primerContactoAt: timestamp("primer_contacto_at"),
+    primeraRespuestaAt: timestamp("primera_respuesta_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -312,3 +325,83 @@ export const origenOportunidad = pgTable(
     index("origen_oportunidad_org_orden_idx").on(t.organizationId, t.orden),
   ]
 );
+
+/**
+ * War — Historial de cada oportunidad, pensado para estadísticas.
+ *
+ * Solo se AGREGAN filas: nunca se pisan ni se borran (salvo que se borre la
+ * oportunidad). Mismo criterio que `lead_stage_event`:
+ *
+ * - `occurred_at` es cuándo PASÓ, no cuándo se registró.
+ * - Origen, edificio, tipo y contacto van como FOTO del momento: editar la
+ *   oportunidad después no reescribe el pasado, y casi toda agregación los
+ *   cruza sin pagar un join.
+ * - `segundos_en_estado_anterior` hace que "cuánto tardan" sea una suma.
+ *
+ * El estado ACTUAL se lee de `oportunidad`; esto cuenta cómo se llegó ahí.
+ */
+export const oportunidadEvento = pgTable(
+  "oportunidad_evento",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    oportunidadId: text("oportunidad_id")
+      .notNull()
+      .references(() => oportunidad.id, { onDelete: "cascade" }),
+    contactId: text("contact_id").references(() => contact.id, { onDelete: "set null" }),
+    tipo: text("tipo", {
+      enum: [
+        "creada",
+        "estado",
+        "cerrada",
+        "reabierta",
+        "formulario",
+        "primer_contacto",
+        "primera_respuesta",
+      ],
+    }).notNull(),
+    estadoDesde: text("estado_desde"),
+    estadoHasta: text("estado_hasta"),
+    /** Solo en `cerrada`: ganada (Compró), perdida o no calificado. */
+    resultado: text("resultado", { enum: ["ganada", "perdida", "no_calificado"] }),
+    motivo: text("motivo"),
+    segundosEnEstadoAnterior: integer("segundos_en_estado_anterior"),
+    /** Intentos sin respuesta al momento del evento (sirve en `cerrada`). */
+    intentosSinRespuesta: integer("intentos_sin_respuesta"),
+    origen: text("origen"),
+    edificioId: text("edificio_id").references(() => edificio.id, { onDelete: "set null" }),
+    tipoOportunidad: text("tipo_oportunidad"),
+    /** persona (con `actor_user_id`), ia (Mateo), make, sistema o migracion. */
+    fuente: text("fuente", { enum: ["persona", "ia", "make", "sistema", "migracion"] }).notNull(),
+    actorUserId: text("actor_user_id").references(() => user.id, { onDelete: "set null" }),
+    /** Extra según el tipo: lead ID y campaña de un formulario, canal de un contacto… */
+    datos: jsonb("datos").$type<Record<string, unknown>>(),
+    occurredAt: timestamp("occurred_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("oportunidad_evento_op_idx").on(t.organizationId, t.oportunidadId, t.occurredAt),
+    index("oportunidad_evento_tipo_idx").on(t.organizationId, t.tipo, t.occurredAt),
+  ]
+);
+
+/**
+ * War — Ajustes → Ventas: cuándo se cierra una oportunidad por falta de
+ * respuesta y hasta cuándo un mensaje reabre la misma en vez de abrir otra.
+ * Una fila por organización; sin fila valen los valores por defecto
+ * (`AJUSTES_VENTAS_POR_DEFECTO` en `lib/ventas-ajustes.ts`).
+ */
+export const ventasAjustes = pgTable("ventas_ajustes", {
+  organizationId: text("organization_id")
+    .primaryKey()
+    .references(() => organization.id, { onDelete: "cascade" }),
+  sinRespuestaIntentos: integer("sin_respuesta_intentos").notNull().default(3),
+  sinRespuestaDias: integer("sin_respuesta_dias").notNull().default(7),
+  sinRespuestaModo: text("sin_respuesta_modo", { enum: ["cerrar", "sugerir", "apagado"] })
+    .notNull()
+    .default("cerrar"),
+  reaperturaDias: integer("reapertura_dias").notNull().default(120),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});

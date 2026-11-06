@@ -35,7 +35,6 @@ export const TIPOLOGIAS = [
 
 export const ESTADOS_OPORTUNIDAD = [
   { value: "recibido", label: "Recibido" },
-  { value: "no_responde", label: "No responde" },
   { value: "en_charlas", label: "En charlas" },
   { value: "conoce_informacion", label: "Conoce información" },
   { value: "visito", label: "Visitó" },
@@ -183,10 +182,9 @@ export const TIPOS_QUE_CLASIFICA_LA_IA: readonly TipoContacto[] = [
   "proveedor",
 ];
 
-/** Abiertas = la oportunidad sigue viva. Solo puede haber una por contacto. */
+/** Abiertas = la oportunidad sigue viva (puede haber una por edificio). */
 export const ESTADOS_ABIERTOS: readonly EstadoOportunidad[] = [
   "recibido",
-  "no_responde",
   "en_charlas",
   "conoce_informacion",
   "visito",

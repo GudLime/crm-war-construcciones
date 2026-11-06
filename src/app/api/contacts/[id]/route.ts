@@ -124,6 +124,7 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
       contactId: id,
       tipo: body.data.tipoContacto,
       fuente: "persona",
+      userId: session.userId,
     });
     const [fresco] = await getDb()
       .select()

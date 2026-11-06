@@ -11,6 +11,7 @@ import { ESTADOS_ABIERTOS, resolverEdificiosPorNombre, type EstadoOportunidad } 
 import { findWhatsappContact } from "@/server/inbox/identity";
 import { createLeadForContact } from "@/server/inbox/lead-activity";
 import { avisarConversaciones, sumarInteres } from "@/server/oportunidades-war";
+import { registrarCreada, registrarEvento } from "@/server/oportunidad-historial";
 
 /**
  * War — Un lead de formulario (Meta vía Make, o un portal) entra al CRM.
@@ -287,8 +288,9 @@ export async function recibirLead(
         estado: "recibido",
         ultimaInteraccion: ahora,
       })
-      .returning({ id: schema.oportunidad.id });
+      .returning();
     oportunidadId = nueva!.id;
+    await registrarCreada(organizationId, nueva!, { fuente: "make" }, { leadId: lead.leadId });
   }
   if (edificioId) await sumarInteres(organizationId, oportunidadId, [edificioId], []);
 
@@ -327,6 +329,31 @@ export async function recibirLead(
       }
     }
     throw err;
+  }
+
+  // Historial: el formulario, con su campaña (sirve para cortar por anuncio).
+  const [conFormulario] = await db
+    .select()
+    .from(schema.oportunidad)
+    .where(eq(schema.oportunidad.id, oportunidadId))
+    .limit(1);
+  if (conFormulario) {
+    await registrarEvento({
+      organizationId,
+      op: conFormulario,
+      tipo: "formulario",
+      actor: { fuente: "make" },
+      at: lead.recibidoAt ?? ahora,
+      datos: {
+        leadId: lead.leadId,
+        origen: lead.origen,
+        ...(lead.campaignId ? { campaignId: lead.campaignId } : {}),
+        ...(lead.campaignName ? { campaignName: lead.campaignName } : {}),
+        ...(lead.adId ? { adId: lead.adId } : {}),
+        ...(lead.formId ? { formId: lead.formId } : {}),
+        ...(lead.formName ? { formName: lead.formName } : {}),
+      },
+    });
   }
 
   if (contacto) await avisarConversaciones(organizationId, contacto.id);

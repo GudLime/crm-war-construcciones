@@ -19,7 +19,6 @@ import { INSTRUCCIONES_WAR, conInstruccionesWar } from "@/lib/instrucciones-war"
 describe("abiertas y cerradas", () => {
   it("cerradas: compró, perdido y no calificado; el resto sigue abierta", () => {
     expect(estaAbierta("recibido")).toBe(true);
-    expect(estaAbierta("no_responde")).toBe(true);
     expect(estaAbierta("reservo")).toBe(true);
     expect(estaAbierta("compro")).toBe(false);
     expect(estaAbierta("perdido")).toBe(false);
@@ -43,7 +42,6 @@ describe("la IA mueve solo hacia adelante y hasta Conoce información", () => {
     ["en_charlas", ["conoce_informacion"]],
     ["conoce_informacion", []],
     ["visito", []],
-    ["no_responde", []],
     ["compro", []],
   ] as const)("desde %s → %j", (actual, esperado) => {
     expect(siguientesParaLaIA(actual)).toEqual(esperado);

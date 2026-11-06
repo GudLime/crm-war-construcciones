@@ -54,6 +54,7 @@ import {
   uploadGraphMedia,
   validateOutgoing,
 } from "@/server/whatsapp/media";
+import { registrarSaliente } from "@/server/oportunidad-historial";
 
 /** Error tipado del envío; `code` mapea a HTTP en la capa de API. */
 export class SendError extends Error {
@@ -451,6 +452,16 @@ async function persistOutbound(input: {
       message: serializeMessage(message, input.media ?? null, input.cita ?? null),
     },
   });
+
+  // War — cuenta como intento para «sin respuesta» (si salió).
+  if (input.status !== "failed") {
+    await registrarSaliente({
+      organizationId: input.organizationId,
+      conversationId: input.conversationId,
+      at: message.createdAt,
+      origen: input.origin,
+    });
+  }
 
   return message.id;
 }

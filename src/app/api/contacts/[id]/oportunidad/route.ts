@@ -33,7 +33,10 @@ export const GET = withAuth(async (session, _req: Request, ctx: Params) => {
 export const POST = withAuth(async (session, _req: Request, ctx: Params) => {
   const { id } = await ctx.params;
   try {
-    await abrirOportunidad(session.organizationId, id);
+    await abrirOportunidad(session.organizationId, id, {
+      fuente: "persona",
+      userId: session.userId,
+    });
     return Response.json(await estadoComercialDelContacto(session.organizationId, id), {
       status: 201,
     });
@@ -68,6 +71,7 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
     await actualizarOportunidadDelChat({
       organizationId: session.organizationId,
       ...body.data,
+      userId: session.userId,
     });
     return Response.json(await estadoComercialDelContacto(session.organizationId, id));
   } catch (err) {

@@ -1422,9 +1422,21 @@ export const conversationNote = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
-    conversationId: text("conversation_id")
-      .notNull()
-      .references(() => conversation.id, { onDelete: "cascade" }),
+    /**
+     * War — Opcional: una nota escrita desde la oportunidad no tiene
+     * conversación (un lead de formulario puede no haber escrito nunca).
+     */
+    conversationId: text("conversation_id").references(() => conversation.id, {
+      onDelete: "cascade",
+    }),
+    /** War — De quién es la nota. Toda nota nueva lo lleva. */
+    contactId: text("contact_id").references(() => contact.id, { onDelete: "cascade" }),
+    /**
+     * War — La oportunidad que estaba abierta cuando se escribió. Sin FK en
+     * TypeScript (la tabla vive en ventas-tables y la importaría en círculo):
+     * la clave foránea la pone la migración 0036.
+     */
+    oportunidadId: text("oportunidad_id"),
     /** Si se borra la cuenta, la nota queda («Alguien del equipo»). */
     authorUserId: text("author_user_id").references(() => user.id, {
       onDelete: "set null",
@@ -1434,5 +1446,7 @@ export const conversationNote = pgTable(
   },
   (t) => [
     index("conversation_note_conv_idx").on(t.organizationId, t.conversationId, t.createdAt),
+    index("conversation_note_contacto_idx").on(t.organizationId, t.contactId, t.createdAt),
+    index("conversation_note_oportunidad_idx").on(t.organizationId, t.oportunidadId, t.createdAt),
   ]
 );

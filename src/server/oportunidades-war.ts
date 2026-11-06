@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, notInArray } from "drizzle-orm";
+import { asc, count, desc, eq, inArray, notInArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
@@ -20,6 +20,16 @@ import {
   type Tipologia,
 } from "@/lib/ventas";
 import { pauseConversations } from "@/server/contacts-import";
+import {
+  cambiarEstadoOportunidad,
+  leerAjustesVentas,
+  registrarCreada,
+  registrarEvento,
+  registrarRespuesta,
+  ultimaCerrada,
+  type Actor,
+} from "@/server/oportunidad-historial";
+import { seReabre, textoSinRespuesta } from "@/lib/ventas-ajustes";
 import { publish } from "@/server/events/bus";
 import { VentasError } from "@/server/ventas";
 
@@ -45,6 +55,8 @@ export type OportunidadDelChat = {
   edificios: { id: string; nombre: string }[];
   tipologias: Tipologia[];
   updatedAt: string;
+  /** War — «Sin respuesta · 3 intentos · hace 4 días», o null. */
+  sinRespuesta: string | null;
 };
 
 export type EstadoComercialDto = {
@@ -151,6 +163,7 @@ async function aDelChat(
     edificios: interes.edificios,
     tipologias: interes.tipologias,
     updatedAt: op.updatedAt.toISOString(),
+    sinRespuesta: textoSinRespuesta(op),
   };
 }
 
@@ -190,13 +203,62 @@ export async function estadoComercialDelContacto(
 }
 
 /**
+ * War — Casi siempre la oportunidad se abre DESPUÉS de que la persona
+ * escribió (Mateo la clasifica como Lead leyendo su mensaje): ese mensaje es
+ * su primera respuesta. Sin esto, «sin respuesta» y el tiempo hasta la primera
+ * respuesta arrancarían como si nunca hubiera escrito.
+ */
+async function conRespuestaPrevia(
+  organizationId: string,
+  contactId: string,
+  op: FilaOportunidad
+): Promise<FilaOportunidad> {
+  try {
+    const [conv] = await getDb()
+      .select({ lastInboundAt: schema.conversation.lastInboundAt })
+      .from(schema.conversation)
+      .where(
+        scoped(
+          schema.conversation.organizationId,
+          organizationId,
+          eq(schema.conversation.contactId, contactId),
+          eq(schema.conversation.isTest, false)
+        )
+      )
+      .orderBy(desc(schema.conversation.lastInboundAt))
+      .limit(1);
+    const at = conv?.lastInboundAt;
+    if (!at) return op;
+    const [fila] = await getDb()
+      .update(schema.oportunidad)
+      .set({ ultimaRespuestaAt: at, primeraRespuestaAt: at })
+      .where(eq(schema.oportunidad.id, op.id))
+      .returning();
+    if (fila) {
+      await registrarEvento({
+        organizationId,
+        op: fila,
+        tipo: "primera_respuesta",
+        actor: { fuente: "sistema" },
+        at,
+      });
+    }
+    return fila ?? op;
+  } catch (err) {
+    console.error("[historial] respuesta previa sin registrar:", err instanceof Error ? err.message : err);
+    return op;
+  }
+}
+
+/**
  * Abre la oportunidad del contacto si no tiene una abierta; si ya la tiene,
  * la devuelve. Idempotente también ante dos pedidos a la vez: el índice único
  * parcial frena al segundo y aquí se devuelve la que ganó.
  */
 export async function abrirOportunidad(
   organizationId: string,
-  contactId: string
+  contactId: string,
+  actor: Actor = { fuente: "sistema" }
 ): Promise<FilaOportunidad> {
   const existente = await oportunidadAbierta(organizationId, contactId);
   if (existente) return existente;
@@ -220,7 +282,8 @@ export async function abrirOportunidad(
         estado: "recibido",
       })
       .returning();
-    return nueva!;
+    await registrarCreada(organizationId, nueva!, actor);
+    return await conRespuestaPrevia(organizationId, contactId, nueva!);
   } catch (err) {
     if (!esViolacionUnica(err)) throw err;
     const ganadora = await oportunidadAbierta(organizationId, contactId);
@@ -253,18 +316,41 @@ export async function registrarInteraccionDelContacto(input: {
       .update(schema.oportunidad)
       .set({ ultimaInteraccion: at, updatedAt: new Date() })
       .where(eq(schema.oportunidad.id, abierta.id));
+    await registrarRespuesta({ organizationId, contactId, at });
     return;
   }
   const contacto = await contactoDe(organizationId, contactId);
   if (contacto?.tipoContacto !== "lead") return;
-  const nueva = await abrirOportunidad(organizationId, contactId);
-  await getDb()
-    .update(schema.oportunidad)
-    .set({
-      ultimaInteraccion: at,
-      ...(input.desdeAnuncio && !nueva.origen ? { origen: "Meta Ads" } : {}),
-    })
-    .where(eq(schema.oportunidad.id, nueva.id));
+
+  // Se había perdido hace poco (por ejemplo, cerrada por no responder): se
+  // reabre LA MISMA, con su formulario y su campaña, en el estado que tenía.
+  const ajustes = await leerAjustesVentas(organizationId);
+  const previa = await ultimaCerrada(organizationId, contactId);
+  if (previa && seReabre(previa.op, ajustes, at)) {
+    await cambiarEstadoOportunidad({
+      organizationId,
+      oportunidadId: previa.op.id,
+      destino: previa.estadoPrevio,
+      motivoCierre: null,
+      actor: { fuente: "sistema" },
+      at,
+    });
+    await getDb()
+      .update(schema.oportunidad)
+      .set({ ultimaInteraccion: at })
+      .where(eq(schema.oportunidad.id, previa.op.id));
+  } else {
+    // Volvió a consultar después de la ventana (o nunca tuvo): una nueva.
+    const nueva = await abrirOportunidad(organizationId, contactId);
+    await getDb()
+      .update(schema.oportunidad)
+      .set({
+        ultimaInteraccion: at,
+        ...(input.desdeAnuncio && !nueva.origen ? { origen: "Meta Ads" } : {}),
+      })
+      .where(eq(schema.oportunidad.id, nueva.id));
+  }
+  await registrarRespuesta({ organizationId, contactId, at });
   await avisarConversaciones(organizationId, contactId);
 }
 
@@ -300,8 +386,12 @@ export async function clasificarContacto(input: {
   contactId: string;
   tipo: TipoContacto | null;
   fuente: "ia" | "persona";
+  /** War — quién (si fue una persona), para el historial. */
+  userId?: string | null;
 }): Promise<{ changed: boolean; tipo: TipoContacto | null }> {
   const { organizationId, contactId, tipo, fuente } = input;
+  const actor: Actor =
+    fuente === "ia" ? { fuente: "ia" } : { fuente: "persona", userId: input.userId ?? null };
   const contacto = await contactoDe(organizationId, contactId);
   if (!contacto) throw new VentasError(404, "not_found", "Ese contacto no existe");
 
@@ -312,7 +402,7 @@ export async function clasificarContacto(input: {
     }
   }
   if (contacto.tipoContacto === tipo) {
-    if (tipo === "lead") await abrirOportunidad(organizationId, contactId);
+    if (tipo === "lead") await abrirOportunidad(organizationId, contactId, actor);
     return { changed: false, tipo };
   }
 
@@ -337,7 +427,7 @@ export async function clasificarContacto(input: {
   } else if (excluiaAntes) {
     await pauseConversations(organizationId, [contactId], false);
   }
-  if (tipo === "lead") await abrirOportunidad(organizationId, contactId);
+  if (tipo === "lead") await abrirOportunidad(organizationId, contactId, actor);
 
   await avisarConversaciones(organizationId, contactId);
   return { changed: true, tipo };
@@ -420,16 +510,30 @@ export async function actualizarOportunidadDelChat(input: {
   motivoCierre?: string | null;
   edificioIds?: readonly string[];
   tipologias?: readonly Tipologia[];
+  /** War — quién lo cambió, para el historial. */
+  userId?: string | null;
 }): Promise<OportunidadDelChat> {
   const { organizationId, oportunidadId } = input;
-  const set: Partial<FilaOportunidad> = { updatedAt: new Date() };
-  if (input.estado) set.estado = input.estado;
-  if (input.motivoCierre !== undefined) set.motivoCierre = input.motivoCierre;
-  let fila: FilaOportunidad | undefined;
-  try {
+  let fila: FilaOportunidad | null | undefined;
+  if (input.estado) {
+    // El cambio de estado pasa por el historial (evento y tiempos).
+    fila = await cambiarEstadoOportunidad({
+      organizationId,
+      oportunidadId,
+      destino: input.estado,
+      motivoCierre: input.motivoCierre,
+      actor: { fuente: "persona", userId: input.userId ?? null },
+    });
+  }
+  if (fila !== null) {
     [fila] = await getDb()
       .update(schema.oportunidad)
-      .set(set)
+      .set({
+        updatedAt: new Date(),
+        ...(!input.estado && input.motivoCierre !== undefined
+          ? { motivoCierre: input.motivoCierre }
+          : {}),
+      })
       .where(
         scoped(
           schema.oportunidad.organizationId,
@@ -438,15 +542,6 @@ export async function actualizarOportunidadDelChat(input: {
         )
       )
       .returning();
-  } catch (err) {
-    if (esViolacionUnica(err)) {
-      throw new VentasError(
-        409,
-        "ya_tiene_abierta",
-        "Ese contacto ya tiene otra oportunidad abierta: cerrala antes de reabrir esta"
-      );
-    }
-    throw err;
   }
   if (!fila) throw new VentasError(404, "not_found", "Esa oportunidad no existe");
   await reemplazarInteres(organizationId, oportunidadId, {
@@ -643,15 +738,12 @@ export async function moverOportunidadPorElCerebro(input: {
     };
   }
 
-  await db
-    .update(schema.oportunidad)
-    .set({ estado: destino, updatedAt: new Date() })
-    .where(
-      and(
-        eq(schema.oportunidad.organizationId, organizationId),
-        eq(schema.oportunidad.id, abierta.id)
-      )
-    );
+  await cambiarEstadoOportunidad({
+    organizationId,
+    oportunidadId: abierta.id,
+    destino,
+    actor: { fuente: "ia" },
+  });
   await avisarConversaciones(organizationId, conv.contactId);
   return {
     ok: true,
