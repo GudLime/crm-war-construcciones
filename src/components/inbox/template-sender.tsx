@@ -7,6 +7,7 @@ import { countVariables } from "@/lib/templates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 
 /**
  * Selector de plantilla aprobada para conversaciones con ventana cerrada
@@ -99,14 +100,14 @@ export function TemplateSender({
     <div className="space-y-3">
       <div className="space-y-1.5">
         <Label htmlFor="template-select">Plantilla aprobada</Label>
-        <select
+        <Select
           id="template-select"
           value={selectedId}
-          onChange={(e) => {
-            setSelectedId(e.target.value);
+          onValueChange={(valor) => {
+            setSelectedId(valor);
             setVariables([]);
           }}
-          className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="w-full"
         >
           <option value="">Elige una plantilla…</option>
           {templates.map((t) => (
@@ -114,7 +115,7 @@ export function TemplateSender({
               {t.name} ({templateLanguageName(t.language)})
             </option>
           ))}
-        </select>
+        </Select>
       </div>
       {selected && (
         <p className="rounded-md bg-subtle p-2.5 text-xs text-muted-foreground">

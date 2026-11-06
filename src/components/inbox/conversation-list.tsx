@@ -16,6 +16,7 @@ import { EVENTO_BORRADOR, leerBorrador } from "@/lib/borradores";
 import { atajoBandeja, esCampoDeTexto, sirveEscribiendo, vecina } from "@/lib/atajos";
 import { hayDialogoAbierto } from "@/components/atajos-globales";
 import { etiquetaVence, porVencer } from "@/lib/filtros-bandeja";
+import { Select } from "@/components/ui/select";
 
 /* Puntos de etapa: los tokens del tema, no hex copiados del tema claro —
    así siguen al acento white-label y se recalculan en oscuro. */
@@ -105,10 +106,16 @@ export function ConversationList({
   // El menú se cierra al hacer clic fuera o con Escape.
   useEffect(() => {
     if (!menuFiltros) return;
+    // La lista del desplegable de etapa vive en <body> (ui/select): no es "fuera".
+    const enCapaFlotante = (t: EventTarget | null) =>
+      t instanceof Element && t.closest("[data-capa-flotante]") !== null;
     const fuera = (e: MouseEvent) => {
+      if (enCapaFlotante(e.target)) return;
       if (!menuRef.current?.contains(e.target as Node)) setMenuFiltros(false);
     };
     const escape = (e: KeyboardEvent) => {
+      // Con el desplegable abierto, Escape cierra solo el desplegable.
+      if (document.querySelector("[data-capa-flotante]")) return;
       if (e.key === "Escape") setMenuFiltros(false);
     };
     document.addEventListener("mousedown", fuera);
@@ -340,14 +347,11 @@ export function ConversationList({
                 {stages.length > 0 && (
                   <label className="block space-y-1">
                     <span className="kicker text-text-3">Etapa</span>
-                    <select
+                    <Select
                       value={stage}
-                      onChange={(e) => setStage(e.target.value)}
+                      onValueChange={(valor) => setStage(valor)}
                       aria-label="Filtrar por etapa del embudo"
-                      className={cn(
-                        "w-full rounded-md border border-border-strong bg-background px-2 py-1.5 text-[13px]",
-                        FOCO_SEPARADO
-                      )}
+                      className="h-8 w-full text-[13px]"
                     >
                       <option value="all">Toda etapa</option>
                       {stages.map((s) => (
@@ -355,7 +359,7 @@ export function ConversationList({
                           {s}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                 )}
                 {/* Como antes: sin ninguna, la casilla no aparece (salvo que esté marcada). */}

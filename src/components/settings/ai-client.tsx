@@ -20,6 +20,7 @@ import {
   type AiProviderId,
   type AiStatus,
 } from "@/lib/ai/presets";
+import { Select } from "@/components/ui/select";
 
 /**
  * Ajustes → IA: con qué piensa el agente (issue #85).
@@ -287,21 +288,21 @@ export function AiClient() {
           <form onSubmit={guardar} className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="ai-provider">Proveedor</Label>
-              <select
+              <Select
                 id="ai-provider"
                 value={provider}
-                onChange={(e) => {
-                  setProvider(e.target.value as AiProviderId);
+                onValueChange={(valor) => {
+                  setProvider(valor as AiProviderId);
                   setModelos(null);
                 }}
-                className="h-9 w-full rounded-md border border-input bg-card px-2 text-sm"
+                className="w-full"
               >
                 {AI_PROVIDERS.map((id) => (
                   <option key={id} value={id}>
                     {AI_PROVIDER_PRESETS[id].label}
                   </option>
                 ))}
-              </select>
+              </Select>
               <p className="text-xs text-muted-foreground">
                 {preset.baseUrl
                   ? `Habla con ${preset.baseUrl}. Una sola llave da acceso a los modelos de todos los laboratorios.`

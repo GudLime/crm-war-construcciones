@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 
 /** Los tokens del acento, para sobreescribirlos SOLO dentro de una caja. */
 function accentVars(s: AccentSet): React.CSSProperties {
@@ -134,11 +135,11 @@ export function BrandingClient({
 
           <div className="space-y-1.5">
             <Label htmlFor="brand-currency">Moneda del negocio</Label>
-            <select
+            <Select
               id="brand-currency"
               value={currency}
-              onChange={(e) => setCurrency(e.target.value as Currency)}
-              className="h-9 max-w-xs rounded-md border border-input bg-card px-2 text-sm"
+              onValueChange={(valor) => setCurrency(valor as Currency)}
+              className="w-full max-w-xs"
             >
               {CURRENCY_GROUPS.map((g) => (
                 <optgroup key={g.id} label={g.label}>
@@ -149,7 +150,7 @@ export function BrandingClient({
                   ))}
                 </optgroup>
               ))}
-            </select>
+            </Select>
             <p className="text-xs text-text-3">
               Es la única que el Pipeline suma. Los montos capturados en otra
               moneda se muestran, pero quedan fuera del total de su columna.

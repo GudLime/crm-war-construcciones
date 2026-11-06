@@ -12,6 +12,7 @@ import type { SourceValue, StageDto } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select } from "@/components/ui/select";
 
 const SOURCES: { value: SourceValue; label: string }[] = [
   { value: "referido", label: "Referido" },
@@ -208,11 +209,11 @@ export function NewContactDialog({
             <label className="text-sm font-medium" htmlFor="nc-tipo">
               Tipo de contacto
             </label>
-            <select
+            <Select
               id="nc-tipo"
               value={tipoContacto}
-              onChange={(e) => setTipoContacto(e.target.value as TipoContacto | "")}
-              className="h-9 w-full rounded-md border border-input bg-card px-2 text-sm"
+              onValueChange={(valor) => setTipoContacto(valor as TipoContacto | "")}
+              className="w-full"
             >
               <option value="">Sin clasificar</option>
               {TIPOS_CONTACTO.map((t) => (
@@ -220,7 +221,7 @@ export function NewContactDialog({
                   {t.label}
                 </option>
               ))}
-            </select>
+            </Select>
             <p className="text-[11px] text-text-3">
               Como Lead se le abre una oportunidad. Comprador, Inmobiliaria,
               Proveedor y Propio quedan fuera de la venta y sin IA.
@@ -232,35 +233,35 @@ export function NewContactDialog({
               <label className="text-sm font-medium" htmlFor="nc-source">
                 ¿De dónde salió?
               </label>
-              <select
+              <Select
                 id="nc-source"
                 value={source}
-                onChange={(e) => setSource(e.target.value as SourceValue)}
-                className="h-9 w-full rounded-md border border-input bg-card px-2 text-sm"
+                onValueChange={(valor) => setSource(valor as SourceValue)}
+                className="w-full"
               >
                 {SOURCES.map((s) => (
                   <option key={s.value} value={s.value}>
                     {s.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium" htmlFor="nc-stage">
                 Etapa inicial
               </label>
-              <select
+              <Select
                 id="nc-stage"
                 value={stageId}
-                onChange={(e) => setStageId(e.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-card px-2 text-sm"
+                onValueChange={(valor) => setStageId(valor)}
+                className="w-full"
               >
                 {stages.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           </div>
 

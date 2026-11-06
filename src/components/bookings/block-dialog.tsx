@@ -5,6 +5,7 @@ import { blockStartUtc } from "@/lib/time/calendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 
 /**
  * 215 — Bloquear un horario: para compromisos que viven fuera del CRM. Ese
@@ -121,18 +122,18 @@ export function BlockDialog({
 
         <div className="space-y-1.5">
           <Label htmlFor="bloqueo-duracion">Duración</Label>
-          <select
+          <Select
             id="bloqueo-duracion"
             value={minutes}
-            onChange={(e) => setMinutes(Number(e.target.value))}
-            className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:border-brand focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand-soft"
+            onValueChange={(valor) => setMinutes(Number(valor))}
+            className="w-full"
           >
             {DURATIONS.map((d) => (
               <option key={d} value={d}>
                 {durationLabel(d)}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
 
         <div className="space-y-1.5">

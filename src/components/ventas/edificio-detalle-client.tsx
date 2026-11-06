@@ -19,7 +19,6 @@ import {
   Campo,
   EstadoPill,
   Pagina,
-  SelectNativo,
   Tabla,
   Td,
   Th,
@@ -30,6 +29,7 @@ import {
   useMoneda,
 } from "./ui";
 import { ImportarUnidades } from "./importar-unidades";
+import { Select } from "@/components/ui/select";
 
 type UnidadForm = {
   unidad: string;
@@ -341,9 +341,9 @@ export function EdificioDetalleClient() {
           />
         </Campo>
         <Campo label="Tipología">
-          <SelectNativo
+          <Select
             value={unidad.tipologia}
-            onChange={(tipologia) => setUnidad({ ...unidad, tipologia })}
+            onValueChange={(tipologia) => setUnidad({ ...unidad, tipologia })}
           >
             <option value="">Sin tipología</option>
             {TIPOLOGIAS.map((o) => (
@@ -351,7 +351,7 @@ export function EdificioDetalleClient() {
                 {o.label}
               </option>
             ))}
-          </SelectNativo>
+          </Select>
         </Campo>
         <Campo label="Orientación edificio">
           <Input
@@ -368,13 +368,13 @@ export function EdificioDetalleClient() {
           />
         </Campo>
         <Campo label="Estado">
-          <SelectNativo value={unidad.estado} onChange={(estado) => setUnidad({ ...unidad, estado })}>
+          <Select value={unidad.estado} onValueChange={(estado) => setUnidad({ ...unidad, estado })}>
             {ESTADOS_UNIDAD.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
-          </SelectNativo>
+          </Select>
         </Campo>
         <Campo label="Metros cubiertos">
           <Input
@@ -548,13 +548,13 @@ export function EdificioDetalleClient() {
             />
           </Campo>
           <Campo label="Estado">
-            <SelectNativo value={datos.estado} onChange={(estado) => setDatos({ ...datos, estado })}>
+            <Select value={datos.estado} onValueChange={(estado) => setDatos({ ...datos, estado })}>
               {ESTADOS_EDIFICIO.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>
               ))}
-            </SelectNativo>
+            </Select>
           </Campo>
           <Campo label="En venta" className="sm:col-span-2">
             <Input

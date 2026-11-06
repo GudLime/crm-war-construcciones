@@ -12,6 +12,20 @@
 import { mkdirSync } from "node:fs";
 import { chromium } from "playwright";
 
+// El desplegable del CRM es propio (ui/select: combobox + listbox), no un
+// <select>: se abre con un clic y se elige la opción por su rol.
+async function opcionesDe(p, combo) {
+  await combo.click();
+  const t = await p.getByRole("option").allInnerTexts();
+  await p.keyboard.press("Escape");
+  return t.map((s) => s.trim());
+}
+async function elegirOpcion(p, combo, texto) {
+  await combo.click();
+  await p.getByRole("option", { name: texto, exact: true }).click();
+}
+
+
 const BASE = process.env.APP_BASE_URL ?? "http://localhost:3000";
 const EMAIL = process.env.E2E_EMAIL ?? "e2e-filtros@vocero.test";
 const PASSWORD = process.env.E2E_PASSWORD ?? "password-e2e-filtros";
@@ -106,10 +120,10 @@ try {
   console.log("\n== AC-E2 · etapa ==");
   await filtrar.click();
   const sel = menu.getByLabel("Filtrar por etapa del embudo");
-  const opciones = await sel.locator("option").allInnerTexts();
+  const opciones = await opcionesDe(page, sel);
   ok("el selector de etapa vive en el menú", opciones[0] === "Toda etapa" && opciones.length > 1, JSON.stringify(opciones));
   const etapa = convs[VENCE].stageName;
-  await sel.selectOption(etapa);
+  await elegirOpcion(page, sel, etapa);
   ok("«Filtrar · 2» con etapa y por vencer", (await filtrar.innerText()).trim() === "Filtrar · 2");
   ok(`la etiqueta «Etapa: ${etapa} ✕» aparece`, (await page.getByRole("button", { name: `Quitar filtro Etapa: ${etapa}` }).count()) === 1);
   ok("se combinan: sigue la que vence (es de esa etapa)", await enLista(VENCE));

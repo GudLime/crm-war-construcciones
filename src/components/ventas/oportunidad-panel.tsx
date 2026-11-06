@@ -16,6 +16,7 @@ import {
   type Tipologia,
 } from "@/lib/ventas";
 import type { EstadoComercialDto } from "@/server/oportunidades-war";
+import { Select } from "@/components/ui/select";
 
 const CIERRES: EstadoOportunidad[] = ["no_responde", "no_calificado", "perdido"];
 
@@ -109,12 +110,12 @@ export function OportunidadPanel({
   return (
     <section className="border-b p-4">
       <p className="kicker mb-2">Tipo de contacto</p>
-      <select
+      <Select
         aria-label="Tipo de contacto"
         value={tipoContacto ?? ""}
         disabled={guardando}
-        onChange={(e) => void cambiarTipo(e.target.value)}
-        className="h-9 w-full rounded-md border border-input bg-card px-2 text-sm"
+        onValueChange={(valor) => void cambiarTipo(valor)}
+        className="w-full"
       >
         <option value="">Sin clasificar</option>
         {TIPOS_CONTACTO.map((t) => (
@@ -122,7 +123,7 @@ export function OportunidadPanel({
             {t.label}
           </option>
         ))}
-      </select>
+      </Select>
       {tipoContacto == null && (
         <p className="mt-1.5 text-[11px] text-text-3">
           La IA lo clasifica cuando la conversación lo deja claro. Recién como Lead
@@ -214,11 +215,11 @@ export function OportunidadPanel({
 
               <div className="mt-3 rounded-md border bg-subtle p-2.5">
                 <p className="mb-1.5 text-[11px] font-medium text-text-2">Cerrar o pausar</p>
-                <select
+                <Select
                   aria-label="Motivo"
                   value={motivo}
-                  onChange={(e) => setMotivo(e.target.value)}
-                  className="mb-2 h-8 w-full rounded-md border border-input bg-card px-2 text-[12px]"
+                  onValueChange={(valor) => setMotivo(valor)}
+                  className="mb-2 h-8 w-full text-[12px]"
                 >
                   <option value="">Motivo (opcional)</option>
                   {MOTIVOS_CIERRE.map((m) => (
@@ -226,7 +227,7 @@ export function OportunidadPanel({
                       {m}
                     </option>
                   ))}
-                </select>
+                </Select>
                 <div className="flex flex-wrap gap-1.5">
                   {CIERRES.map((estado) => (
                     <Button
