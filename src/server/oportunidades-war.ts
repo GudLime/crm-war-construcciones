@@ -24,6 +24,7 @@ import {
   cambiarEstadoOportunidad,
   leerAjustesVentas,
   registrarCreada,
+  registrarEvento,
   registrarRespuesta,
   ultimaCerrada,
   type Actor,
@@ -202,6 +203,54 @@ export async function estadoComercialDelContacto(
 }
 
 /**
+ * War — Casi siempre la oportunidad se abre DESPUÉS de que la persona
+ * escribió (Mateo la clasifica como Lead leyendo su mensaje): ese mensaje es
+ * su primera respuesta. Sin esto, «sin respuesta» y el tiempo hasta la primera
+ * respuesta arrancarían como si nunca hubiera escrito.
+ */
+async function conRespuestaPrevia(
+  organizationId: string,
+  contactId: string,
+  op: FilaOportunidad
+): Promise<FilaOportunidad> {
+  try {
+    const [conv] = await getDb()
+      .select({ lastInboundAt: schema.conversation.lastInboundAt })
+      .from(schema.conversation)
+      .where(
+        scoped(
+          schema.conversation.organizationId,
+          organizationId,
+          eq(schema.conversation.contactId, contactId),
+          eq(schema.conversation.isTest, false)
+        )
+      )
+      .orderBy(desc(schema.conversation.lastInboundAt))
+      .limit(1);
+    const at = conv?.lastInboundAt;
+    if (!at) return op;
+    const [fila] = await getDb()
+      .update(schema.oportunidad)
+      .set({ ultimaRespuestaAt: at, primeraRespuestaAt: at })
+      .where(eq(schema.oportunidad.id, op.id))
+      .returning();
+    if (fila) {
+      await registrarEvento({
+        organizationId,
+        op: fila,
+        tipo: "primera_respuesta",
+        actor: { fuente: "sistema" },
+        at,
+      });
+    }
+    return fila ?? op;
+  } catch (err) {
+    console.error("[historial] respuesta previa sin registrar:", err instanceof Error ? err.message : err);
+    return op;
+  }
+}
+
+/**
  * Abre la oportunidad del contacto si no tiene una abierta; si ya la tiene,
  * la devuelve. Idempotente también ante dos pedidos a la vez: el índice único
  * parcial frena al segundo y aquí se devuelve la que ganó.
@@ -234,7 +283,7 @@ export async function abrirOportunidad(
       })
       .returning();
     await registrarCreada(organizationId, nueva!, actor);
-    return nueva!;
+    return await conRespuestaPrevia(organizationId, contactId, nueva!);
   } catch (err) {
     if (!esViolacionUnica(err)) throw err;
     const ganadora = await oportunidadAbierta(organizationId, contactId);
