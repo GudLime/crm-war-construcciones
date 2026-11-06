@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { AiClient } from "@/components/settings/ai-client";
 import { AvisoIaBanner } from "@/components/avisos/aviso-ia";
+import { AI_PROVIDERS, AI_PROVIDER_PRESETS } from "@/lib/ai/presets";
 
 /**
  * #85 — Ajustes → IA y el banner, dibujados en el servidor (sin efectos):
@@ -19,8 +20,13 @@ describe("Ajustes → IA", () => {
     expect(html).toContain('type="password"');
     expect(html).toContain("Probar conexión");
     expect(html).toContain("Traer modelos");
+    // El desplegable de proveedor (ui/select) muestra el elegido; la lista
+    // con «Otro compatible con OpenAI» aparece al abrirlo.
     expect(html).toContain("OpenRouter");
-    expect(html).toContain("Otro compatible con OpenAI");
+    expect(html).toMatch(/id="ai-provider"[^>]*role="combobox"|role="combobox"[^>]*id="ai-provider"/);
+    expect(AI_PROVIDERS.map((id) => AI_PROVIDER_PRESETS[id].label)).toContain(
+      "Otro compatible con OpenAI"
+    );
     // El respaldo del entorno se explica sin mandar a editar el .env.
     expect(html).toContain("OPENROUTER_API_TOKEN");
     expect(html).not.toContain("reinic");

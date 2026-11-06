@@ -16,7 +16,6 @@ import {
   EstadoPill,
   Ficha,
   Pagina,
-  SelectNativo,
   Tabla,
   Td,
   Th,
@@ -25,6 +24,7 @@ import {
   useMoneda,
 } from "./ui";
 import { ImportarUnidades } from "./importar-unidades";
+import { Select } from "@/components/ui/select";
 
 const vacio = { nombre: "", direccion: "", estado: "en_construccion", enVenta: "" };
 
@@ -113,13 +113,13 @@ export function EdificiosClient() {
               />
             </Campo>
             <Campo label="Estado">
-              <SelectNativo value={form.estado} onChange={(estado) => setForm({ ...form, estado })}>
+              <Select value={form.estado} onValueChange={(estado) => setForm({ ...form, estado })}>
                 {ESTADOS_EDIFICIO.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
                 ))}
-              </SelectNativo>
+              </Select>
             </Campo>
             <Campo label="En venta" className="sm:col-span-2">
               <Input

@@ -15,7 +15,6 @@ import {
   EstadoPill,
   Ficha,
   Pagina,
-  SelectNativo,
   Tabla,
   Td,
   Th,
@@ -24,6 +23,7 @@ import {
   grilla,
   mensajeDe,
 } from "./ui";
+import { Select } from "@/components/ui/select";
 
 type Contacto = { id: string; name: string | null; phone: string | null };
 
@@ -188,22 +188,22 @@ export function TareasClient() {
               />
             </Campo>
             <Campo label="Tipo">
-              <SelectNativo value={form.tipo} onChange={(tipo) => setForm({ ...form, tipo })}>
+              <Select value={form.tipo} onValueChange={(tipo) => setForm({ ...form, tipo })}>
                 {TIPOS_TAREA.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
                 ))}
-              </SelectNativo>
+              </Select>
             </Campo>
             <Campo label="Estado">
-              <SelectNativo value={form.estado} onChange={(estado) => setForm({ ...form, estado })}>
+              <Select value={form.estado} onValueChange={(estado) => setForm({ ...form, estado })}>
                 {ESTADOS_TAREA.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
                 ))}
-              </SelectNativo>
+              </Select>
             </Campo>
             <Campo label="Fecha">
               <Input
@@ -213,9 +213,9 @@ export function TareasClient() {
               />
             </Campo>
             <Campo label="Oportunidad">
-              <SelectNativo
+              <Select
                 value={form.oportunidadId}
-                onChange={(oportunidadId) => {
+                onValueChange={(oportunidadId) => {
                   const op = oportunidades.find((o) => o.id === oportunidadId);
                   setForm({
                     ...form,
@@ -230,12 +230,12 @@ export function TareasClient() {
                     {o.nombre}
                   </option>
                 ))}
-              </SelectNativo>
+              </Select>
             </Campo>
             <Campo label="Contacto">
-              <SelectNativo
+              <Select
                 value={form.contactId}
-                onChange={(contactId) => setForm({ ...form, contactId })}
+                onValueChange={(contactId) => setForm({ ...form, contactId })}
               >
                 <option value="">Sin contacto</option>
                 {contactos.map((c) => (
@@ -243,7 +243,7 @@ export function TareasClient() {
                     {c.name || c.phone || c.id}
                   </option>
                 ))}
-              </SelectNativo>
+              </Select>
             </Campo>
             <Campo label="Comentarios" className="sm:col-span-2 lg:col-span-3">
               <Textarea

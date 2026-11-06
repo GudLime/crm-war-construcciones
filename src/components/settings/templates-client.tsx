@@ -35,6 +35,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select } from "@/components/ui/select";
 
 type Category = "UTILITY" | "MARKETING";
 
@@ -448,11 +449,11 @@ function CreateForm({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="tpl-lang">Idioma del mensaje</Label>
-            <select
+            <Select
               id="tpl-lang"
               value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-card px-3 text-sm"
+              onValueChange={(valor) => setLanguage(valor)}
+              className="w-full"
             >
               {TEMPLATE_LANGUAGE_GROUPS.map((g) => (
                 <optgroup key={g.id} label={g.label}>
@@ -463,7 +464,7 @@ function CreateForm({
                   ))}
                 </optgroup>
               ))}
-            </select>
+            </Select>
           </div>
         </div>
 

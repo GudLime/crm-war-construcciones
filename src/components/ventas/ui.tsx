@@ -120,31 +120,6 @@ export function Campo({
   );
 }
 
-export function SelectNativo({
-  value,
-  onChange,
-  children,
-  className,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={cn(
-        "flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:border-brand focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand-soft",
-        className
-      )}
-    >
-      {children}
-    </select>
-  );
-}
-
 export function Ficha({
   titulo,
   children,

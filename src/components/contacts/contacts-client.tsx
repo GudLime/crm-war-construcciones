@@ -31,6 +31,7 @@ import { PriorityBadge } from "@/components/pipeline/priority-picker";
 import { ImportContactsDialog } from "./import-contacts-dialog";
 import { NewContactDialog } from "./new-contact-dialog";
 import { StartConversation } from "./start-conversation";
+import { Select } from "@/components/ui/select";
 
 export function ContactsClient() {
   const avisar = useAvisoGuardado();
@@ -120,11 +121,11 @@ export function ContactsClient() {
             Ver archivados
           </label>
           {stages.length > 0 && (
-            <select
+            <Select
               value={stage}
-              onChange={(e) => setStage(e.target.value)}
+              onValueChange={(valor) => setStage(valor)}
               aria-label="Filtrar por etapa del embudo"
-              className="h-9 rounded-md border border-input bg-card px-2 text-sm"
+              className="w-auto min-w-40"
             >
               <option value="all">Toda etapa</option>
               {stages.map((s) => (
@@ -132,7 +133,7 @@ export function ContactsClient() {
                   {s}
                 </option>
               ))}
-            </select>
+            </Select>
           )}
           <div className="relative w-full sm:w-auto">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -382,11 +383,11 @@ function EditDialog({
             <label className="text-sm font-medium" htmlFor="edit-tipo">
               Tipo de contacto
             </label>
-            <select
+            <Select
               id="edit-tipo"
               value={tipoContacto}
-              onChange={(e) => setTipoContacto(e.target.value as TipoContacto | "")}
-              className="h-9 w-full rounded-md border border-input bg-card px-2 text-sm"
+              onValueChange={(valor) => setTipoContacto(valor as TipoContacto | "")}
+              className="w-full"
             >
               <option value="">Sin clasificar</option>
               {TIPOS_CONTACTO.map((t) => (
@@ -394,7 +395,7 @@ function EditDialog({
                   {t.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="edit-email">

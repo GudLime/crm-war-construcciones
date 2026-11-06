@@ -16,9 +16,12 @@ import { abrirConversacionDeAviso } from "./avisos-de-mensajes";
  * comandos (D1) y «?» la ayuda de atajos (D2). Va en el AppShell.
  */
 
-/** Algún diálogo o menú abierto: los atajos de una tecla no actúan (D4). */
+/** Algún diálogo, menú o desplegable abierto: los atajos de una tecla no actúan (D4). */
 export function hayDialogoAbierto(): boolean {
-  return document.querySelector('[role="dialog"], [role="menu"]') !== null;
+  return (
+    document.querySelector('[role="dialog"], [role="menu"], [role="listbox"][data-desplegable]') !==
+    null
+  );
 }
 
 type Conversacion = { id: string; contact: { name: string; phone: string | null } };

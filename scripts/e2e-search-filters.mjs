@@ -11,6 +11,20 @@
  */
 import { chromium } from "playwright";
 
+// El desplegable del CRM es propio (ui/select: combobox + listbox), no un
+// <select>: se abre con un clic y se elige la opción por su rol.
+async function opcionesDe(p, combo) {
+  await combo.click();
+  const t = await p.getByRole("option").allInnerTexts();
+  await p.keyboard.press("Escape");
+  return t.map((s) => s.trim());
+}
+async function elegirOpcion(p, combo, texto) {
+  await combo.click();
+  await p.getByRole("option", { name: texto, exact: true }).click();
+}
+
+
 const BASE = process.env.APP_BASE_URL ?? "http://localhost:3000";
 const PN = "PN-SEARCH-1";
 const S = Math.random().toString(36).slice(2, 6).toUpperCase();
@@ -119,23 +133,23 @@ console.log("\n== Bandeja: filtro por etapa del embudo ==");
 await page.getByRole("button", { name: /^Filtrar/ }).click();
 const sel = page.getByLabel("Filtrar por etapa del embudo");
 ok("el selector de etapa existe", await sel.isVisible());
-const options = await sel.locator("option").allInnerTexts();
+const options = await opcionesDe(page, sel);
 ok("ofrece 'Toda etapa' + las etapas presentes",
    options[0] === "Toda etapa" && options.length > 1, JSON.stringify(options));
 const stage = options[1];
-await sel.selectOption(stage);
+await elegirOpcion(page, sel, stage);
 await page.waitForTimeout(400);
 list = await rows();
 ok(`filtrar por '${stage}' deja solo esa etapa`,
    list.length > 0 && list.every((t) => t.includes(stage)), JSON.stringify(list.length));
-await sel.selectOption("all");
+await elegirOpcion(page, sel, "Toda etapa");
 await page.waitForTimeout(300);
 ok("volver a 'Toda etapa' restaura la lista", (await rows()).length >= 3);
 
 await box.fill(`Zoraida${S}`);
 // El menú se cierra al hacer clic fuera: se vuelve a abrir si hace falta.
 if (!(await sel.isVisible())) await page.getByRole("button", { name: /^Filtrar/ }).click();
-await sel.selectOption(stage);
+await elegirOpcion(page, sel, stage);
 await page.waitForTimeout(400);
 list = await rows();
 ok("búsqueda y etapa se combinan (nunca contradicen)",
@@ -167,10 +181,10 @@ ok("la etapa se pinta en la ficha del contacto", cl.some((t) => t.includes(stage
 
 const cSel = cp.getByLabel("Filtrar por etapa del embudo");
 ok("Contactos tiene selector de etapa", await cSel.isVisible());
-const cOptions = await cSel.locator("option").allInnerTexts();
+const cOptions = await opcionesDe(cp, cSel);
 ok("las etapas vienen del pipeline completo",
    cOptions[0] === "Toda etapa" && cOptions.length > 1, JSON.stringify(cOptions));
-await cSel.selectOption(stage);
+await elegirOpcion(cp, cSel, stage);
 await cp.waitForTimeout(900);
 cl = await cRows();
 ok(`Contactos filtrado por '${stage}'`,
@@ -178,7 +192,7 @@ ok(`Contactos filtrado por '${stage}'`,
 
 // Camino infeliz: una etapa sin nadie no debe romper la pantalla.
 const empty = cOptions[cOptions.length - 1];
-await cSel.selectOption(empty);
+await elegirOpcion(cp, cSel, empty);
 await cp.waitForTimeout(900);
 const emptyCount = (await cRows()).length;
 ok(`etapa '${empty}' sin contactos → pantalla estable (${emptyCount} filas)`,

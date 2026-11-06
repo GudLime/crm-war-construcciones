@@ -23,7 +23,6 @@ import {
   EstadoPill,
   Ficha,
   Pagina,
-  SelectNativo,
   Tabla,
   Td,
   Th,
@@ -32,6 +31,7 @@ import {
   plata,
   useMoneda,
 } from "./ui";
+import { Select } from "@/components/ui/select";
 
 type Contacto = { id: string; name: string | null; phone: string | null };
 
@@ -267,7 +267,7 @@ export function OportunidadesClient() {
               />
             </Campo>
             <Campo label="Origen">
-              <SelectNativo value={form.origen} onChange={(origen) => setForm({ ...form, origen })}>
+              <Select value={form.origen} onValueChange={(origen) => setForm({ ...form, origen })}>
                 <option value="">Sin origen</option>
                 {ORIGENES_OPORTUNIDAD.map((o) => (
                   <option key={o} value={o}>
@@ -277,21 +277,21 @@ export function OportunidadesClient() {
                 {form.origen && !(ORIGENES_OPORTUNIDAD as readonly string[]).includes(form.origen) && (
                   <option value={form.origen}>{form.origen}</option>
                 )}
-              </SelectNativo>
+              </Select>
             </Campo>
             <Campo label="Estado">
-              <SelectNativo value={form.estado} onChange={(estado) => setForm({ ...form, estado })}>
+              <Select value={form.estado} onValueChange={(estado) => setForm({ ...form, estado })}>
                 {ESTADOS_OPORTUNIDAD.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
                 ))}
-              </SelectNativo>
+              </Select>
             </Campo>
             <Campo label="Contacto asociado">
-              <SelectNativo
+              <Select
                 value={form.contactId}
-                onChange={(contactId) => setForm({ ...form, contactId })}
+                onValueChange={(contactId) => setForm({ ...form, contactId })}
               >
                 <option value="">Sin contacto</option>
                 {contactos.map((c) => (
@@ -300,7 +300,7 @@ export function OportunidadesClient() {
                   </option>
                 ))}
                 {form.contactId && !contacto && <option value={form.contactId}>Contacto</option>}
-              </SelectNativo>
+              </Select>
             </Campo>
             <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2 lg:col-span-3">
               <span className="text-xs font-medium text-text-2">Interés · edificios</span>
@@ -324,9 +324,9 @@ export function OportunidadesClient() {
               />
             </div>
             <Campo label="Departamento puntual">
-              <SelectNativo
+              <Select
                 value={form.departamentoId}
-                onChange={(departamentoId) => setForm({ ...form, departamentoId })}
+                onValueChange={(departamentoId) => setForm({ ...form, departamentoId })}
               >
                 <option value="">
                   {form.edificioIds.length ? "Todavía sin unidad" : "Elegí un edificio"}
@@ -336,17 +336,17 @@ export function OportunidadesClient() {
                     {form.edificioIds.length > 1 ? `${u.edificioNombre} · ${u.unidad}` : u.unidad}
                   </option>
                 ))}
-              </SelectNativo>
+              </Select>
             </Campo>
             <Campo label="Tipo">
-              <SelectNativo value={form.tipo} onChange={(tipo) => setForm({ ...form, tipo })}>
+              <Select value={form.tipo} onValueChange={(tipo) => setForm({ ...form, tipo })}>
                 <option value="">Sin tipo</option>
                 {TIPOS_OPORTUNIDAD.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
                 ))}
-              </SelectNativo>
+              </Select>
             </Campo>
             <Campo label="Valor">
               <Input
@@ -356,9 +356,9 @@ export function OportunidadesClient() {
               />
             </Campo>
             <Campo label="Motivo de cierre">
-              <SelectNativo
+              <Select
                 value={form.motivoCierre}
-                onChange={(motivoCierre) => setForm({ ...form, motivoCierre })}
+                onValueChange={(motivoCierre) => setForm({ ...form, motivoCierre })}
               >
                 <option value="">Sin motivo</option>
                 {MOTIVOS_CIERRE.map((o) => (
@@ -370,7 +370,7 @@ export function OportunidadesClient() {
                   !(MOTIVOS_CIERRE as readonly string[]).includes(form.motivoCierre) && (
                     <option value={form.motivoCierre}>{form.motivoCierre}</option>
                   )}
-              </SelectNativo>
+              </Select>
             </Campo>
             <Acciones error={error}>
               <Button type="submit" size="sm">
