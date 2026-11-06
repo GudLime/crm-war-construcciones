@@ -55,10 +55,21 @@ function plural(n: number, uno: string, varios: string) {
   return `${n} ${n === 1 ? uno : varios}`;
 }
 
-function lineaUnidad(u: UnidadParaMemoria): string {
-  const partes: string[] = [`Unidad ${u.unidad}`];
-  if (u.piso != null) partes.push(u.piso === 0 ? "planta baja" : `piso ${u.piso}`);
+/**
+ * Una unidad en UNA línea que se entiende sola.
+ *
+ * Nea mete todo el conocimiento en un único texto JSON (`json.dumps`), así
+ * que los saltos de línea le llegan como `\n` dentro de una sola línea larga
+ * y el modelo pierde de vista a qué encabezado pertenece cada fila. Por eso
+ * cada línea repite edificio y tipología, lleva el precio sin rodeos, la nota
+ * en la misma línea (en otra se le atribuía a la unidad de al lado) y el
+ * código al final, para que no lo use como título de la unidad.
+ */
+export function lineaUnidad(u: UnidadParaMemoria, edificio?: string): string {
+  const partes: string[] = [];
+  if (edificio) partes.push(edificio);
   if (u.tipologia) partes.push(etiqueta(TIPOLOGIAS, u.tipologia).toLowerCase());
+  if (u.piso != null) partes.push(u.piso === 0 ? "planta baja" : `piso ${u.piso}`);
   if (u.dormitorios != null) partes.push(plural(u.dormitorios, "dormitorio", "dormitorios"));
   if (u.banos != null) {
     let b = plural(u.banos, "baño", "baños");
@@ -85,9 +96,31 @@ function lineaUnidad(u: UnidadParaMemoria): string {
       : "precio a consultar"
   );
   if (u.estado === "consultar") partes.push("disponibilidad a confirmar con el equipo");
-  let linea = `- ${partes.join(" · ")}`;
-  if (u.notasAgente?.trim()) linea += `\n  Nota: ${u.notasAgente.trim()}`;
-  return linea;
+  if (u.notasAgente?.trim()) partes.push(`nota: ${u.notasAgente.trim().replace(/\s*\n\s*/g, " ")}`);
+  partes.push(`código ${u.unidad}`);
+  return `- ${partes.join(" · ")}`;
+}
+
+/** Orden por tipología (el del catálogo) y, dentro de cada una, de la más barata a la más cara. */
+function porTipologiaYPrecio(unidades: readonly UnidadParaMemoria[]): Map<string, UnidadParaMemoria[]> {
+  const orden = TIPOLOGIAS.map((t) => t.value as string);
+  const grupos = new Map<string, UnidadParaMemoria[]>();
+  const ordenadas = [...unidades].sort((a, b) => {
+    const ia = a.tipologia ? orden.indexOf(a.tipologia) : 99;
+    const ib = b.tipologia ? orden.indexOf(b.tipologia) : 99;
+    if (ia !== ib) return ia - ib;
+    const pa = a.valorCents ?? Number.POSITIVE_INFINITY;
+    const pb = b.valorCents ?? Number.POSITIVE_INFINITY;
+    if (pa !== pb) return pa - pb;
+    return (a.piso ?? 0) - (b.piso ?? 0);
+  });
+  for (const u of ordenadas) {
+    const clave = u.tipologia ? etiqueta(TIPOLOGIAS, u.tipologia) : "Sin tipología";
+    const lista = grupos.get(clave) ?? [];
+    lista.push(u);
+    grupos.set(clave, lista);
+  }
+  return grupos;
 }
 
 /**
@@ -169,8 +202,11 @@ export function renderEdificioParaMemoria(e: EdificioParaMemoria): string {
   } else {
     lineas.push("Rangos por tipología (calculados por el CRM; para dar un rango, copialo de acá):");
     lineas.push(...rangosPorTipologia(ofrecibles));
-    lineas.push(`Unidades disponibles (${resumen}). Cada línea es una unidad: precio y metros se copian de su propia línea, sin mezclar con otra:`);
-    for (const u of ofrecibles) lineas.push(lineaUnidad(u));
+    lineas.push(`Unidades disponibles (${resumen}). Cada línea es UNA unidad y se entiende sola: precio y metros se copian de su propia línea, sin mezclar con otra.`);
+    for (const [tipologia, lista] of porTipologiaYPrecio(ofrecibles)) {
+      lineas.push(`${tipologia} en ${e.nombre}, de la más barata a la más cara (${plural(lista.length, "unidad", "unidades")}):`);
+      for (const u of lista) lineas.push(lineaUnidad(u, e.nombre));
+    }
   }
   return lineas.join("\n");
 }
