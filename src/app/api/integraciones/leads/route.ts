@@ -1,51 +1,11 @@
-import { z } from "zod";
 import { apiError, parseBody } from "@/lib/api";
-import { nombreDelLead, origenCanonico } from "@/lib/leads";
+import { leadBodySchema as bodySchema, nombreDelLead, origenCanonico } from "@/lib/leads";
 import { ORIGENES_OPORTUNIDAD } from "@/lib/ventas";
 import { resolveInstanceOrg } from "@/server/bot/auth";
 import { exigirLlaveLeads } from "@/server/integraciones/auth";
 import { LeadError, recibirLead } from "@/server/integraciones/leads";
 
 export const dynamic = "force-dynamic";
-
-const texto = z
-  .union([z.string(), z.number()])
-  .transform((v) => String(v).trim())
-  .optional()
-  .nullable();
-
-/**
- * War — Entrada de leads para las automatizaciones (Make): formularios de
- * Meta Ads y portales. Un escenario por formulario manda su edificio y su
- * origen fijos. Idempotente por `leadId`.
- *
- * Header: `X-API-Key: <LEADS_API_KEY>`.
- */
-const bodySchema = z.object({
-  leadId: z.union([z.string(), z.number()]).transform((v) => String(v).trim()).pipe(
-    z.string().min(1, "Falta el leadId").max(200)
-  ),
-  origen: z.string().trim().min(1),
-  edificio: texto,
-  nombreCompleto: texto,
-  nombre: texto,
-  apellido: texto,
-  telefono: texto,
-  email: texto,
-  campaignId: texto,
-  campaignName: texto,
-  adsetId: texto,
-  adsetName: texto,
-  adId: texto,
-  adName: texto,
-  formId: texto,
-  formName: texto,
-  plataforma: texto,
-  /** Fecha del lead (ISO o epoch en segundos). Sin ella, ahora. */
-  creadoEn: texto,
-  /** Preguntas extra del formulario, tal cual. */
-  respuestas: z.record(z.string(), z.unknown()).optional().nullable(),
-});
 
 function fecha(raw: string | null | undefined): Date | null {
   if (!raw) return null;
@@ -59,6 +19,12 @@ function emailValido(raw: string | null | undefined): string | null {
   return e && e.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? e : null;
 }
 
+/**
+ * War — Entrada de leads para las automatizaciones (Make): formularios de
+ * Meta Ads y portales. Un escenario por formulario manda su edificio y su
+ * origen fijos. Idempotente por `leadId`. Header `X-API-Key: <LEADS_API_KEY>`.
+ * Contrato: `docs/openapi-integraciones.json` · guía: `docs/integraciones-leads.md`.
+ */
 export async function POST(req: Request) {
   const denegado = exigirLlaveLeads(req);
   if (denegado) return denegado;

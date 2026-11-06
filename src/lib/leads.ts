@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { ORIGENES_OPORTUNIDAD } from "@/lib/ventas";
 
 /**
@@ -77,3 +78,40 @@ export function nombreDelLead(input: {
     .filter(Boolean);
   return partes.length ? partes.join(" ").slice(0, 120) : null;
 }
+
+const texto = z
+  .union([z.string(), z.number()])
+  .transform((v) => String(v).trim())
+  .optional()
+  .nullable();
+
+/**
+ * Cuerpo de `POST /api/integraciones/leads` (Make: formularios de Meta Ads y
+ * portales). Vive acá y no en la ruta para que la prueba lo compare con
+ * `docs/openapi-integraciones.json`.
+ */
+export const leadBodySchema = z.object({
+  leadId: z.union([z.string(), z.number()]).transform((v) => String(v).trim()).pipe(
+    z.string().min(1, "Falta el leadId").max(200)
+  ),
+  origen: z.string().trim().min(1),
+  edificio: texto,
+  nombreCompleto: texto,
+  nombre: texto,
+  apellido: texto,
+  telefono: texto,
+  email: texto,
+  campaignId: texto,
+  campaignName: texto,
+  adsetId: texto,
+  adsetName: texto,
+  adId: texto,
+  adName: texto,
+  formId: texto,
+  formName: texto,
+  plataforma: texto,
+  /** Fecha del lead (ISO o epoch en segundos). Sin ella, ahora. */
+  creadoEn: texto,
+  /** Preguntas extra del formulario, tal cual. */
+  respuestas: z.record(z.string(), z.unknown()).optional().nullable(),
+});

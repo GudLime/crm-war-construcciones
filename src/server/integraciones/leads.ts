@@ -315,10 +315,16 @@ export async function recibirLead(
       recibidoAt: lead.recibidoAt ?? ahora,
     });
   } catch (err) {
-    // Dos reintentos de Make a la vez: el segundo devuelve lo del primero.
+    // Dos reintentos de Make a la vez: el segundo devuelve lo del primero y
+    // borra la oportunidad que acababa de abrir, para no dejar una gemela.
     if (esViolacionUnica(err)) {
       const ganador = await yaRecibido(organizationId, lead.leadId);
-      if (ganador) return ganador;
+      if (ganador) {
+        if (!destino && ganador.oportunidadId !== oportunidadId) {
+          await db.delete(schema.oportunidad).where(eq(schema.oportunidad.id, oportunidadId));
+        }
+        return ganador;
+      }
     }
     throw err;
   }
