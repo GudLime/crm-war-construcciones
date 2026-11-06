@@ -86,12 +86,16 @@ describe("lee las opciones como un <select>", () => {
 describe("el botón", () => {
   function dibujar(value: string, placeholder?: string): string {
     return renderToStaticMarkup(
-      h(
-        Select,
-        { value, onValueChange: () => {}, id: "x", placeholder },
-        h("option", { value: "a" }, "Alfa"),
-        h("option", { value: "b" }, "Beta")
-      )
+      h(Select, {
+        value,
+        onValueChange: () => {},
+        id: "x",
+        ...(placeholder ? { placeholder } : {}),
+        children: [
+          h("option", { key: "a", value: "a" }, "Alfa"),
+          h("option", { key: "b", value: "b" }, "Beta"),
+        ],
+      })
     );
   }
 
