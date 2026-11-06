@@ -1,0 +1,437 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "CRM War — Integraciones",
+    "version": "1.0.0",
+    "description": "Entradas del CRM para automatizaciones externas (Make). No es el contrato del cerebro (`docs/openapi.json`). Guía: `docs/integraciones-leads.md`."
+  },
+  "servers": [
+    {
+      "url": "https://crm.war.gudlime.com.ar",
+      "description": "Producción de War"
+    }
+  ],
+  "security": [
+    {
+      "leadsKey": []
+    },
+    {
+      "leadsBearer": []
+    }
+  ],
+  "paths": {
+    "/api/integraciones/leads": {
+      "post": {
+        "summary": "Recibir un lead de formulario o portal",
+        "description": "Un escenario de Make por formulario manda cada lead nuevo, con su edificio y origen fijos.\n\n1. **Idempotente por `leadId`**: si Make reintenta, responde 200 `duplicado` con lo que ya se había hecho.\n2. **Teléfono**: se normaliza a E.164 sin `+` (libphonenumber); el celular argentino lleva el 9 (`+541151191447` → `5491151191447`), igual que el `wa_id` de WhatsApp. Sin código de país se lee como argentino.\n3. **Contacto**: se busca por ese número con la misma regla que la ingesta de WhatsApp; si no existe se crea como Lead. Si el teléfono no se puede leer, la oportunidad se crea sin contacto y su nombre dice «revisar teléfono».\n4. **Oportunidad**: si el contacto tiene una abierta del mismo edificio (o una abierta sin edificio), el lead se suma a esa (200 `sumada`) y vuelve arriba por su última interacción; si no, se abre una nueva (201 `nueva`).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadEntrante"
+              },
+              "examples": {
+                "metaAds": {
+                  "summary": "Lead de un formulario de Meta Ads",
+                  "value": {
+                    "leadId": "1234567890123456",
+                    "origen": "Meta Ads",
+                    "edificio": "Urquiza 1872",
+                    "nombre": "Ana",
+                    "apellido": "Pérez",
+                    "telefono": "+541151191447",
+                    "email": "ana@ejemplo.com",
+                    "campaignId": "120200000000000001",
+                    "campaignName": "Urquiza 1872 · Leads",
+                    "adsetName": "2 ambientes",
+                    "adName": "Video balcón",
+                    "formId": "987654321",
+                    "formName": "Urquiza 1872 - consulta",
+                    "plataforma": "ig",
+                    "creadoEn": "2026-11-05T21:24:47Z",
+                    "respuestas": {
+                      "cuando_mudarse": "en 6 meses"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Se abrió una oportunidad nueva",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultadoLead"
+                },
+                "example": {
+                  "resultado": "nueva",
+                  "oportunidadId": "opt_x1",
+                  "contactId": "ct_x1",
+                  "contactoNuevo": true,
+                  "telefonoValido": true,
+                  "telefono": "5491151191447",
+                  "edificioId": "edi_x1"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "El lead se sumó a una oportunidad abierta (`sumada`) o ese `leadId` ya había entrado (`duplicado`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultadoLead"
+                },
+                "example": {
+                  "resultado": "sumada",
+                  "oportunidadId": "opt_apap4arub1riifug4lvu",
+                  "contactId": "ct_0fhwos6sb9cnk3pnb24z",
+                  "contactoNuevo": false,
+                  "telefonoValido": true,
+                  "telefono": "5491140540056",
+                  "edificioId": null
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave o no coincide con `LEADS_API_KEY`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "x-codigos": [
+                  "unauthorized"
+                ]
+              }
+            }
+          },
+          "409": {
+            "description": "La instancia todavía no tiene organización",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "x-codigos": [
+                  "no_org"
+                ]
+              }
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido, origen fuera de la lista o edificio que no coincide con exactamente uno",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "x-codigos": [
+                  "invalid_body",
+                  "origen_desconocido",
+                  "edificio_desconocido"
+                ]
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiados intentos fallidos (30/min por IP) o demasiadas solicitudes (300/min)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "x-codigos": [
+                  "rate_limited"
+                ]
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno: Make puede reintentar, la entrada es idempotente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "x-codigos": [
+                  "internal"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "leadsKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "`LEADS_API_KEY` (variable de entorno del CRM, mínimo 16 caracteres). Distinta de `BOT_API_KEY`."
+      },
+      "leadsBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "La misma `LEADS_API_KEY` como `Authorization: Bearer`."
+      }
+    },
+    "schemas": {
+      "LeadEntrante": {
+        "type": "object",
+        "required": [
+          "leadId",
+          "origen"
+        ],
+        "properties": {
+          "leadId": {
+            "type": [
+              "string",
+              "number"
+            ],
+            "description": "ID del lead en Meta (o del portal). Llave de idempotencia.",
+            "examples": [
+              "1234567890123456"
+            ]
+          },
+          "origen": {
+            "type": "string",
+            "enum": [
+              "Newsletter",
+              "MercadoLibre",
+              "Argenprop",
+              "Zonaprop",
+              "Página Web",
+              "Google Ads",
+              "Referido",
+              "Cartel",
+              "Meta Ads",
+              "Facebook",
+              "Instagram",
+              "Cartel Showroom",
+              "Inmobiliaria",
+              "Google",
+              "Mail",
+              "Tik Tok"
+            ],
+            "description": "Se acepta sin importar mayúsculas, espacios o guiones bajos (`meta_ads` → `Meta Ads`)."
+          },
+          "edificio": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Id del edificio, o su nombre o dirección tal como está en el CRM. Si coincide con varios o con ninguno: 422.",
+            "examples": [
+              "Urquiza 1872"
+            ]
+          },
+          "nombreCompleto": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Nombre completo. Si no viene, se usan `nombre` + `apellido`."
+          },
+          "nombre": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Nombre.",
+            "examples": [
+              "Ana"
+            ]
+          },
+          "apellido": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Apellido.",
+            "examples": [
+              "Pérez"
+            ]
+          },
+          "telefono": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Como lo escribió la persona: se normaliza.",
+            "examples": [
+              "+541151191447"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Correo. Si no tiene forma de correo se ignora."
+          },
+          "campaignId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ID de la campaña."
+          },
+          "campaignName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Nombre de la campaña."
+          },
+          "adsetId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ID del conjunto de anuncios."
+          },
+          "adsetName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Nombre del conjunto."
+          },
+          "adId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ID del anuncio."
+          },
+          "adName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Nombre del anuncio."
+          },
+          "formId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ID del formulario."
+          },
+          "formName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Nombre del formulario."
+          },
+          "plataforma": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`fb`, `ig`, el portal…"
+          },
+          "creadoEn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Fecha del lead: ISO 8601 o epoch en segundos. Sin ella, la de recepción."
+          },
+          "respuestas": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true,
+            "description": "Preguntas extra del formulario, tal cual. Se guardan sin interpretar."
+          }
+        }
+      },
+      "ResultadoLead": {
+        "type": "object",
+        "required": [
+          "resultado",
+          "oportunidadId",
+          "contactId",
+          "contactoNuevo",
+          "telefonoValido",
+          "telefono",
+          "edificioId"
+        ],
+        "properties": {
+          "resultado": {
+            "type": "string",
+            "enum": [
+              "nueva",
+              "sumada",
+              "duplicado"
+            ]
+          },
+          "oportunidadId": {
+            "type": "string"
+          },
+          "contactId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "null si el teléfono no se pudo leer."
+          },
+          "contactoNuevo": {
+            "type": "boolean",
+            "description": "false si la persona ya existía (por ejemplo, escribió antes por WhatsApp)."
+          },
+          "telefonoValido": {
+            "type": "boolean"
+          },
+          "telefono": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Teléfono normalizado (E.164 sin `+`)."
+          },
+          "edificioId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -84,6 +84,10 @@ llega en ese plazo. Código: `src/lib/memoria-agente.ts`,
 
 ## Leads de formularios y teléfonos (Make)
 
+Referencia completa (campos, respuestas, errores, prueba con curl y armado
+del escenario): [docs/integraciones-leads.md](docs/integraciones-leads.md) ·
+contrato: [docs/openapi-integraciones.json](docs/openapi-integraciones.json).
+
 Mientras la app de Meta no tenga Ads Management, los leads de los formularios
 de Meta Ads (y de los portales) entran por **Make**: un escenario por
 formulario manda el lead a `POST /api/integraciones/leads` con el header
