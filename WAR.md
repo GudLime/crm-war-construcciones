@@ -71,10 +71,14 @@ En War lo que avanza en el embudo es la **oportunidad**, no el contacto
 - Código: `src/server/oportunidades-war.ts`, panel del chat en
   `src/components/ventas/oportunidad-panel.tsx`.
 
-## Orígenes de los leads (0035)
+## Orígenes de los leads (0035, imagen 0037)
 
 **Configuración → Orígenes** (Negocio): nombre e ícono de cada origen, en el
-orden del desplegable de Oportunidades. Tabla `origen_oportunidad`
+orden del desplegable de Oportunidades. El ícono sale de la librería
+(lucide) o es una **imagen propia** (el logo de Zonaprop, MercadoLibre…):
+PNG/JPEG/WebP/SVG hasta 256 KB, tipo verificado por los bytes, guardada en el
+volumen de medios como `origen-<id>` y servida con sesión por
+`/api/origenes/<id>/imagen?v=` (misma CSP que el favicon). Tabla `origen_oportunidad`
 (`src/lib/db/ventas-tables.ts`), catálogo de íconos y valores por defecto en
 `src/lib/origenes.ts`, lógica en `src/server/origenes.ts`, API `/api/origenes`
 (GET todos; POST/PATCH/DELETE/PUT orden solo quien configura).

@@ -57,6 +57,8 @@ export type OrigenDto = {
   /** Clave de `ICONOS_ORIGEN`. Una clave que ya no existe se ve con `tag`. */
   icono: string;
   orden: number;
+  /** URL de la imagen propia (con `?v=` para la caché), o null: se usa el ícono. */
+  imagen: string | null;
   /** Cuántas oportunidades lo tienen (solo en Ajustes). */
   usos?: number;
 };
@@ -138,6 +140,18 @@ export const ORIGENES_POR_DEFECTO: readonly { nombre: string; icono: string }[] 
 ];
 
 export const NOMBRE_ORIGEN_MAX = 60;
+
+/** 256 KB: es un logo chico, no una foto. */
+export const MAX_IMAGEN_ORIGEN_BYTES = 256 * 1024;
+
+/** Nombre del archivo en el volumen de medios. */
+export function assetImagenOrigen(id: string): string {
+  return `origen-${id}`;
+}
+
+export function urlImagenOrigen(id: string, version: number): string {
+  return `/api/origenes/${id}/imagen?v=${version}`;
+}
 export const TOPE_ORIGENES = 60;
 
 /** Sin tildes, espacios, guiones ni mayúsculas: "META_ADS" = "Meta Ads". */

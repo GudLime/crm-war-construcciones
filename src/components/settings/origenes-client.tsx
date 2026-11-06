@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, ImagePlus, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { OrigenIcono } from "@/components/ventas/origen-icono";
 import {
   ICONO_POR_DEFECTO,
   ICONOS_ORIGEN,
+  MAX_IMAGEN_ORIGEN_BYTES,
   NOMBRE_ORIGEN_MAX,
   type OrigenDto,
 } from "@/lib/origenes";
@@ -27,6 +28,11 @@ export function OrigenesClient() {
   const [editando, setEditando] = useState<string | null>(null);
   const [nombre, setNombre] = useState("");
   const [icono, setIcono] = useState(ICONO_POR_DEFECTO);
+  /** Imagen elegida para subir al guardar. */
+  const [archivo, setArchivo] = useState<File | null>(null);
+  /** Quitar la imagen que ya tenía al guardar. */
+  const [quitarImagen, setQuitarImagen] = useState(false);
+  const inputArchivo = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
 
@@ -46,7 +52,20 @@ export function OrigenesClient() {
     setEditando(o?.id ?? "");
     setNombre(o?.nombre ?? "");
     setIcono(o?.icono ?? ICONO_POR_DEFECTO);
+    setArchivo(null);
+    setQuitarImagen(false);
     setError(null);
+  }
+
+  function elegirArchivo(f: File | null) {
+    if (!f) return;
+    if (f.size > MAX_IMAGEN_ORIGEN_BYTES) {
+      setError(`La imagen no puede pasar de ${Math.round(MAX_IMAGEN_ORIGEN_BYTES / 1024)} KB.`);
+      return;
+    }
+    setError(null);
+    setArchivo(f);
+    setQuitarImagen(false);
   }
 
   async function guardar() {
@@ -58,14 +77,37 @@ export function OrigenesClient() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ nombre, icono }),
     }).catch(() => null);
-    setGuardando(false);
     if (!res?.ok) {
-      const d = (await res?.json().catch(() => null)) as { error?: { message?: string } } | null;
-      setError(d?.error?.message ?? "No se pudo guardar. Revisá la conexión.");
+      setGuardando(false);
+      setError(await mensajeDeError(res, "No se pudo guardar. Revisá la conexión."));
+      return;
+    }
+    const { origen } = (await res.json()) as { origen: OrigenDto };
+
+    // La imagen va aparte (cuerpo crudo) y necesita el id: después de guardar.
+    let errorImagen: string | null = null;
+    if (archivo) {
+      const r = await fetch(`/api/origenes/${origen.id}/imagen`, {
+        method: "PUT",
+        headers: { "content-type": archivo.type || "application/octet-stream" },
+        body: archivo,
+      }).catch(() => null);
+      if (!r?.ok) errorImagen = await mensajeDeError(r, "No se pudo subir la imagen.");
+    } else if (quitarImagen && original?.imagen) {
+      const r = await fetch(`/api/origenes/${origen.id}/imagen`, { method: "DELETE" }).catch(
+        () => null
+      );
+      if (!r?.ok) errorImagen = await mensajeDeError(r, "No se pudo quitar la imagen.");
+    }
+    setGuardando(false);
+    void cargar();
+    if (errorImagen) {
+      // El origen quedó guardado: se sigue editando ese para reintentar la imagen.
+      setEditando(origen.id);
+      setError(`Se guardó el origen, pero: ${errorImagen}`);
       return;
     }
     setEditando(null);
-    void cargar();
   }
 
   async function borrar(o: OrigenDto) {
@@ -105,6 +147,14 @@ export function OrigenesClient() {
   }
 
   const original = lista?.find((o) => o.id === editando);
+  const vistaPrevia = useMemo(() => (archivo ? URL.createObjectURL(archivo) : null), [archivo]);
+  useEffect(() => {
+    return () => {
+      if (vistaPrevia) URL.revokeObjectURL(vistaPrevia);
+    };
+  }, [vistaPrevia]);
+  /** Lo que se va a ver después de guardar. */
+  const imagenFinal = vistaPrevia ?? (quitarImagen ? null : (original?.imagen ?? null));
   const renombra = Boolean(original && original.nombre !== nombre.replace(/\s+/g, " ").trim());
 
   return (
@@ -126,7 +176,7 @@ export function OrigenesClient() {
               {lista.map((o, i) => (
                 <li key={o.id} className="flex items-center gap-3 px-3 py-2">
                   <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-subtle">
-                    <OrigenIcono icono={o.icono} className="text-foreground" />
+                    <OrigenIcono icono={o.icono} imagen={o.imagen} className="size-5 text-foreground" />
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">{o.nombre}</p>
@@ -199,8 +249,53 @@ export function OrigenesClient() {
                 )}
               </div>
               <div className="space-y-1.5">
+                <span className="text-sm font-medium">Imagen propia (opcional)</span>
+                <div className="flex items-center gap-3">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-md border bg-background">
+                    <OrigenIcono icono={icono} imagen={imagenFinal} className="size-6 text-foreground" />
+                  </span>
+                  <input
+                    ref={inputArchivo}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="hidden"
+                    data-testid="origen-imagen"
+                    onChange={(e) => {
+                      elegirArchivo(e.target.files?.[0] ?? null);
+                      e.target.value = "";
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => inputArchivo.current?.click()}
+                  >
+                    <ImagePlus className="h-4 w-4" /> {imagenFinal ? "Cambiar imagen" : "Subir imagen"}
+                  </Button>
+                  {imagenFinal && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setArchivo(null);
+                        setQuitarImagen(true);
+                      }}
+                    >
+                      <X className="h-4 w-4" /> Quitar
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-text-3">
+                  El logo del portal o la red (PNG, JPEG, WebP o SVG, hasta{" "}
+                  {Math.round(MAX_IMAGEN_ORIGEN_BYTES / 1024)} KB). Mejor cuadrado y con fondo
+                  transparente. Si hay imagen, se muestra en lugar del ícono.
+                </p>
+              </div>
+              <div className="space-y-1.5">
                 <span className="text-sm font-medium" id="origen-icono-label">
-                  Ícono
+                  {imagenFinal ? "Ícono (si se quita la imagen)" : "Ícono"}
                 </span>
                 <div
                   role="radiogroup"
@@ -251,4 +346,9 @@ export function OrigenesClient() {
       </Card>
     </div>
   );
+}
+
+async function mensajeDeError(res: Response | null, porDefecto: string): Promise<string> {
+  const d = (await res?.json().catch(() => null)) as { error?: { message?: string } } | null;
+  return d?.error?.message ?? porDefecto;
 }

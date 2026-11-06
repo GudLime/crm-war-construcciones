@@ -2,11 +2,13 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  assetImagenOrigen,
   CLAVES_ICONO,
   iconoDeOrigen,
   normalizarNombreOrigen,
   ORIGENES_POR_DEFECTO,
   planoOrigen,
+  urlImagenOrigen,
 } from "@/lib/origenes";
 import { ordenSchema, origenSchema } from "@/server/origenes";
 
@@ -43,6 +45,14 @@ describe("la migración 0035 siembra lo mismo que la app", () => {
     expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS "origen_oportunidad"/);
     expect(sql).toMatch(/ON CONFLICT DO NOTHING/);
   });
+  it("0037 agrega el tipo y la versión de la imagen propia", () => {
+    const sql36 = readFileSync(
+      path.join(process.cwd(), "drizzle", "0037_origenes_imagen.sql"),
+      "utf8"
+    );
+    expect(sql36).toContain('ADD COLUMN IF NOT EXISTS "imagen_mime" text');
+    expect(sql36).toContain('ADD COLUMN IF NOT EXISTS "imagen_version" bigint');
+  });
 });
 
 describe("validación", () => {
@@ -62,5 +72,13 @@ describe("validación", () => {
   it("el orden pide al menos un id", () => {
     expect(ordenSchema.safeParse({ ids: [] }).success).toBe(false);
     expect(ordenSchema.safeParse({ ids: ["ori_1"] }).success).toBe(true);
+  });
+});
+
+describe("imagen propia", () => {
+  it("un archivo por origen y una URL que cambia con cada subida", () => {
+    expect(assetImagenOrigen("ori_abc")).toBe("origen-ori_abc");
+    expect(urlImagenOrigen("ori_abc", 1)).not.toBe(urlImagenOrigen("ori_abc", 2));
+    expect(urlImagenOrigen("ori_abc", 5)).toBe("/api/origenes/ori_abc/imagen?v=5");
   });
 });

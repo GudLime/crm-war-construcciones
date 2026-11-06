@@ -260,6 +260,13 @@
       "when": 1793757600000,
       "tag": "0036_oportunidad_historial",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793768400000,
+      "tag": "0037_origenes_imagen",
+      "breakpoints": true
     }
   ]
 }

@@ -129,8 +129,8 @@ export function OportunidadesClient() {
   const volverA = useRef<string | null>(null);
   /** War — Solo las que cumplen el umbral de «no responde» (modo sugerir). */
   const [soloParaCerrar, setSoloParaCerrar] = useState(false);
-  /** Nombre del origen → clave de su ícono (Configuración → Orígenes). */
-  const iconoDe = useMemo(() => new Map(origenes.map((o) => [o.nombre, o.icono])), [origenes]);
+  /** Nombre del origen → su ícono o imagen (Configuración → Orígenes). */
+  const iconoDe = useMemo(() => new Map(origenes.map((o) => [o.nombre, o])), [origenes]);
 
   const cargar = useCallback(async () => {
     const res = await fetch("/api/oportunidades").catch(() => null);
@@ -313,7 +313,9 @@ export function OportunidadesClient() {
                 value={form.origen}
                 onValueChange={(origen) => setForm({ ...form, origen })}
                 iconoDe={(nombre) =>
-                  nombre ? <OrigenIcono icono={iconoDe.get(nombre)} /> : null
+                  nombre ? (
+                    <OrigenIcono icono={iconoDe.get(nombre)?.icono} imagen={iconoDe.get(nombre)?.imagen} />
+                  ) : null
                 }
               >
                 <option value="">Sin origen</option>
@@ -473,7 +475,10 @@ export function OportunidadesClient() {
                 <Td>
                   {o.origen ? (
                     <span className="inline-flex items-center gap-1.5">
-                      <OrigenIcono icono={iconoDe.get(o.origen)} />
+                      <OrigenIcono
+                        icono={iconoDe.get(o.origen)?.icono}
+                        imagen={iconoDe.get(o.origen)?.imagen}
+                      />
                       {o.origen}
                     </span>
                   ) : (
