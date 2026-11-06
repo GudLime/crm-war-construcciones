@@ -187,6 +187,7 @@ export const POST = withAuth(async (session, req: Request) => {
       contactId: creado.id,
       tipo: body.data.tipoContacto,
       fuente: "persona",
+      userId: session.userId,
     });
     const [fresco] = await db
       .select()

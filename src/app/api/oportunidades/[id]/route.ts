@@ -16,7 +16,7 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   if (!body.ok) return body.response;
   try {
     return Response.json({
-      oportunidad: await editarOportunidad(session.organizationId, id, body.data),
+      oportunidad: await editarOportunidad(session.organizationId, id, body.data, session.userId),
     });
   } catch (err) {
     if (err instanceof VentasError) return apiError(err.status, err.code, err.message);

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
@@ -123,6 +124,11 @@ export function OportunidadesClient() {
   const [form, setForm] = useState<Formulario>(vacio);
   const [error, setError] = useState<string | null>(null);
   const [listo, setListo] = useState(false);
+  const router = useRouter();
+  /** War — Se vino a editar desde la página de la oportunidad: al terminar, se vuelve ahí. */
+  const volverA = useRef<string | null>(null);
+  /** War — Solo las que cumplen el umbral de «no responde» (modo sugerir). */
+  const [soloParaCerrar, setSoloParaCerrar] = useState(false);
   /** Nombre del origen → clave de su ícono (Configuración → Orígenes). */
   const iconoDe = useMemo(() => new Map(origenes.map((o) => [o.nombre, o.icono])), [origenes]);
 
@@ -157,6 +163,21 @@ export function OportunidadesClient() {
     })();
   }, [cargar]);
 
+  // War — `?editar=<id>` (el botón Editar de la página de la oportunidad).
+  useEffect(() => {
+    if (!listo) return;
+    const id = new URLSearchParams(window.location.search).get("editar");
+    if (!id) return;
+    const o = filas.find((f) => f.id === id);
+    if (!o) return;
+    volverA.current = `/oportunidades/${id}`;
+    setEditando(o.id);
+    setForm(desde(o));
+    setError(null);
+    setAbierto(true);
+    window.history.replaceState(null, "", "/oportunidades");
+  }, [listo, filas]);
+
   // 068 — Las unidades de todos los edificios elegidos, para fijar una.
   const edificiosClave = form.edificioIds.join(",");
   useEffect(() => {
@@ -189,13 +210,6 @@ export function OportunidadesClient() {
   function abrirNueva() {
     setEditando(null);
     setForm(vacio);
-    setError(null);
-    setAbierto(true);
-  }
-
-  function abrir(o: OportunidadDto) {
-    setEditando(o.id);
-    setForm(desde(o));
     setError(null);
     setAbierto(true);
   }
@@ -234,6 +248,11 @@ export function OportunidadesClient() {
     setAbierto(false);
     setEditando(null);
     setForm(vacio);
+    if (volverA.current) {
+      router.push(volverA.current);
+      volverA.current = null;
+      return;
+    }
     void cargar();
   }
 
@@ -251,16 +270,30 @@ export function OportunidadesClient() {
   }
 
   const contacto = contactos.find((c) => c.id === form.contactId);
+  const nParaCerrar = filas.filter((o) => o.paraCerrar).length;
+  const visibles = soloParaCerrar ? filas.filter((o) => o.paraCerrar) : filas;
 
   return (
     <Pagina
       titulo="Oportunidades"
       detalle="De dónde llegó, a quién pertenece y qué edificio o departamento está mirando."
       accion={
+        <div className="flex flex-wrap items-center gap-2">
+          {(nParaCerrar > 0 || soloParaCerrar) && (
+            <Button
+              size="sm"
+              variant={soloParaCerrar ? "secondary" : "outline"}
+              onClick={() => setSoloParaCerrar((v) => !v)}
+              title="Las que cumplen el umbral de «no responde» de Configuración → Ventas"
+            >
+              {soloParaCerrar ? "Ver todas" : `Para cerrar (${nParaCerrar})`}
+            </Button>
+          )}
         <Button size="sm" onClick={abrirNueva}>
           <Plus className="h-4 w-4" strokeWidth={1.8} />
           Nueva oportunidad
         </Button>
+        </div>
       }
     >
       {abierto && (
@@ -430,11 +463,11 @@ export function OportunidadesClient() {
             </tr>
           </thead>
           <tbody>
-            {filas.map((o) => (
+            {visibles.map((o) => (
               <tr
                 key={o.id}
                 className="cursor-pointer border-b last:border-0 hover:bg-accent/40"
-                onClick={() => abrir(o)}
+                onClick={() => router.push(`/oportunidades/${o.id}`)}
               >
                 <Td className="font-medium">{o.nombre}</Td>
                 <Td>
@@ -453,7 +486,16 @@ export function OportunidadesClient() {
                 <Td>{o.contactoNombre || "—"}</Td>
                 <Td>{interes(o)}</Td>
                 <Td>
-                  <EstadoPill opciones={ESTADOS_OPORTUNIDAD} value={o.estado} />
+                  <div className="flex flex-col items-start gap-1">
+                    <EstadoPill opciones={ESTADOS_OPORTUNIDAD} value={o.estado} />
+                    {o.paraCerrar ? (
+                      <span className="rounded-full bg-danger-tint px-2 py-px text-[11px] font-medium text-danger-text">
+                        Para cerrar · no responde
+                      </span>
+                    ) : o.sinRespuesta ? (
+                      <span className="text-[11px] text-warning-text">{o.sinRespuesta}</span>
+                    ) : null}
+                  </div>
                 </Td>
                 <Td className="whitespace-nowrap text-text-2">
                   <span title={new Date(o.ultimaInteraccion).toLocaleString("es-AR")}>

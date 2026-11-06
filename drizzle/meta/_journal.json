@@ -253,6 +253,13 @@
       "when": 1793746800000,
       "tag": "0035_origenes",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793757600000,
+      "tag": "0036_oportunidad_historial",
+      "breakpoints": true
     }
   ]
 }

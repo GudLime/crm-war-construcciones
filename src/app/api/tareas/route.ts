@@ -13,7 +13,7 @@ export const POST = withAuth(async (session, req: Request) => {
   const body = await parseBody(req, tareaSchema);
   if (!body.ok) return body.response;
   try {
-    const tarea = await crearTarea(session.organizationId, body.data);
+    const tarea = await crearTarea(session.organizationId, body.data, session.userId);
     return Response.json({ tarea }, { status: 201 });
   } catch (err) {
     if (err instanceof VentasError) return apiError(err.status, err.code, err.message);

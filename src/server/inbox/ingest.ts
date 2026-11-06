@@ -27,6 +27,7 @@ import { onLeadActivity } from "@/server/inbox/lead-activity";
 import { despachoActivo } from "@/server/brains/config";
 import { despacharAlCerebro } from "@/server/dispatch/encolar";
 import { registrarInteraccionDelContacto } from "@/server/oportunidades-war";
+import { registrarSaliente } from "@/server/oportunidad-historial";
 import {
   aCitaDto,
   citaDelWebhook,
@@ -408,6 +409,14 @@ async function ingestManualEcho(
     .update(schema.conversation)
     .set({ lastMessageAt: waTimestamp, updatedAt: new Date() })
     .where(eq(schema.conversation.id, conversation.id));
+
+  // War — escribirle desde el teléfono también es un intento («sin respuesta»).
+  await registrarSaliente({
+    organizationId,
+    conversationId: conversation.id,
+    at: waTimestamp,
+    origen: "manual",
+  });
 
   // Pausa automática de la IA, idempotente y atómica (solo si no hay handoff).
   const paused = await db

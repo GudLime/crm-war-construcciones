@@ -133,6 +133,7 @@ describe("ajustes en tres secciones", () => {
         "/settings/templates",
         "/settings/quick-replies",
         "/settings/origenes",
+        "/settings/ventas",
         "/settings/team",
         "/settings/ads",
       ].sort()

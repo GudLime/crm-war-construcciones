@@ -4,6 +4,7 @@ import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
 import {
+  estaAbierta,
   metrosTotales,
   resolverInteres,
   VALORES_ESTADO_EDIFICIO,
@@ -23,6 +24,13 @@ import {
   type TipoTarea,
 } from "@/lib/ventas";
 import { reemplazarInteres } from "@/server/oportunidades-war";
+import {
+  cambiarEstadoOportunidad,
+  leerAjustesVentas,
+  registrarCreada,
+  registrarIntento,
+} from "@/server/oportunidad-historial";
+import { cumpleSilencio, textoSinRespuesta, type AjustesVentas } from "@/lib/ventas-ajustes";
 import {
   compararUnidades,
   generarCsvUnidades,
@@ -186,6 +194,11 @@ export type OportunidadDto = {
   ultimaInteraccion: string;
   /** War — cuántos formularios de anuncio o portal sumó esta oportunidad. */
   formularios: number;
+  /** War — «Sin respuesta · 3 intentos · hace 4 días», o null. */
+  sinRespuesta: string | null;
+  /** War — cumple el umbral de Ajustes → Ventas en modo «sugerir el cierre». */
+  paraCerrar: boolean;
+  createdAt: string;
 };
 
 export type TareaDto = {
@@ -577,8 +590,10 @@ function aOportunidad(
   fila: typeof schema.oportunidad.$inferSelect,
   extra: { contactoNombre: string | null; edificioNombre: string | null; unidad: string | null },
   interes: InteresOportunidad = { edificios: [], tipologias: [] },
-  formularios = 0
+  formularios = 0,
+  ajustes: AjustesVentas | null = null
 ): OportunidadDto {
+  const abierta = estaAbierta(fila.estado);
   return {
     id: fila.id,
     nombre: fila.nombre,
@@ -598,6 +613,10 @@ function aOportunidad(
     tipologias: interes.tipologias,
     ultimaInteraccion: fila.ultimaInteraccion.toISOString(),
     formularios,
+    sinRespuesta: abierta ? textoSinRespuesta(fila) : null,
+    paraCerrar:
+      abierta && ajustes?.sinRespuestaModo === "sugerir" && cumpleSilencio(fila, ajustes, new Date()),
+    createdAt: fila.createdAt.toISOString(),
   };
 }
 
@@ -637,9 +656,10 @@ export async function listarOportunidades(organizationId: string): Promise<Oport
     // War: lo que tuvo movimiento del interesado (formulario o WhatsApp) arriba.
     .orderBy(desc(schema.oportunidad.ultimaInteraccion), desc(schema.oportunidad.updatedAt));
   const ids = filas.map((f) => f.op.id);
-  const [intereses, formularios] = await Promise.all([
+  const [intereses, formularios, ajustes] = await Promise.all([
     interesDeOportunidades(organizationId, ids),
     formulariosDeOportunidades(organizationId, ids),
+    leerAjustesVentas(organizationId),
   ]);
   return filas.map((f) =>
     aOportunidad(
@@ -650,7 +670,8 @@ export async function listarOportunidades(organizationId: string): Promise<Oport
         unidad: f.unidad,
       },
       intereses.get(f.op.id),
-      formularios.get(f.op.id) ?? 0
+      formularios.get(f.op.id) ?? 0,
+      ajustes
     )
   );
 }
@@ -698,7 +719,7 @@ async function valoresOportunidad(
   };
 }
 
-async function oportunidadConNombres(
+export async function oportunidadConNombres(
   organizationId: string,
   id: string
 ): Promise<OportunidadDto> {
@@ -716,9 +737,10 @@ async function oportunidadConNombres(
     .where(scoped(schema.oportunidad.organizationId, organizationId, eq(schema.oportunidad.id, id)))
     .limit(1);
   if (!fila) throw new VentasError(404, "not_found", "Esa oportunidad no existe");
-  const [intereses, formularios] = await Promise.all([
+  const [intereses, formularios, ajustes] = await Promise.all([
     interesDeOportunidades(organizationId, [id]),
     formulariosDeOportunidades(organizationId, [id]),
+    leerAjustesVentas(organizationId),
   ]);
   return aOportunidad(
     fila.op,
@@ -728,7 +750,8 @@ async function oportunidadConNombres(
       unidad: fila.unidad,
     },
     intereses.get(id),
-    formularios.get(id) ?? 0
+    formularios.get(id) ?? 0,
+    ajustes
   );
 }
 
@@ -758,19 +781,27 @@ function interesPedido(datos: z.infer<typeof oportunidadSchema>, principal: stri
 
 export async function crearOportunidad(
   organizationId: string,
-  datos: z.infer<typeof oportunidadSchema>
+  datos: z.infer<typeof oportunidadSchema>,
+  /** War — quién la creó, para el historial. */
+  userId: string | null = null
 ): Promise<OportunidadDto> {
   const valores = await valoresOportunidad(organizationId, datos);
-  let fila: { id: string } | undefined;
+  let fila: typeof schema.oportunidad.$inferSelect | undefined;
   try {
     [fila] = await getDb()
       .insert(schema.oportunidad)
-      .values({ id: newId("oportunidad"), organizationId, ...valores })
-      .returning({ id: schema.oportunidad.id });
+      .values({
+        id: newId("oportunidad"),
+        organizationId,
+        ...valores,
+        ...(estaAbierta(valores.estado) ? {} : { cerradaAt: new Date() }),
+      })
+      .returning();
   } catch (err) {
     if (esSegundaAbierta(err)) throw new VentasError(409, "ya_tiene_abierta", SEGUNDA_ABIERTA);
     throw err;
   }
+  await registrarCreada(organizationId, fila!, { fuente: "persona", userId });
   await reemplazarInteres(organizationId, fila!.id, interesPedido(datos, valores.edificioId));
   return oportunidadConNombres(organizationId, fila!.id);
 }
@@ -778,7 +809,9 @@ export async function crearOportunidad(
 export async function editarOportunidad(
   organizationId: string,
   id: string,
-  datos: z.infer<typeof oportunidadSchema>
+  datos: z.infer<typeof oportunidadSchema>,
+  /** War — quién la editó, para el historial. */
+  userId: string | null = null
 ): Promise<OportunidadDto> {
   const [previa] = await getDb()
     .select({ origen: schema.oportunidad.origen })
@@ -786,7 +819,19 @@ export async function editarOportunidad(
     .where(scoped(schema.oportunidad.organizationId, organizationId, eq(schema.oportunidad.id, id)))
     .limit(1);
   if (!previa) throw new VentasError(404, "not_found", "Esa oportunidad no existe");
-  const valores = await valoresOportunidad(organizationId, datos, previa.origen);
+  const { estado, motivoCierre, ...valores } = await valoresOportunidad(
+    organizationId,
+    datos,
+    previa.origen
+  );
+  // El estado (y el motivo de cierre) pasan por el historial.
+  await cambiarEstadoOportunidad({
+    organizationId,
+    oportunidadId: id,
+    destino: estado,
+    motivoCierre,
+    actor: { fuente: "persona", userId },
+  });
   let fila: { id: string } | undefined;
   try {
     [fila] = await getDb()
@@ -896,30 +941,72 @@ async function tareaConNombres(organizationId: string, id: string): Promise<Tare
   });
 }
 
+/**
+ * War — Una tarea marcada «No responde» (llamé y no atendió, le escribí por
+ * otro lado) es un intento sin respuesta para su oportunidad.
+ */
+async function intentoDeTarea(
+  organizationId: string,
+  valores: { tipo: string; fecha: Date | null; contactId: string | null; oportunidadId: string | null },
+  userId: string | null
+): Promise<void> {
+  let contactId = valores.contactId;
+  if (!contactId && valores.oportunidadId) {
+    const [op] = await getDb()
+      .select({ contactId: schema.oportunidad.contactId })
+      .from(schema.oportunidad)
+      .where(eq(schema.oportunidad.id, valores.oportunidadId))
+      .limit(1);
+    contactId = op?.contactId ?? null;
+  }
+  if (!contactId) return;
+  const ahora = new Date();
+  const at = valores.fecha && valores.fecha <= ahora ? valores.fecha : ahora;
+  await registrarIntento({
+    organizationId,
+    contactId,
+    at,
+    canal: valores.tipo,
+    fuente: "persona",
+    userId,
+  });
+}
+
 export async function crearTarea(
   organizationId: string,
-  datos: z.infer<typeof tareaSchema>
+  datos: z.infer<typeof tareaSchema>,
+  userId: string | null = null
 ): Promise<TareaDto> {
   const valores = await valoresTarea(organizationId, datos);
   const [fila] = await getDb()
     .insert(schema.tareaVenta)
     .values({ id: newId("tareaVenta"), organizationId, ...valores })
     .returning({ id: schema.tareaVenta.id });
+  if (valores.estado === "no_responde") await intentoDeTarea(organizationId, valores, userId);
   return tareaConNombres(organizationId, fila!.id);
 }
 
 export async function editarTarea(
   organizationId: string,
   id: string,
-  datos: z.infer<typeof tareaSchema>
+  datos: z.infer<typeof tareaSchema>,
+  userId: string | null = null
 ): Promise<TareaDto> {
   const valores = await valoresTarea(organizationId, datos);
+  const [antes] = await getDb()
+    .select({ estado: schema.tareaVenta.estado })
+    .from(schema.tareaVenta)
+    .where(scoped(schema.tareaVenta.organizationId, organizationId, eq(schema.tareaVenta.id, id)))
+    .limit(1);
   const [fila] = await getDb()
     .update(schema.tareaVenta)
     .set({ ...valores, updatedAt: new Date() })
     .where(scoped(schema.tareaVenta.organizationId, organizationId, eq(schema.tareaVenta.id, id)))
     .returning({ id: schema.tareaVenta.id });
   if (!fila) throw new VentasError(404, "not_found", "Esa tarea no existe");
+  if (valores.estado === "no_responde" && antes?.estado !== "no_responde") {
+    await intentoDeTarea(organizationId, valores, userId);
+  }
   return tareaConNombres(organizationId, id);
 }
 

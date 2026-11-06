@@ -19,6 +19,7 @@ import {
 import { callGraphSend, SendError } from "@/server/inbox/send";
 import { serializeMessage } from "@/server/inbox/ingest";
 import type { WebhookValue } from "@/server/inbox/webhook";
+import { registrarSaliente } from "@/server/oportunidad-historial";
 
 /** Errores tipados del servicio de plantillas → HTTP en la capa de API. */
 export class TemplateError extends Error {
@@ -544,6 +545,14 @@ export async function sendTemplate(input: {
       conversationId: input.conversationId,
       message: serializeMessage(message),
     },
+  });
+
+  // War — una plantilla también es un intento para «sin respuesta».
+  await registrarSaliente({
+    organizationId: input.organizationId,
+    conversationId: input.conversationId,
+    at: message.createdAt,
+    origen: "template",
   });
 
   return { messageId: message.id };

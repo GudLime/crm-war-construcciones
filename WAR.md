@@ -131,3 +131,34 @@ una oportunidad, 200 si se sumó a una o si el `leadId` ya había entrado.
 - **Última interacción** (`oportunidad.ultima_interaccion`): la tocan un lead
   nuevo y cada mensaje de WhatsApp; ordena la lista de Oportunidades. Si un
   Lead escribe y no tiene ninguna abierta, se le abre una nueva.
+
+## Página de la oportunidad, historial y «sin respuesta»
+
+- **Página** `/oportunidades/[id]` (`components/ventas/oportunidad-detalle-client.tsx`,
+  datos en `server/oportunidad-detalle.ts` → `GET /api/oportunidades/[id]/detalle`):
+  encabezado con barra de avance, pestañas Timeline / Reuniones / Notas / Últimos
+  mensajes (los últimos 4, con «Ir al chat») y tarjetas de Contacto, Próximos pasos
+  y Datos. Muestra la oportunidad anterior del contacto y las abiertas en paralelo.
+  Lo del contacto (mensajes, reuniones, tareas sueltas) se toma desde el cierre de
+  la oportunidad anterior: las compras no se mezclan. WhatsApp va por ráfagas.
+- **Historial** `oportunidad_evento` (`server/oportunidad-historial.ts`): solo se
+  agregan filas. Tipos: creada, estado, cerrada, reabierta, formulario,
+  primer_contacto, primera_respuesta. Cada fila guarda cuándo pasó, quién
+  (persona con su usuario, ia, make, sistema), la foto de origen / edificio /
+  tipo, el resultado y motivo del cierre y los segundos en el estado anterior.
+  Todo cambio de estado pasa por `cambiarEstadoOportunidad`. El estado actual se
+  sigue leyendo de `oportunidad`; el historial cuenta cómo se llegó. Empieza con
+  la migración 0036 (un «creada» por cada oportunidad existente).
+- **Sin respuesta**: «No responde» dejó de ser un estado. Un intento es una tanda
+  de mensajes nuestros (dentro de la misma hora: Mateo, equipo, plantilla o el
+  teléfono) o una tarea marcada «No responde»; se cuentan desde lo último que
+  escribió la persona y vuelven a 0 cuando contesta. Configuración → Ventas
+  (`ventas_ajustes`): con N intentos y D días desde el último (3 y 7) la
+  oportunidad se cierra sola como Perdido «No responde» (barrido cada hora) o se
+  marca «Para cerrar». Si la persona escribe dentro de la ventana de reapertura
+  (120 días) se reabre la MISMA oportunidad en el estado que tenía; pasado el
+  plazo, se abre otra. «No calificado» y «Compró» no se reabren.
+- **Notas unificadas** (`conversation_note` con `contact_id` y `oportunidad_id`):
+  cada nota queda en la oportunidad abierta cuando se escribió. En el chat se ven
+  todas las del contacto (con la etiqueta de su oportunidad); en la oportunidad,
+  solo las suyas.

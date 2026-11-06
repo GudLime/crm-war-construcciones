@@ -4,7 +4,10 @@
 
 export type NotaDto = {
   id: string;
-  conversationId: string;
+  /** War — `null` si se escribió desde la oportunidad (sin conversación). */
+  conversationId: string | null;
+  /** War — La oportunidad que estaba abierta cuando se escribió. */
+  oportunidad: { id: string; nombre: string } | null;
   texto: string;
   createdAt: string;
   /** `null` si la cuenta de quien la escribió ya no existe. */

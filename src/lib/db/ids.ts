@@ -48,6 +48,7 @@ const prefixes = {
   tareaVenta: "trv",
   // War — leads de formularios (Make)
   oportunidadLead: "olead",
+  oportunidadEvento: "oev",
   // War — historial de instrucciones del agente
   instruccionVersion: "inv",
   // War 0035 — orígenes de las oportunidades

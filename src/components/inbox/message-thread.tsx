@@ -213,6 +213,15 @@ function NotaInterna({ nota, onBorrar }: { nota: NotaDto; onBorrar?: (n: NotaDto
         <span className="font-normal opacity-80">
           · {nota.autor?.nombre ?? "Alguien del equipo"} · {bubbleTime(nota.createdAt)}
         </span>
+        {nota.oportunidad && (
+          <a
+            href={`/oportunidades/${nota.oportunidad.id}`}
+            className="truncate rounded-full bg-warning-soft px-1.5 py-px text-[10.5px] font-medium hover:underline"
+            title="La oportunidad a la que quedó asociada"
+          >
+            {nota.oportunidad.nombre}
+          </a>
+        )}
         {nota.puedeBorrar && onBorrar && (
           <button
             type="button"
