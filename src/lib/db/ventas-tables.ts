@@ -1,4 +1,5 @@
 import {
+  bigint,
   boolean,
   index,
   integer,
@@ -317,6 +318,13 @@ export const origenOportunidad = pgTable(
     icono: text("icono").notNull().default("tag"),
     /** Posición en la lista y en el desplegable. */
     orden: integer("orden").notNull().default(0),
+    /**
+     * Imagen propia (el logo de Zonaprop, de MercadoLibre…). Si hay, se
+     * muestra en lugar del ícono. El archivo vive en el volumen de medios como
+     * `origen-<id>`; acá solo su tipo y una versión para la caché.
+     */
+    imagenMime: text("imagen_mime"),
+    imagenVersion: bigint("imagen_version", { mode: "number" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

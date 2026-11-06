@@ -11,8 +11,11 @@ import {
   origenCanonico,
   planoOrigen,
   TOPE_ORIGENES,
+  assetImagenOrigen,
+  urlImagenOrigen,
   type OrigenDto,
 } from "@/lib/origenes";
+import { deleteMediaFile, saveMediaFile } from "@/server/whatsapp/media";
 
 /**
  * War — Orígenes de las oportunidades (Ajustes → Orígenes). Las rutas solo
@@ -55,6 +58,10 @@ function aDto(fila: typeof t.$inferSelect, usos?: number): OrigenDto {
     nombre: fila.nombre,
     icono: fila.icono,
     orden: fila.orden,
+    imagen:
+      fila.imagenMime && fila.imagenVersion
+        ? urlImagenOrigen(fila.id, fila.imagenVersion)
+        : null,
     ...(usos === undefined ? {} : { usos }),
   };
 }
@@ -220,6 +227,53 @@ export async function borrarOrigen(organizationId: string, id: string): Promise<
     throw new OrigenError(409, "ultimo", "Tiene que quedar al menos un origen");
   }
   await getDb().delete(t).where(scoped(t.organizationId, organizationId, eq(t.id, id)));
+  // Después de borrar la fila: si esto falla queda un archivo huérfano, no
+  // un origen apuntando a una imagen que no está.
+  await deleteMediaFile(organizationId, assetImagenOrigen(id)).catch(() => null);
+}
+
+/** Guarda la imagen propia de un origen (ya verificada por sus bytes). */
+export async function ponerImagenOrigen(
+  organizationId: string,
+  id: string,
+  bytes: Uint8Array,
+  mime: string
+): Promise<OrigenDto> {
+  const [existe] = await getDb()
+    .select({ id: t.id })
+    .from(t)
+    .where(scoped(t.organizationId, organizationId, eq(t.id, id)))
+    .limit(1);
+  if (!existe) throw new OrigenError(404, "not_found", "Ese origen no existe");
+  await saveMediaFile(organizationId, assetImagenOrigen(id), bytes, mime);
+  const [fila] = await getDb()
+    .update(t)
+    .set({ imagenMime: mime, imagenVersion: Date.now(), updatedAt: new Date() })
+    .where(scoped(t.organizationId, organizationId, eq(t.id, id)))
+    .returning();
+  return aDto(fila!);
+}
+
+/** Vuelve al ícono de la librería. */
+export async function quitarImagenOrigen(organizationId: string, id: string): Promise<OrigenDto> {
+  const [fila] = await getDb()
+    .update(t)
+    .set({ imagenMime: null, imagenVersion: null, updatedAt: new Date() })
+    .where(scoped(t.organizationId, organizationId, eq(t.id, id)))
+    .returning();
+  if (!fila) throw new OrigenError(404, "not_found", "Ese origen no existe");
+  await deleteMediaFile(organizationId, assetImagenOrigen(id)).catch(() => null);
+  return aDto(fila);
+}
+
+/** Para servirla: el tipo de la imagen, o null si no tiene. */
+export async function mimeImagenOrigen(organizationId: string, id: string): Promise<string | null> {
+  const [fila] = await getDb()
+    .select({ mime: t.imagenMime })
+    .from(t)
+    .where(scoped(t.organizationId, organizationId, eq(t.id, id)))
+    .limit(1);
+  return fila?.mime ?? null;
 }
 
 /** El orden nuevo: los ids en el orden en que se ven. Los que falten van al final. */
