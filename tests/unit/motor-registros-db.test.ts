@@ -236,7 +236,7 @@ describe.skipIf(!URL)("motor: registros en Postgres", () => {
     });
 
     // Dos candidatos: Reservó no aplica solo; queda pendiente para elegir.
-    await cambiarEstadoOportunidad({ organizationId: org, oportunidadId: opA, destino: "reservo", actor: { fuente: "persona", userId: "usr_prueba" } });
+    await cambiarEstadoOportunidad({ organizationId: org, oportunidadId: opA, destino: "reservo", actor: { fuente: "persona", userId: null } });
     expect((await m.obtenerRegistro(org, "tratamiento", a.id)).valores.cupo).toBe("libre");
     const pendientes = await op.reglasPendientes(org, opA, "reservo");
     expect(pendientes).toHaveLength(1);
@@ -249,10 +249,11 @@ describe.skipIf(!URL)("motor: registros en Postgres", () => {
 
     // Un solo candidato: se aplica solo, y queda en el historial como del usuario.
     await op.vincularOportunidad(org, opB, "oportunidad_tratamientos", [b.id]);
-    await cambiarEstadoOportunidad({ organizationId: org, oportunidadId: opB, destino: "reservo", actor: { fuente: "persona", userId: "usr_prueba" } });
+    await cambiarEstadoOportunidad({ organizationId: org, oportunidadId: opB, destino: "reservo", actor: { fuente: "persona", userId: null } });
     expect((await m.obtenerRegistro(org, "tratamiento", b.id)).valores.cupo).toBe("ocupado");
     const historial = await m.historialRegistro(org, "tratamiento", b.id);
-    expect(historial[0]).toMatchObject({ campo: "cupo", actorTipo: "usuario", actorId: "usr_prueba" });
+    // (userId null: el historial de la oportunidad referencia la tabla de usuarios, y acá no hay ninguno.)
+    expect(historial[0]).toMatchObject({ campo: "cupo", actorTipo: "usuario", actorId: null });
 
     // Borrar un tratamiento suelta el vínculo; la oportunidad queda.
     await m.borrarRegistro(org, "tratamiento", a.id, "soltar", actor);
