@@ -34,10 +34,16 @@ function paraAgente(motor: Motor, o: ObjetoMeta): ObjetoParaAgente {
   };
 }
 
-export async function textoDeObjetosParaAgente(organizationId: string): Promise<string> {
+export async function textoDeObjetosParaAgente(
+  organizationId: string,
+  opciones: { simular?: string[] } = {}
+): Promise<string> {
   try {
     const motor = await cargarMotor(organizationId);
-    const visibles = [...motor.objetos.values()].filter((o) => o.visibleAgente);
+    // `simular`: la vista previa del administrador puede ver cómo quedaría con
+    // objetos que todavía están apagados, sin prenderlos para el agente.
+    const simular = new Set(opciones.simular ?? []);
+    const visibles = [...motor.objetos.values()].filter((o) => o.visibleAgente || simular.has(o.clave));
     if (!visibles.length) return "";
     const registros = new Map<string, RegistroParaAgente[]>();
     for (const o of visibles) {
@@ -56,6 +62,26 @@ export async function textoDeObjetosParaAgente(organizationId: string): Promise<
   } catch (err) {
     console.error("[motor] no se pudieron leer los objetos para el agente:", err);
     return "";
+  }
+}
+
+/**
+ * WAR — la memoria de edificios de antes (`memoriaDeEdificios`) se apaga sola
+ * cuando un objeto del motor que adopta `edificio` está visible para el
+ * agente: así no le llega todo dos veces. `simular` cuenta como visible.
+ */
+export async function memoriaViejaReemplazada(
+  organizationId: string,
+  opciones: { simular?: string[] } = {}
+): Promise<boolean> {
+  try {
+    const motor = await cargarMotor(organizationId);
+    const simular = new Set(opciones.simular ?? []);
+    return [...motor.objetos.values()].some(
+      (o) => o.adoptada && o.tabla === "edificio" && (o.visibleAgente || simular.has(o.clave))
+    );
+  } catch {
+    return false;
   }
 }
 

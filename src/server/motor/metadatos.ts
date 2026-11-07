@@ -23,6 +23,9 @@ export type ObjetoMeta = {
   adoptada: boolean;
   titulo: string[];
   tituloUnicoDentroDe: string | null;
+  /** Columna donde se guarda el nombre armado (paso 8). */
+  columnaTitulo: string | null;
+  enMenu: boolean;
   visibleAgente: boolean;
   agente: AgenteObjeto | null;
   campos: CampoMeta[];
@@ -114,6 +117,8 @@ export async function cargarMotor(organizationId: string): Promise<Motor> {
       adoptada: o.adoptada,
       titulo: o.titulo,
       tituloUnicoDentroDe: o.tituloUnicoDentroDe,
+      columnaTitulo: o.columnaTitulo ?? null,
+      enMenu: o.enMenu,
       visibleAgente: o.visibleAgente,
       agente: o.agente ?? null,
       columnas: columnas.get(o.tabla) ?? new Set(),

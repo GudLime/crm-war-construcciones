@@ -691,11 +691,16 @@ function KbSection({
               afirma.
             </CardDescription>
           </div>
-          {kbSize && (
-            <Badge variant={kbSize.warning ? "warning" : "secondary"}>
-              {kbSize.chars.toLocaleString("es-MX")} caracteres
-            </Badge>
-          )}
+          <div className="flex items-center gap-2">
+            <Link href="/agent/conocimiento" className="text-xs text-brand-text underline underline-offset-2">
+              Ver lo que lee el agente
+            </Link>
+            {kbSize && (
+              <Badge variant={kbSize.warning ? "warning" : "secondary"}>
+                {kbSize.chars.toLocaleString("es-MX")} caracteres
+              </Badge>
+            )}
+          </div>
         </div>
         {kbSize?.warning && (
           <p className="text-xs text-warning-text">
