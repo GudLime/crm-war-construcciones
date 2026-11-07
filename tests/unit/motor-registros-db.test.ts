@@ -296,7 +296,7 @@ describe.skipIf(!URL)("motor: registros en Postgres", () => {
 
   it("paso 6: el agente lee lo visible y el administrador lo cambia por columna", async () => {
     const agente = await import("@/server/motor/agente");
-    const sede = await m.crearRegistro(org, "sede", { valores: { nombre: "Recoleta", direccion: "Ayacucho 9" } }, actor);
+    const sede = await m.crearRegistro(org, "sede", { valores: { nombre: "Caballito", direccion: "Ayacucho 9" } }, actor);
     await m.crearRegistro(
       org,
       "tratamiento",
@@ -311,7 +311,7 @@ describe.skipIf(!URL)("motor: registros en Postgres", () => {
     );
 
     let t = await agente.textoDeObjetosParaAgente(org);
-    expect(t).toContain("Tratamiento Ortodoncia · Sede: Recoleta");
+    expect(t).toContain("Tratamiento Ortodoncia · Sede: Caballito");
     expect(t).toContain("Ofrecé solo los tratamientos de esta lista");
     expect(t).not.toContain("Tratamiento Implante");
     expect(t).toContain("Precio:");
@@ -329,8 +329,8 @@ describe.skipIf(!URL)("motor: registros en Postgres", () => {
     await agente.cambiarVisibilidadAgente(org, "tratamiento", { visible: false });
     t = await agente.textoDeObjetosParaAgente(org);
     expect(t).not.toContain("Tratamiento Ortodoncia");
-    expect(t).toContain("Recoleta");
-    expect(await agente.textoDeObjetosParaAgente(otraOrg)).not.toContain("Recoleta");
+    expect(t).toContain("Caballito");
+    expect(await agente.textoDeObjetosParaAgente(otraOrg)).not.toContain("Caballito");
     expect(await agente.cambiarVisibilidadAgente(org, "no_existe", { visible: true })).toBe(false);
 
     await agente.cambiarVisibilidadAgente(org, "tratamiento", { visible: true, campos: { precio: true } });
