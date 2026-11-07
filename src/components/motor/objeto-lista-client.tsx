@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { Box, Plus, Search } from "lucide-react";
+import { Box, Download, Plus, Search, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
 import { Acciones, Campo, Ficha, Pagina, Tabla, Td, Th, grilla, mensajeDe, useMoneda } from "@/components/ventas/ui";
 import type { ObjetoDto, RegistroDto } from "@/lib/motor/dto";
 import { aEntrada, CampoEditor, desdeRegistro, valorVisible, type Formulario } from "./campos";
+import { ImportarCsv } from "./importar-csv";
 
 /**
  * Motor — la lista de un objeto personalizado: buscar, filtrar, ver y crear.
@@ -47,6 +48,14 @@ export function usePadres(objeto: ObjetoDto | null): Record<string, Opcion[]> {
   return padres;
 }
 
+/** Búsqueda y filtros como parámetros: los usan la lista y la exportación. */
+function parametros(busqueda: string, filtros: Record<string, string>): string {
+  const params = new URLSearchParams();
+  if (busqueda.trim()) params.set("q", busqueda.trim());
+  for (const [k, v] of Object.entries(filtros)) if (v) params.set(`f.${k}`, v);
+  return params.toString();
+}
+
 export function ObjetoListaClient({ clave }: { clave: string }) {
   const [objeto, setObjeto] = useState<ObjetoDto | null>(null);
   const [registros, setRegistros] = useState<RegistroDto[]>([]);
@@ -60,15 +69,15 @@ export function ObjetoListaClient({ clave }: { clave: string }) {
   const [padresForm, setPadresForm] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [importando, setImportando] = useState(false);
   const moneda = useMoneda();
   const avisar = useAvisoGuardado();
   const padres = usePadres(objeto);
 
   const cargar = useCallback(async () => {
-    const params = new URLSearchParams();
-    if (busqueda.trim()) params.set("q", busqueda.trim());
-    for (const [k, v] of Object.entries(filtros)) if (v) params.set(`f.${k}`, v);
-    const res = await fetch(`/api/objetos/${encodeURIComponent(clave)}?${params}`).catch(() => null);
+    const res = await fetch(`/api/objetos/${encodeURIComponent(clave)}?${parametros(busqueda, filtros)}`).catch(
+      () => null
+    );
     if (res?.status === 404) {
       setNoExiste(true);
       setListo(true);
@@ -140,13 +149,37 @@ export function ObjetoListaClient({ clave }: { clave: string }) {
       detalle={objeto ? `${total} ${total === 1 ? objeto.nombre.toLowerCase() : objeto.nombrePlural.toLowerCase()}` : undefined}
       accion={
         objeto && (
-          <Button size="sm" onClick={() => (abierto ? setAbierto(false) : abrirAlta())}>
-            <Plus className="h-4 w-4" strokeWidth={1.8} />
-            Nuevo
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={`/api/objetos/${encodeURIComponent(clave)}/exportar?${parametros(busqueda, filtros)}`}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border-strong px-3 text-sm hover:border-foreground"
+            >
+              <Download className="h-4 w-4" strokeWidth={1.8} />
+              Exportar
+            </a>
+            <Button size="sm" variant="outline" onClick={() => setImportando((v) => !v)}>
+              <Upload className="h-4 w-4" strokeWidth={1.8} />
+              Importar
+            </Button>
+            <Button size="sm" onClick={() => (abierto ? setAbierto(false) : abrirAlta())}>
+              <Plus className="h-4 w-4" strokeWidth={1.8} />
+              Nuevo
+            </Button>
+          </div>
         )
       }
     >
+      {importando && objeto && (
+        <ImportarCsv
+          objeto={clave}
+          nombrePlural={objeto.nombrePlural}
+          onAplicado={() => {
+            setImportando(false);
+            void cargar();
+          }}
+          onCancelar={() => setImportando(false)}
+        />
+      )}
       {abierto && objeto && (
         <Ficha titulo={`Nuevo: ${objeto.nombre.toLowerCase()}`}>
           <form onSubmit={crear} className={grilla}>
