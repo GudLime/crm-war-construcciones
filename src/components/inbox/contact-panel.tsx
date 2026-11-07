@@ -32,6 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FichaPanel } from "@/components/ficha-panel";
 import { OportunidadPanel } from "@/components/ventas/oportunidad-panel";
 import { DeleteConversationDialog } from "./delete-conversation-dialog";
+import { DatosPersonales } from "@/components/contacts/datos-personales";
 
 
 export function ContactPanel({
@@ -201,6 +202,9 @@ export function ContactPanel({
               )}
             </div>
           </div>
+
+          {/* War — DNI, CUIL, nacimiento, dirección y parientes. */}
+          <DatosPersonales contactId={conversation.contact.id} className="mb-0 mt-3 p-3" />
 
           {conversation.handoffAt && (
             <div className="mt-3 rounded-md border border-warning-soft bg-warning-tint p-3">

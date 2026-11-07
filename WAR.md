@@ -201,3 +201,6 @@ cambios de GudLime, si `_journal.json` choca, se ordenan las entradas por
 
 - `war_0001_motivos_cierre`: motivos de cierre configurables (Ajustes →
   Motivos de cierre), sembrados con los 27 de Notion.
+- `war_0002_datos_contacto`: datos personales del contacto (DNI, CUIL/CUIT,
+  nacimiento, dirección, género, newsletter, ID de Google Contacts) y
+  parientes, en `contacto_datos` y `contacto_pariente` (no se toca `contact`).
