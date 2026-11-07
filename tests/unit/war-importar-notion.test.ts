@@ -29,7 +29,7 @@ describe.skipIf(!URL_DB)("War: importar Notion en Postgres", () => {
         clave: `ct-${sufijo}-1`,
         alias: [`ct-${sufijo}-9`],
         nombre: "Ana Prueba",
-        telefono: `+54911${sufijo}01`,
+        telefono: `+5491150${sufijo}`,
         email: "ana@prueba.com",
         tipo: "lead" as const,
         genero: "mujer" as const,
@@ -143,7 +143,7 @@ describe.skipIf(!URL_DB)("War: importar Notion en Postgres", () => {
   it("une con lo que ya estaba en el CRM: contacto por teléfono y oportunidad por ID de lead", async () => {
     const { sql } = await import("drizzle-orm");
     const d = db.getDb();
-    const tel = `54911${sufijo}77`;
+    const tel = `5491160${sufijo}`;
     await d.execute(sql`INSERT INTO contact (id, organization_id, wa_identity, phone, name) VALUES (${`ct_x_${sufijo}`}, ${org}, ${tel}, ${tel}, 'Ya estaba')`);
     await d.execute(sql`INSERT INTO oportunidad (id, organization_id, nombre, estado, contact_id) VALUES (${`opt_x_${sufijo}`}, ${org}, 'Del CRM', 'en_charlas', ${`ct_x_${sufijo}`})`);
     await d.execute(
