@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "cliente": "WAR Construcciones",
+  "rubro": "construccion",
+  "objetos": [
+    {
+      "clave": "edificio",
+      "nombre": "Edificio",
+      "nombrePlural": "Edificios",
+      "icono": "building",
+      "adopta": "edificio",
+      "titulo": ["nombre"],
+      "enMenu": false,
+      "agente": {
+        "filtro": { "memoria_agente": ["true"] },
+        "indicacion": "Edificios en venta de la constructora. Las visitas, la entrega y los detalles de cada uno están en sus notas."
+      },
+      "campos": [
+        { "clave": "nombre", "nombre": "Nombre", "tipo": "texto", "obligatorio": true },
+        { "clave": "direccion", "nombre": "Dirección", "tipo": "texto" },
+        { "clave": "estado", "nombre": "Estado de obra", "tipo": "seleccion", "obligatorio": true,
+          "opciones": [
+            { "valor": "en_construccion", "nombre": "En construcción" },
+            { "valor": "terminado", "nombre": "Terminado" },
+            { "valor": "en_pozo", "nombre": "En pozo" },
+            { "valor": "a_construir", "nombre": "A construir" }
+          ] },
+        { "clave": "en_venta", "nombre": "En venta", "tipo": "texto" },
+        { "clave": "memoria_agente", "nombre": "Memoria del agente", "tipo": "booleano", "visibleAgente": false },
+        { "clave": "notas_agente", "nombre": "Notas para el agente", "tipo": "texto", "visibleLista": false },
+        { "clave": "unidades_disponibles", "nombre": "Unidades disponibles", "tipo": "calculado",
+          "calculo": { "resumen": { "relacion": "edificio_unidades", "operacion": "cantidad",
+            "filtro": { "estado": ["disponible", "consultar"] } } },
+          "visibleAgente": false }
+      ]
+    },
+    {
+      "clave": "unidad",
+      "nombre": "Unidad",
+      "nombrePlural": "Unidades",
+      "icono": "door-open",
+      "adopta": "departamento",
+      "titulo": ["piso", "tipologia"],
+      "columnaTitulo": "unidad",
+      "tituloUnicoDentroDe": "edificio_unidades",
+      "enMenu": false,
+      "agente": {
+        "filtro": { "estado": ["disponible", "consultar"] },
+        "agruparPor": "ambientes",
+        "rangos": ["valor", "metros_totales"],
+        "indicacion": "Solo se ofrecen estas unidades. Cada línea es UNA unidad: el precio y los metros se copian de su propia línea, sin mezclar con otra."
+      },
+      "campos": [
+        { "clave": "tipo", "nombre": "Tipo", "tipo": "seleccion", "crear": true,
+          "inicial": { "valor": "departamento" },
+          "opciones": [
+            { "valor": "departamento", "nombre": "Departamento" },
+            { "valor": "cochera", "nombre": "Cochera" },
+            { "valor": "baulera", "nombre": "Baulera" }
+          ] },
+        { "clave": "piso", "nombre": "Piso", "tipo": "numero", "obligatorio": true },
+        { "clave": "tipologia", "nombre": "Tipología", "tipo": "texto", "obligatorio": true,
+          "columna": "tipologia_unidad", "crear": true,
+          "inicial": { "copiarDe": "unidad", "patron": "^[0-9]+\\s*([A-Za-z]+)$" } },
+        { "clave": "ambientes", "nombre": "Ambientes", "tipo": "numero", "crear": true,
+          "inicial": { "copiarDe": "tipologia",
+            "mapa": { "1_ambiente": 1, "2_ambientes": 2, "3_ambientes": 3, "4_ambientes": 4 } } },
+        { "clave": "estado", "nombre": "Estado", "tipo": "seleccion", "obligatorio": true,
+          "opciones": [
+            { "valor": "disponible", "nombre": "Disponible" },
+            { "valor": "consultar", "nombre": "Consultar disponibilidad" },
+            { "valor": "reservado", "nombre": "Reservado" },
+            { "valor": "vendido", "nombre": "Vendido" }
+          ] },
+        { "clave": "valor", "nombre": "Precio", "tipo": "moneda", "columna": "valor_cents" },
+        { "clave": "moneda", "nombre": "Moneda", "tipo": "texto", "visibleLista": false },
+        { "clave": "metros_cubiertos", "nombre": "m² cubiertos", "tipo": "numero", "visibleLista": false },
+        { "clave": "metros_semicubiertos", "nombre": "m² semicubiertos", "tipo": "numero", "visibleLista": false },
+        { "clave": "metros_descubiertos", "nombre": "m² descubiertos", "tipo": "numero", "visibleLista": false },
+        { "clave": "metros_totales", "nombre": "m² totales", "tipo": "calculado",
+          "calculo": { "suma": ["metros_cubiertos", "metros_semicubiertos", "metros_descubiertos"] } },
+        { "clave": "dormitorios", "nombre": "Dormitorios", "tipo": "numero", "visibleLista": false },
+        { "clave": "banos", "nombre": "Baños", "tipo": "numero", "visibleLista": false },
+        { "clave": "toilette", "nombre": "Toilette", "tipo": "numero", "visibleLista": false },
+        { "clave": "en_suite", "nombre": "En suite", "tipo": "numero", "visibleLista": false },
+        { "clave": "orientacion_edificio", "nombre": "Orientación (frente / contrafrente)", "tipo": "texto", "visibleLista": false },
+        { "clave": "orientacion_geo", "nombre": "Orientación (cardinal)", "tipo": "texto", "visibleLista": false },
+        { "clave": "notas_agente", "nombre": "Notas para el agente", "tipo": "texto", "visibleLista": false }
+      ]
+    }
+  ],
+  "relaciones": [
+    { "clave": "edificio_unidades", "desde": "edificio", "hacia": "unidad", "tipo": "uno_a_muchos",
+      "columna": "edificio_id", "nombreDesde": "Unidades", "nombreHacia": "Edificio", "obligatoria": true },
+    { "clave": "oportunidad_edificios", "desde": "oportunidad", "hacia": "edificio", "tipo": "muchos_a_muchos",
+      "adoptaTabla": true, "tabla": "oportunidad_edificio", "columnaDesde": "oportunidad_id", "columnaHacia": "edificio_id",
+      "sembrarDesde": { "tabla": "oportunidad", "columnaDesde": "id", "columnaHacia": "edificio_id" },
+      "nombreDesde": "Edificios de interés", "nombreHacia": "Oportunidades" },
+    { "clave": "oportunidad_unidades", "desde": "oportunidad", "hacia": "unidad", "tipo": "muchos_a_muchos",
+      "sembrarDesde": { "tabla": "oportunidad", "columnaDesde": "id", "columnaHacia": "departamento_id" },
+      "nombreDesde": "Unidades de interés", "nombreHacia": "Oportunidades" }
+  ],
+  "reglasEtapa": [
+    { "clave": "reserva_reserva_unidad", "etapa": "reservo", "relacion": "oportunidad_unidades",
+      "campo": "estado", "valor": "reservado" }
+  ],
+  "estadisticas": {
+    "verPor": "oportunidad_edificios"
+  }
+}
