@@ -76,6 +76,29 @@ const campoSchema = z
     visibleLista: z.boolean().default(true),
     /** Si el agente puede leer este campo (cuando el objeto le es visible). */
     visibleAgente: z.boolean().default(true),
+    /**
+     * Paso 8 — En un objeto adoptado, el motor crea esta columna si la tabla
+     * no la tiene (solo agrega; nunca cambia ni borra columnas). En un objeto
+     * propio no hace falta: todas se crean.
+     */
+    crear: z.boolean().optional(),
+    /**
+     * Paso 8 — Con qué se completa la columna UNA vez por organización, solo en
+     * las filas donde está vacía: un valor fijo, o copiado de otra columna de
+     * la misma tabla, opcionalmente con un patrón (expresión regular de
+     * Postgres; se toma el primer grupo) y una tabla de equivalencias. Lo que
+     * no coincide queda vacío.
+     */
+    inicial: z
+      .union([
+        z.object({ valor: z.union([z.string(), z.number(), z.boolean()]) }),
+        z.object({
+          copiarDe: clave,
+          patron: z.string().min(1).max(200).optional(),
+          mapa: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+        }),
+      ])
+      .optional(),
   })
   .superRefine((c, ctx) => {
     const conOpciones = c.tipo === "seleccion" || c.tipo === "seleccion_multiple";
@@ -90,6 +113,16 @@ const campoSchema = z
     }
     if (c.tipo !== "calculado" && c.calculo) {
       ctx.addIssue({ code: "custom", message: `«${c.clave}»: solo los campos calculados llevan «calculo»` });
+    }
+    if (c.inicial && (c.tipo === "calculado" || c.tipo === "seleccion_multiple")) {
+      ctx.addIssue({ code: "custom", message: `«${c.clave}»: este tipo de campo no lleva «inicial»` });
+    }
+    if (c.inicial && "patron" in c.inicial && c.inicial.patron) {
+      try {
+        new RegExp(c.inicial.patron);
+      } catch {
+        ctx.addIssue({ code: "custom", message: `«${c.clave}»: el patrón de «inicial» no es válido` });
+      }
     }
   });
 
@@ -111,6 +144,13 @@ const objetoSchema = z.object({
    * padre de una relación (la unidad «6B» es única dentro de su edificio).
    */
   tituloUnicoDentroDe: clave.optional(),
+  /**
+   * Paso 8 — Columna donde el motor guarda el nombre armado (como
+   * `departamento.unidad` = «6B»): lo que ya usa esa columna (un índice único,
+   * otras pantallas, integraciones) sigue andando. Se reescribe solo cuando
+   * cambia un campo del título; mientras tanto, el nombre es lo guardado.
+   */
+  columnaTitulo: clave.optional(),
   /** Si el agente puede leer este objeto. Lo puede cambiar el administrador. */
   visibleAgente: z.boolean().default(false),
   /**
@@ -310,6 +350,23 @@ export function validarConfig(datos: unknown): ResultadoConfig {
       const c = campos.get(t);
       if (!c) errores.push(`objeto «${o.clave}»: el título nombra el campo «${t}», que no existe`);
       else if (!tieneColumna(c.tipo)) errores.push(`objeto «${o.clave}»: el título no puede usar el campo calculado «${t}»`);
+    }
+
+    if (o.columnaTitulo) {
+      if (columnas.has(o.columnaTitulo)) {
+        errores.push(`objeto «${o.clave}»: «columnaTitulo» no puede ser la columna de un campo`);
+      }
+      if (["id", "organization_id", "created_at", "updated_at"].includes(o.columnaTitulo)) {
+        errores.push(`objeto «${o.clave}»: la columna «${o.columnaTitulo}» la maneja el motor`);
+      }
+    }
+    for (const c of o.campos) {
+      if (c.inicial && "copiarDe" in c.inicial && c.inicial.copiarDe === columnaDeCampo(c)) {
+        errores.push(`objeto «${o.clave}»: «${c.clave}» no puede copiarse de sí mismo`);
+      }
+      if (c.inicial && !c.crear && o.adopta) {
+        errores.push(`objeto «${o.clave}»: «${c.clave}» lleva «inicial» pero no «crear»: solo se completa una columna nueva`);
+      }
     }
 
     if (o.agente) {

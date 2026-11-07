@@ -41,6 +41,8 @@ export const motorObjeto = pgTable(
     titulo: jsonb("titulo").$type<string[]>().notNull(),
     /** Clave de la relación dentro de cuyo padre el título es único. */
     tituloUnicoDentroDe: text("titulo_unico_dentro_de"),
+    /** Columna donde se guarda el nombre armado (0042), como `departamento.unidad`. */
+    columnaTitulo: text("columna_titulo"),
     visibleAgente: boolean("visible_agente").notNull().default(false),
     /** Cómo se le presenta al agente (0041): filtro, agrupación, rangos, indicación. */
     agente: jsonb("agente").$type<AgenteObjeto>(),
@@ -73,6 +75,8 @@ export const motorCampo = pgTable(
     calculo: jsonb("calculo").$type<Record<string, unknown>>(),
     visibleLista: boolean("visible_lista").notNull().default(true),
     visibleAgente: boolean("visible_agente").notNull().default(true),
+    /** Cuándo se completó la columna con su valor inicial (0042): no se repite. */
+    inicializadoAt: timestamp("inicializado_at"),
     orden: integer("orden").notNull().default(0),
     archivado: boolean("archivado").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),

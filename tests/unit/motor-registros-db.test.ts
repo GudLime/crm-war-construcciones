@@ -394,5 +394,88 @@ describe.skipIf(!URL)("motor: registros en Postgres", () => {
       await d.execute(sql`DELETE FROM organization WHERE id = ${org3}`);
     }
   });
+
+  it("paso 8: adopta una tabla, le agrega columnas, las completa una vez y guarda el nombre", async () => {
+    const { sql } = await import("drizzle-orm");
+    const { validarConfig } = await import("@/lib/motor/config");
+    const d = db.getDb();
+    const org4 = `${org}_adopta`;
+    await d.insert(db.schema.organization).values({ id: org4, name: "Constructora de prueba" });
+    await d.execute(sql`CREATE TABLE IF NOT EXISTS prueba_edif (id text PRIMARY KEY, organization_id text NOT NULL, nombre text NOT NULL, created_at timestamp DEFAULT now() NOT NULL, updated_at timestamp DEFAULT now() NOT NULL)`);
+    await d.execute(sql`CREATE TABLE IF NOT EXISTS prueba_depto (id text PRIMARY KEY, organization_id text NOT NULL, edificio_id text NOT NULL REFERENCES prueba_edif(id), unidad text NOT NULL, piso integer, tipologia text, created_at timestamp DEFAULT now() NOT NULL, updated_at timestamp DEFAULT now() NOT NULL, UNIQUE (edificio_id, unidad))`);
+    try {
+      await d.execute(sql`INSERT INTO prueba_edif (id, organization_id, nombre) VALUES ('pe1', ${org4}, 'Olazábal 2649')`);
+      await d.execute(sql`INSERT INTO prueba_depto (id, organization_id, edificio_id, unidad, piso, tipologia) VALUES
+        ('pd1', ${org4}, 'pe1', '6B', 6, '2_ambientes'),
+        ('pd2', ${org4}, 'pe1', 'PB 02', 0, '1_ambiente'),
+        ('pd3', ${org4}, 'pe1', '12A', 12, 'triplex')`);
+      const r = validarConfig({
+        version: 1,
+        cliente: "Prueba",
+        objetos: [
+          { clave: "edif", nombre: "Edificio", nombrePlural: "Edificios", adopta: "prueba_edif", titulo: ["nombre"],
+            campos: [{ clave: "nombre", nombre: "Nombre", tipo: "texto", obligatorio: true }] },
+          { clave: "depto", nombre: "Unidad", nombrePlural: "Unidades", adopta: "prueba_depto", titulo: ["piso", "tipologia"],
+            columnaTitulo: "unidad", tituloUnicoDentroDe: "edif_deptos",
+            campos: [
+              { clave: "piso", nombre: "Piso", tipo: "numero" },
+              { clave: "tipologia", nombre: "Tipología", tipo: "texto", columna: "tipologia_unidad", crear: true,
+                inicial: { copiarDe: "unidad", patron: "^[0-9]+\\s*(.+)$" } },
+              { clave: "ambientes", nombre: "Ambientes", tipo: "numero", crear: true,
+                inicial: { copiarDe: "tipologia", mapa: { "1_ambiente": 1, "2_ambientes": 2 } } },
+              { clave: "tipo", nombre: "Tipo", tipo: "seleccion", crear: true, inicial: { valor: "departamento" },
+                opciones: [{ valor: "departamento", nombre: "Departamento" }, { valor: "cochera", nombre: "Cochera" }] },
+            ] },
+        ],
+        relaciones: [{ clave: "edif_deptos", desde: "edif", hacia: "depto", tipo: "uno_a_muchos", columna: "edificio_id",
+          nombreDesde: "Unidades", nombreHacia: "Edificio", obligatoria: true }],
+      });
+      if (!r.ok) throw new Error(r.errores.join("\n"));
+      const aplicado = await sincronizar.aplicarConfig(r.config, [org4]);
+      expect(aplicado).toMatchObject({ estado: "ok", omitidos: [] });
+
+      const filas = async () =>
+        (await d.execute(sql`SELECT id, unidad, tipologia_unidad, ambientes, tipo FROM prueba_depto ORDER BY id`)) as unknown as {
+          id: string; unidad: string; tipologia_unidad: string | null; ambientes: string | null; tipo: string | null;
+        }[];
+      expect((await filas()).map((f) => [f.unidad, f.tipologia_unidad, f.ambientes === null ? null : Number(f.ambientes), f.tipo])).toEqual([
+        ["6B", "B", 2, "departamento"],
+        ["PB 02", null, 1, "departamento"],
+        ["12A", "A", null, "departamento"],
+      ]);
+
+      // Una sola vez: lo que se vacía después no se vuelve a completar.
+      await d.execute(sql`UPDATE prueba_depto SET tipologia_unidad = NULL WHERE id = 'pd1'`);
+      await sincronizar.aplicarConfig(r.config, [org4]);
+      expect((await filas())[0]?.tipologia_unidad).toBeNull();
+      await d.execute(sql`UPDATE prueba_depto SET tipologia_unidad = 'B' WHERE id = 'pd1'`);
+
+      // El nombre es lo guardado, también lo de antes del motor.
+      const lista = await m.listarRegistros(org4, "depto", {});
+      expect(lista.registros.map((x) => x.titulo).sort()).toEqual(["12A", "6B", "PB 02"]);
+      expect((await m.listarRegistros(org4, "depto", { busqueda: "pb 0" })).total).toBe(1);
+
+      // Cambiar algo que no es del nombre no lo toca.
+      await m.actualizarRegistro(org4, "depto", "pd2", { valores: { ambientes: 3 } }, actor);
+      expect((await m.obtenerRegistro(org4, "depto", "pd2")).titulo).toBe("PB 02");
+      // Cambiar la tipología rearma el nombre y lo guarda en la columna vieja.
+      await m.actualizarRegistro(org4, "depto", "pd2", { valores: { tipologia: "02" } }, actor);
+      expect((await filas())[1]?.unidad).toBe("002");
+
+      // Alta: el nombre se arma y se guarda; repetido dentro del edificio, no.
+      const nuevo = await m.crearRegistro(org4, "depto", { valores: { piso: 7, tipologia: "C" }, padres: { edif_deptos: "pe1" } }, actor);
+      expect(nuevo.titulo).toBe("7C");
+      await expect(
+        m.crearRegistro(org4, "depto", { valores: { piso: 7, tipologia: "c" }, padres: { edif_deptos: "pe1" } }, actor)
+      ).rejects.toMatchObject({ codigo: "duplicado" });
+      await expect(m.actualizarRegistro(org4, "depto", nuevo.id, { valores: { tipologia: null } }, actor)).rejects.toMatchObject({
+        codigo: "invalido",
+      });
+    } finally {
+      await d.execute(sql`DELETE FROM organization WHERE id = ${org4}`);
+      await d.execute(sql`DROP TABLE IF EXISTS prueba_depto`);
+      await d.execute(sql`DROP TABLE IF EXISTS prueba_edif`);
+    }
+  });
 });
 

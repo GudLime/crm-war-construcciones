@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { eq, notInArray, sql } from "drizzle-orm";
+import { eq, notInArray, sql, type SQL } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
@@ -14,8 +14,9 @@ import {
   tieneColumna,
   validarConfig,
   type ConfigCliente,
+  type TipoCampo,
 } from "@/lib/motor/config";
-import { columnasEsperadas, sentenciaSiembra, sentenciasDdl } from "@/lib/motor/ddl";
+import { columnasEsperadas, sentenciaSiembra, sentenciasDdl, TIPO_SQL } from "@/lib/motor/ddl";
 
 /**
  * Motor — aplica el archivo de configuración del cliente al arrancar.
@@ -109,6 +110,7 @@ async function registrarEnOrganizacion(organizationId: string, config: ConfigCli
           adoptada: Boolean(o.adopta),
           titulo: o.titulo,
           tituloUnicoDentroDe: o.tituloUnicoDentroDe ?? null,
+          columnaTitulo: o.columnaTitulo ?? null,
           visibleAgente: o.visibleAgente,
           agente: o.agente ?? null,
           orden,
@@ -125,6 +127,7 @@ async function registrarEnOrganizacion(organizationId: string, config: ConfigCli
             adoptada: Boolean(o.adopta),
             titulo: o.titulo,
             tituloUnicoDentroDe: o.tituloUnicoDentroDe ?? null,
+          columnaTitulo: o.columnaTitulo ?? null,
             agente: o.agente ?? null,
             orden,
             archivado: false,
@@ -259,7 +262,18 @@ async function registrarEnOrganizacion(organizationId: string, config: ConfigCli
 export async function sincronizarMotor(): Promise<ResultadoSincronizacion> {
   const leida = await leerConfigCliente();
   if (leida.estado !== "ok") return leida;
-  const config = leida.config;
+  return aplicarConfig(leida.config);
+}
+
+/**
+ * Aplica una configuración ya validada: estructura, metadatos por
+ * organización, siembras y valores iniciales. `soloOrganizaciones` limita a
+ * cuáles (los tests; el arranque usa todas).
+ */
+export async function aplicarConfig(
+  config: ConfigCliente,
+  soloOrganizaciones?: string[]
+): Promise<ResultadoSincronizacion> {
   const db = getDb();
 
   // Estructura de los objetos nuevos: todo o nada.
@@ -287,7 +301,9 @@ export async function sincronizarMotor(): Promise<ResultadoSincronizacion> {
     reglasEtapa: config.reglasEtapa.filter((g) => relaciones.some((r) => r.clave === g.relacion)),
   };
 
-  const orgs = await db.select({ id: schema.organization.id }).from(schema.organization);
+  const orgs = (await db.select({ id: schema.organization.id }).from(schema.organization)).filter(
+    (o) => !soloOrganizaciones || soloOrganizaciones.includes(o.id)
+  );
   for (const org of orgs) await registrarEnOrganizacion(org.id, registrable);
 
   // Siembras de una sola vez (después de registrar: la marca vive en motor_relacion).
@@ -305,6 +321,9 @@ export async function sincronizarMotor(): Promise<ResultadoSincronizacion> {
     console.log(`[motor] vínculos de «${r.clave}» copiados desde ${r.sembrarDesde?.tabla}.${r.sembrarDesde?.columnaHacia}`);
   }
 
+  // Paso 8 — valores iniciales de columnas nuevas, una vez por organización.
+  for (const org of orgs) await completarIniciales(org.id, registrable);
+
   return {
     estado: "ok",
     objetos: registrable.objetos.length,
@@ -321,6 +340,56 @@ export async function sincronizarMotor(): Promise<ResultadoSincronizacion> {
       }),
     ],
   };
+}
+
+/**
+ * Paso 8 — completa las columnas con `inicial` una sola vez por organización
+ * (marca `motor_campo.inicializado_at`) y solo donde están vacías: nunca pisa
+ * un dato. Si una falla (un valor que no se puede convertir), se anota en el
+ * log, no se marca y el resto sigue.
+ */
+async function completarIniciales(organizationId: string, config: ConfigCliente): Promise<void> {
+  const db = getDb();
+  for (const o of config.objetos) {
+    const tabla = tablaDeObjeto(o);
+    for (const c of o.campos) {
+      if (!c.inicial || !tieneColumna(c.tipo)) continue;
+      const [campo] = (await db.execute(
+        sql`select mc.id, mc.inicializado_at from motor_campo mc
+            join motor_objeto mo on mo.id = mc.objeto_id
+            where mc.organization_id = ${organizationId} and mo.clave = ${o.clave} and mc.clave = ${c.clave}
+            limit 1`
+      )) as unknown as { id: string; inicializado_at: Date | null }[];
+      if (!campo || campo.inicializado_at) continue;
+      const col = columnaDeCampo(c);
+      const tipo = sql.raw(TIPO_SQL[c.tipo as Exclude<TipoCampo, "calculado">]);
+      let origen: SQL;
+      if ("valor" in c.inicial) {
+        origen = sql`${String(c.inicial.valor)}`;
+      } else {
+        let expr: SQL = sql`CAST(${sql.identifier(c.inicial.copiarDe)} AS text)`;
+        if (c.inicial.patron) expr = sql`substring(${expr} from ${c.inicial.patron})`;
+        const mapa = Object.entries(c.inicial.mapa ?? {});
+        if (mapa.length) {
+          expr = sql`CASE ${expr} ${sql.join(
+            mapa.map(([k, v]) => sql`WHEN ${k} THEN ${String(v)}`),
+            sql` `
+          )} END`;
+        }
+        origen = sql`NULLIF(trim(${expr}), '')`;
+      }
+      try {
+        const r = (await db.execute(
+          sql`UPDATE ${sql.identifier(tabla)} SET ${sql.identifier(col)} = CAST(${origen} AS ${tipo})
+              WHERE organization_id = ${organizationId} AND ${sql.identifier(col)} IS NULL`
+        )) as unknown as { count?: number };
+        await db.execute(sql`update motor_campo set inicializado_at = now() where id = ${campo.id}`);
+        console.log(`[motor] «${o.clave}.${c.clave}» completado${typeof r.count === "number" ? ` en ${r.count} fila(s)` : ""}`);
+      } catch (err) {
+        console.error(`[motor] no se pudo completar «${o.clave}.${c.clave}»:`, err);
+      }
+    }
+  }
 }
 
 /** Para el arranque: corre la sincronización y cuenta el resultado en el log, sin lanzar. */

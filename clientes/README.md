@@ -64,3 +64,28 @@ cantidad o promedio, con filtro opcional).
 Relaciones: `uno_a_muchos` (columna `<desde>_id` en la tabla del lado «hacia»)
 o `muchos_a_muchos` (tabla `rel_<clave>`). `desde` puede ser `oportunidad` o
 `contacto`, del núcleo.
+
+## Adoptar una tabla que ya existe
+
+`"adopta": "<tabla>"` describe una tabla del CRM en vez de crear una nueva:
+conserva ids, datos e historial. El motor no cambia su estructura, salvo:
+
+- **`"crear": true`** en un campo: agrega la columna si falta (nunca cambia ni
+  borra las que ya están).
+- **`"inicial"`** en un campo con `crear`: con qué se completa la columna nueva
+  UNA vez, solo donde está vacía. Un valor fijo (`{ "valor": "departamento" }`)
+  o copiado de otra columna, con un patrón (expresión regular de Postgres, se
+  toma el primer grupo) y/o una tabla de equivalencias:
+  `{ "copiarDe": "tipologia", "mapa": { "2_ambientes": 2 } }`. Lo que no
+  coincide queda vacío.
+- **`"columnaTitulo"`** en el objeto: la columna donde se guarda el nombre
+  armado (como `departamento.unidad` = «6B»), para que lo que ya la usa siga
+  andando. Se reescribe solo cuando cambia un campo del título.
+
+## Estadísticas y agente
+
+- `"estadisticas": { "bloques": [...], "verPor": "..." }`: qué bloques muestra
+  la sección Oportunidades de Resultados y con qué «Ver por» arranca.
+- `"agente"` en un objeto: `filtro`, `agruparPor`, `rangos` e `indicacion` para
+  el texto que lee el agente. Qué objetos y columnas lee lo decide el
+  administrador desde la tabla.

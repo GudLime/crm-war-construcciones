@@ -134,9 +134,12 @@ function aRegistro(motor: Motor, objeto: ObjetoMeta, fila: Fila): Registro {
     padres[r.clave] = v === null || v === undefined ? null : String(v);
   }
   const creado = fila.created_at;
+  // Paso 8: con `columnaTitulo`, el nombre es lo guardado (puede venir de antes
+  // del motor, como «PB 02»); si está vacío, el armado.
+  const guardado = objeto.columnaTitulo ? fila[objeto.columnaTitulo] : null;
   return {
     id: String(fila.id),
-    titulo: armarTitulo(objeto.titulo, valores),
+    titulo: typeof guardado === "string" && guardado.trim() ? guardado : armarTitulo(objeto.titulo, valores),
     valores,
     padres,
     creadoEn: creado instanceof Date ? creado : null,
@@ -148,6 +151,7 @@ function columnasSelect(motor: Motor, objeto: ObjetoMeta): SQL {
   for (const c of camposConColumna(objeto)) cols.add(c.columna);
   for (const r of relacionesPadre(motor, objeto)) cols.add(r.columna as string);
   if (objeto.columnas.has("created_at")) cols.add("created_at");
+  if (objeto.columnaTitulo) cols.add(objeto.columnaTitulo);
   return sql.join(
     [...cols].map((c) => id(c)),
     sql`, `
@@ -245,9 +249,10 @@ export type OpcionesListado = {
 function condicionesListado(motor: Motor, objeto: ObjetoMeta, op: OpcionesListado): SQL[] {
   const out: SQL[] = [];
   if (op.busqueda?.trim()) {
-    const partes = objeto.titulo
+    const partes = (objeto.columnaTitulo ? [objeto.columnaTitulo] : [])
+      .concat(objeto.titulo
       .map((t) => objeto.campos.find((c) => c.clave === t)?.columna)
-      .filter((c): c is string => Boolean(c))
+      .filter((c): c is string => Boolean(c)))
       .map((c) => sql`coalesce(CAST(${id(c)} AS text), '')`);
     if (partes.length) {
       out.push(sql`concat(${sql.join(partes, sql`, `)}) ILIKE ${`%${op.busqueda.trim().replace(/[%_\\]/g, (m) => `\\${m}`)}%`}`);
@@ -489,6 +494,16 @@ async function verificarTitulo(
       );
     }
   }
+  if (objeto.columnaTitulo) {
+    const filas = (await ex.execute(
+      sql`SELECT ${id(objeto.columnaTitulo)} AS t FROM ${id(objeto.tabla)} WHERE ${sql.join(condiciones, sql` AND `)}`
+    )) as unknown as { t: unknown }[];
+    const buscado = normalizar(titulo);
+    if (filas.some((f) => typeof f.t === "string" && normalizar(f.t) === buscado)) {
+      throw new MotorError("duplicado", `Ya existe «${titulo}» en ${objeto.nombrePlural}`);
+    }
+    return titulo;
+  }
   const cols = objeto.titulo
     .map((t) => objeto.campos.find((c) => c.clave === t))
     .filter((c): c is CampoMeta & { columna: string } => Boolean(c?.columna));
@@ -572,6 +587,10 @@ export async function crearRegistro(
       cols.push(id(r.columna as string));
       vals.push(sql`${padres[r.clave] ?? null}`);
     }
+    if (objeto.columnaTitulo) {
+      cols.push(id(objeto.columnaTitulo));
+      vals.push(sql`${titulo}`);
+    }
     try {
       await tx.execute(
         sql`INSERT INTO ${id(objeto.tabla)} (${sql.join(cols, sql`, `)}) VALUES (${sql.join(vals, sql`, `)})`
@@ -632,7 +651,28 @@ export async function actualizarRegistro(
     if (!sets.length) return actual;
 
     await verificarPadres(tx, organizationId, motor, objeto, cambio.padres);
-    const titulo = await verificarTitulo(tx, organizationId, motor, objeto, valores, padres, registroId);
+    let titulo: string;
+    if (objeto.columnaTitulo) {
+      // Con nombre guardado: se rearma solo si cambió un campo del título (o el
+      // padre dentro del cual es único). Si no, queda el de siempre.
+      const tocaTitulo =
+        objeto.titulo.some((t) => anotaciones.some((a) => a.campo === t)) ||
+        (objeto.tituloUnicoDentroDe !== null && anotaciones.some((a) => a.campo === objeto.tituloUnicoDentroDe));
+      if (tocaTitulo) {
+        const faltan = objeto.titulo
+          .map((t) => objeto.campos.find((c) => c.clave === t))
+          .filter((c) => c && (valores[c.clave] === null || valores[c.clave] === undefined || valores[c.clave] === ""));
+        if (faltan.length) {
+          throw new MotorError("invalido", `Para armar el nombre falta: ${faltan.map((c) => c!.nombre).join(", ")}`);
+        }
+        titulo = await verificarTitulo(tx, organizationId, motor, objeto, valores, padres, registroId);
+        if (titulo !== actual.titulo) sets.push(sql`${id(objeto.columnaTitulo)} = ${titulo}`);
+      } else {
+        titulo = actual.titulo;
+      }
+    } else {
+      titulo = await verificarTitulo(tx, organizationId, motor, objeto, valores, padres, registroId);
+    }
     if (objeto.columnas.has("updated_at")) sets.push(sql`updated_at = now()`);
     try {
       await tx.execute(
