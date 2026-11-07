@@ -99,3 +99,35 @@ export const motorRelacion = pgTable(
   },
   (t) => [uniqueIndex("motor_relacion_org_clave_uq").on(t.organizationId, t.clave)]
 );
+
+/**
+ * Historial de cambios de los registros (migración 0039). Solo se agregan
+ * filas. Guarda el título del momento: se sigue leyendo aunque el registro se
+ * borre. Una importación de CSV comparte `loteId`.
+ */
+export const motorCambio = pgTable(
+  "motor_cambio",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    /** Clave del objeto. */
+    objeto: text("objeto").notNull(),
+    registroId: text("registro_id").notNull(),
+    titulo: text("titulo").notNull(),
+    accion: text("accion", { enum: ["creado", "actualizado", "borrado"] }).notNull(),
+    /** Clave del campo (o de la relación) que cambió; NULL en creado/borrado. */
+    campo: text("campo"),
+    antes: jsonb("antes"),
+    despues: jsonb("despues"),
+    actorTipo: text("actor_tipo", { enum: ["usuario", "agente", "importacion", "sistema"] }).notNull(),
+    actorId: text("actor_id"),
+    loteId: text("lote_id"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("motor_cambio_registro_idx").on(t.organizationId, t.objeto, t.registroId, t.createdAt),
+    index("motor_cambio_lote_idx").on(t.loteId),
+  ]
+);
