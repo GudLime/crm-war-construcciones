@@ -46,6 +46,7 @@ import {
   type EstadoOportunidad,
 } from "@/lib/ventas";
 import type { OportunidadDetalleDto } from "@/server/oportunidad-detalle";
+import { ObjetosDeOportunidad } from "@/components/motor/oportunidad-objetos";
 
 /**
  * War — La página de una oportunidad (ver WAR.md → «Página de la oportunidad»).
@@ -268,6 +269,8 @@ export function OportunidadDetalleClient() {
               contactId={contacto?.id ?? null}
               onCambio={cargar}
             />
+            {/* 070 — Los objetos del cliente vinculados y las reglas de etapa. */}
+            <ObjetosDeOportunidad oportunidadId={op.id} estado={op.estado} />
             <section className={cn(TARJETA, "p-5")}>
               <h2 className="mb-3 text-[15px] font-semibold">Datos de la oportunidad</h2>
               <dl className="space-y-2.5 text-[13.5px]">

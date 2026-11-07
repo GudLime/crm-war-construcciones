@@ -92,6 +92,14 @@ export const motorRelacion = pgTable(
     columna: text("columna"),
     /** Muchos a muchos: tabla intermedia. */
     tabla: text("tabla"),
+    /** Muchos a muchos: la tabla intermedia ya existía (0040). */
+    adoptaTabla: boolean("adopta_tabla").notNull().default(false),
+    columnaDesde: text("columna_desde"),
+    columnaHacia: text("columna_hacia"),
+    /** De dónde se copian los vínculos la primera vez (0040). */
+    sembrarDesde: jsonb("sembrar_desde").$type<{ tabla: string; columnaDesde: string; columnaHacia: string }>(),
+    /** Cuándo se copiaron: no se repite. */
+    sembradoAt: timestamp("sembrado_at"),
     obligatoria: boolean("obligatoria").notNull().default(false),
     archivado: boolean("archivado").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -130,4 +138,27 @@ export const motorCambio = pgTable(
     index("motor_cambio_registro_idx").on(t.organizationId, t.objeto, t.registroId, t.createdAt),
     index("motor_cambio_lote_idx").on(t.loteId),
   ]
+);
+
+/**
+ * Reglas de etapa (migración 0040): cuando la oportunidad pasa a `etapa`, el
+ * campo de los registros vinculados por `relacion` toma `valor`.
+ */
+export const motorRegla = pgTable(
+  "motor_regla",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    clave: text("clave").notNull(),
+    etapa: text("etapa").notNull(),
+    relacion: text("relacion").notNull(),
+    campo: text("campo").notNull(),
+    valor: jsonb("valor").$type<string | number | boolean>().notNull(),
+    archivado: boolean("archivado").notNull().default(false),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("motor_regla_org_clave_uq").on(t.organizationId, t.clave)]
 );

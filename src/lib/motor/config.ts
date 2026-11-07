@@ -129,7 +129,37 @@ const relacionSchema = z.object({
   columna: clave.optional(),
   /** Muchos a muchos: la tabla intermedia. Por defecto `rel_<clave>`. */
   tabla: clave.optional(),
+  /**
+   * Muchos a muchos: la tabla intermedia ya existe (como `oportunidad_edificio`
+   * en WAR). El motor no la crea; verifica que tenga las columnas.
+   */
+  adoptaTabla: z.boolean().default(false),
+  /** Muchos a muchos: columnas de la tabla intermedia. Por defecto `desde_id` y `hacia_id`. */
+  columnaDesde: clave.optional(),
+  columnaHacia: clave.optional(),
+  /**
+   * Muchos a muchos: copia UNA SOLA VEZ los vínculos de una columna que ya
+   * existe (como `oportunidad.departamento_id` en WAR). Nunca se repite: si
+   * después alguien saca un vínculo, no vuelve.
+   */
+  sembrarDesde: z
+    .object({ tabla: clave, columnaDesde: clave, columnaHacia: clave })
+    .optional(),
   obligatoria: z.boolean().default(false),
+});
+
+/**
+ * Regla de etapa: cuando la oportunidad pasa a `etapa`, el campo de los
+ * registros vinculados por `relacion` toma `valor` (Reservó → la unidad pasa a
+ * Reservado). Con un solo vinculado se aplica sola; con varios, se pregunta
+ * cuáles.
+ */
+const reglaEtapaSchema = z.object({
+  clave,
+  etapa: clave,
+  relacion: clave,
+  campo: clave,
+  valor: z.union([z.string(), z.number(), z.boolean()]),
 });
 
 export const configClienteSchema = z.object({
@@ -139,12 +169,14 @@ export const configClienteSchema = z.object({
   rubro: z.string().min(1).optional(),
   objetos: z.array(objetoSchema).default([]),
   relaciones: z.array(relacionSchema).default([]),
+  reglasEtapa: z.array(reglaEtapaSchema).default([]),
 });
 
 export type ConfigCliente = z.infer<typeof configClienteSchema>;
 export type ObjetoConfig = ConfigCliente["objetos"][number];
 export type CampoConfig = ObjetoConfig["campos"][number];
 export type RelacionConfig = ConfigCliente["relaciones"][number];
+export type ReglaEtapaConfig = ConfigCliente["reglasEtapa"][number];
 
 /** Objetos del núcleo que una relación puede nombrar. */
 export const OBJETOS_NUCLEO = ["oportunidad", "contacto"] as const;
@@ -177,6 +209,26 @@ export function columnaDeRelacion(r: Pick<RelacionConfig, "desde" | "columna">):
 export function tablaDeRelacion(r: Pick<RelacionConfig, "clave" | "tabla">): string {
   return r.tabla ?? `rel_${r.clave}`;
 }
+
+/** Columnas de la tabla intermedia de una relación muchos a muchos. */
+export function columnasDeRelacion(r: Pick<RelacionConfig, "columnaDesde" | "columnaHacia">): {
+  desde: string;
+  hacia: string;
+} {
+  return { desde: r.columnaDesde ?? "desde_id", hacia: r.columnaHacia ?? "hacia_id" };
+}
+
+/** Etapas de la oportunidad (núcleo, `lib/ventas`): las que una regla puede nombrar. */
+export const ETAPAS_OPORTUNIDAD = [
+  "recibido",
+  "en_charlas",
+  "conoce_informacion",
+  "visito",
+  "reservo",
+  "compro",
+  "no_calificado",
+  "perdido",
+] as const;
 
 export type ResultadoConfig =
   | { ok: true; config: ConfigCliente }
@@ -259,6 +311,34 @@ export function validarConfig(datos: unknown): ResultadoConfig {
     if (r.tipo === "muchos_a_muchos" && r.columna) errores.push(`relación «${r.clave}»: «columna» es solo para uno a muchos`);
     if (r.tipo === "muchos_a_muchos" && TABLAS_RESERVADAS.has(tablaDeRelacion(r))) {
       errores.push(`relación «${r.clave}»: la tabla «${tablaDeRelacion(r)}» es del núcleo`);
+    }
+    if (r.tipo === "uno_a_muchos" && (r.adoptaTabla || r.columnaDesde || r.columnaHacia || r.sembrarDesde)) {
+      errores.push(`relación «${r.clave}»: «adoptaTabla», «columnaDesde», «columnaHacia» y «sembrarDesde» son solo para muchos a muchos`);
+    }
+    if (r.adoptaTabla && !r.tabla) errores.push(`relación «${r.clave}»: para adoptar una tabla hay que nombrarla en «tabla»`);
+    const cols = columnasDeRelacion(r);
+    if (r.tipo === "muchos_a_muchos" && cols.desde === cols.hacia) {
+      errores.push(`relación «${r.clave}»: «columnaDesde» y «columnaHacia» no pueden ser la misma`);
+    }
+  }
+
+  const reglas = new Set<string>();
+  for (const g of config.reglasEtapa) {
+    if (reglas.has(g.clave)) errores.push(`regla «${g.clave}» repetida`);
+    reglas.add(g.clave);
+    if (!(ETAPAS_OPORTUNIDAD as readonly string[]).includes(g.etapa)) {
+      errores.push(`regla «${g.clave}»: «${g.etapa}» no es una etapa de la oportunidad`);
+    }
+    const r = relaciones.get(g.relacion);
+    if (!r || r.tipo !== "muchos_a_muchos" || r.desde !== "oportunidad") {
+      errores.push(`regla «${g.clave}»: «${g.relacion}» tiene que ser una relación muchos a muchos desde la oportunidad`);
+      continue;
+    }
+    const campo = objetos.get(r.hacia)?.campos.find((c) => c.clave === g.campo);
+    if (!campo || !tieneColumna(campo.tipo)) {
+      errores.push(`regla «${g.clave}»: «${g.campo}» no es un campo de «${r.hacia}»`);
+    } else if (campo.tipo === "seleccion" && !campo.opciones?.some((o) => o.valor === String(g.valor))) {
+      errores.push(`regla «${g.clave}»: «${String(g.valor)}» no es una opción de «${campo.nombre}»`);
     }
   }
 
