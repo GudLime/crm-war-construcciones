@@ -149,21 +149,46 @@ function contarExcluidos(o: ObjetoParaAgente, excluidos: RegistroParaAgente[], m
   return `No se ofrecen (solo para tu referencia): ${partes.join(", ")}.`;
 }
 
-function resumenPorGrupo(o: ObjetoParaAgente, lista: RegistroParaAgente[], moneda: string): string[] {
+/** El padre que encabeza los grupos (el edificio de cada unidad), si se lista. */
+type PadreDe = (r: RegistroParaAgente) => string | null;
+
+/** Clave de grupo y su nombre: padre (si hay) + valor del campo de agrupar. */
+function grupoDe(o: ObjetoParaAgente, r: RegistroParaAgente, moneda: string, padreDe?: PadreDe) {
+  const agrupar = o.agente?.agruparPor ? o.campos.find((c) => c.clave === o.agente?.agruparPor) : undefined;
+  const padre = padreDe?.(r) ?? null;
+  const valor = agrupar ? (valorParaAgente(agrupar, r.valores[agrupar.clave], moneda) ?? `Sin ${agrupar.nombre.toLowerCase()}`) : null;
+  const crudo = agrupar ? numero(r.valores[agrupar.clave]) : null;
+  const partes = [padre, agrupar && valor ? `${agrupar.nombre} ${valor}` : null].filter(Boolean);
+  return { clave: `${padre ?? ""}\u0000${valor ?? ""}`, nombre: partes.join(" · ") || o.nombrePlural, padre: padre ?? "", valor: valor ?? "", crudo };
+}
+
+/** Orden de grupos: por padre y, dentro, por el valor (numérico si se puede). */
+function compararGrupos(a: ReturnType<typeof grupoDe>, b: ReturnType<typeof grupoDe>): number {
+  const p = a.padre.localeCompare(b.padre, "es");
+  if (p) return p;
+  if (a.crudo !== null && b.crudo !== null) return a.crudo - b.crudo;
+  if (a.crudo !== null) return -1;
+  if (b.crudo !== null) return 1;
+  return a.valor.localeCompare(b.valor, "es");
+}
+
+function resumenPorGrupo(o: ObjetoParaAgente, lista: RegistroParaAgente[], moneda: string, padreDe?: PadreDe): string[] {
   const agrupar = o.agente?.agruparPor ? o.campos.find((c) => c.clave === o.agente?.agruparPor) : undefined;
   const rangos = (o.agente?.rangos ?? [])
     .map((k) => o.campos.find((c) => c.clave === k))
     // Una columna oculta para el agente tampoco se filtra por el resumen.
     .filter((c): c is CampoMeta => Boolean(c?.visibleAgente));
   if (!agrupar && !rangos.length) return [];
-  const grupos = new Map<string, RegistroParaAgente[]>();
+  const grupos = new Map<string, { g: ReturnType<typeof grupoDe>; regs: RegistroParaAgente[] }>();
   for (const r of lista) {
-    const k = agrupar ? (valorParaAgente(agrupar, r.valores[agrupar.clave], moneda) ?? `Sin ${agrupar.nombre.toLowerCase()}`) : "Todos";
-    grupos.set(k, [...(grupos.get(k) ?? []), r]);
+    const g = grupoDe(o, r, moneda, padreDe);
+    const actual = grupos.get(g.clave) ?? { g, regs: [] };
+    actual.regs.push(r);
+    grupos.set(g.clave, actual);
   }
   const lineas = [`Resumen${agrupar ? ` por ${agrupar.nombre.toLowerCase()}` : ""} (copiá estos rangos tal cual, no hagas cuentas):`];
-  for (const [k, regs] of grupos) {
-    const partes = [`- ${agrupar ? `${agrupar.nombre} ${k}` : o.nombrePlural}: ${regs.length}`];
+  for (const { g, regs } of [...grupos.values()].sort((a, b) => compararGrupos(a.g, b.g))) {
+    const partes = [`- ${g.nombre}: ${regs.length}`];
     for (const c of rangos) {
       const nums = regs.map((r) => numero(r.valores[c.clave])).filter((n): n is number => n !== null);
       if (nums.length) {
@@ -178,14 +203,11 @@ function resumenPorGrupo(o: ObjetoParaAgente, lista: RegistroParaAgente[], moned
   return lineas;
 }
 
-function ordenar(o: ObjetoParaAgente, lista: RegistroParaAgente[], moneda: string): RegistroParaAgente[] {
-  const agrupar = o.agente?.agruparPor ? o.campos.find((c) => c.clave === o.agente?.agruparPor) : undefined;
+function ordenar(o: ObjetoParaAgente, lista: RegistroParaAgente[], moneda: string, padreDe?: PadreDe): RegistroParaAgente[] {
   const primerRango = o.agente?.rangos?.[0];
-  const grupo = (r: RegistroParaAgente) => (agrupar ? (valorParaAgente(agrupar, r.valores[agrupar.clave], moneda) ?? "") : "");
-  const orden = new Map<string, number>();
-  for (const r of lista) if (!orden.has(grupo(r))) orden.set(grupo(r), orden.size);
+  const agrupa = Boolean(o.agente?.agruparPor || padreDe);
   return [...lista].sort((a, b) => {
-    const g = (orden.get(grupo(a)) ?? 0) - (orden.get(grupo(b)) ?? 0);
+    const g = agrupa ? compararGrupos(grupoDe(o, a, moneda, padreDe), grupoDe(o, b, moneda, padreDe)) : 0;
     if (g || !primerRango) return g;
     const na = numero(a.valores[primerRango]);
     const nb = numero(b.valores[primerRango]);
@@ -229,14 +251,23 @@ export function renderObjetosParaAgente(datos: DatosParaAgente): string {
   for (const o of datos.objetos) {
     const todos = datos.registros.get(o.clave) ?? [];
     const set = entran.get(o.clave) ?? new Set<string>();
-    const lista = ordenar(o, todos.filter((r) => set.has(r.id)), datos.moneda);
+    // Con un padre que también se lista (el edificio de cada unidad), los
+    // resúmenes y el orden van por padre: un rango no mezcla edificios.
+    const principal = o.padres.find((p) => p.objeto !== o.clave && datos.registros.has(p.objeto));
+    const padreDe: PadreDe | undefined = principal
+      ? (r) => {
+          const pid = r.padres[principal.clave];
+          return pid ? tituloPadre(principal.objeto, pid) : null;
+        }
+      : undefined;
+    const lista = ordenar(o, todos.filter((r) => set.has(r.id)), datos.moneda, padreDe);
     const excluidos = todos.filter((r) => !set.has(r.id) && !cumpleFiltro(o, r));
     const lineas = [`### ${o.nombrePlural}`];
     if (o.agente?.indicacion) lineas.push(o.agente.indicacion);
     if (!lista.length) {
       lineas.push(`No hay ${o.nombrePlural.toLowerCase()} para ofrecer en este momento.`);
     } else {
-      lineas.push(...resumenPorGrupo(o, lista, datos.moneda));
+      lineas.push(...resumenPorGrupo(o, lista, datos.moneda, padreDe));
       lineas.push(`${plural(lista.length, o.nombre, o.nombrePlural)}. Cada línea es UN registro y se entiende sola: los datos se copian de su propia línea, sin mezclar con otra.`);
       for (const r of lista.slice(0, MAX_LINEAS_AGENTE)) lineas.push(lineaRegistro(o, r, tituloPadre, datos.moneda));
       if (lista.length > MAX_LINEAS_AGENTE) {
