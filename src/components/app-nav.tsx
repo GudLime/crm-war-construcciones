@@ -20,6 +20,7 @@ import type { Branding } from "@/lib/branding";
 import type { Apariencia } from "@/lib/temas";
 import { cn, initials } from "@/lib/utils";
 import { appNavGroups, isNavActive, SETTINGS_ITEM, type NavItem } from "@/lib/nav";
+import type { ObjetoMenuDto } from "@/lib/motor/dto";
 import { signOut } from "@/lib/auth/client";
 import { useEvents } from "@/components/use-events";
 import {
@@ -74,6 +75,7 @@ export function AppNav({
   commit,
   agenda = false,
   kicker = "CRM · WhatsApp",
+  objetos = [],
   open = false,
   onClose,
 }: {
@@ -95,6 +97,8 @@ export function AppNav({
    * todavía debe ver la entrada igual.
    */
   agenda?: boolean;
+  /** 070 — Los objetos personalizados del cliente, para el menú. */
+  objetos?: ObjetoMenuDto[];
   /** Solo aplica por debajo de `lg`: en escritorio el lateral es fijo. */
   open?: boolean;
   onClose?: () => void;
@@ -190,7 +194,7 @@ export function AppNav({
   const version = commit ?? { commit: BUILD_COMMIT, verified: BUILD_COMMIT !== "" };
   // #87 — Qué hay en el menú y en qué grupo lo decide `appNavGroups`; aquí
   // solo se pinta.
-  const groups = appNavGroups({ agenda, role });
+  const groups = appNavGroups({ agenda, role, objetos });
 
   function renderItem(item: NavItem) {
     const active = isNavActive(pathname, item.href);

@@ -12,6 +12,7 @@ import { navKicker } from "@/lib/channels";
 import { avisoIaDe } from "@/server/ai/aviso";
 import { AvisoIaBanner } from "@/components/avisos/aviso-ia";
 import { AvisoGuardadoProvider } from "@/components/ui/aviso-guardado";
+import { objetosDelMenu } from "@/server/motor/api";
 
 export default async function AppLayout({
   children,
@@ -28,6 +29,8 @@ export default async function AppLayout({
   // bot roto. Se resuelve en el servidor y en el layout para que se vea desde
   // CUALQUIER pantalla, no solo desde el panel de un contacto (#85).
   const aviso = await avisoIaDe(session.organizationId);
+  // 070 — Los objetos personalizados del cliente entran solos al menú.
+  const objetos = await objetosDelMenu(session.organizationId);
 
   return (
     <AppShell
@@ -44,6 +47,7 @@ export default async function AppLayout({
       // cliente: no puede —ni debe— leer variables de entorno.
       agenda={agendaEnabled()}
       kicker={navKicker([...enabledChannels()])}
+      objetos={objetos}
       aviso={<AvisoIaBanner aviso={aviso} />}
     >
       {/* «Cambios aplicados»: el aviso temporal de cada guardado. */}
