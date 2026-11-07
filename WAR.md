@@ -1,8 +1,24 @@
 # Customizaciones WAR Construcciones
 
-Copia de [kevinrivm/vocero-crm](https://github.com/kevinrivm/vocero-crm) usada
-por la agencia WAR Construcciones para todas las instancias de CRM-as-a-service.
-Basada en el fork de GudLime (`GudLime/vocero-crm`), con la marca cambiada a War.
+CRM de WAR Construcciones. Cliente de la agencia GudLime: trae el núcleo de
+[GudLime/gudlime-crm-service](https://github.com/GudLime/gudlime-crm-service)
+(repo madre, que a su vez parte de kevinrivm/vocero-crm) y suma solo lo de WAR.
+
+## Traer mejoras de GudLime
+
+```bash
+git remote add upstream https://github.com/GudLime/gudlime-crm-service.git  # una vez por copia local
+git fetch upstream
+git checkout -b chore/upstream-AAAA-MM-DD origin/main
+git merge upstream/main   # y PR a main
+```
+
+- El flujo va solo hacia abajo: este repo nunca se mergea hacia GudLime. Si
+  algo de acá sirve para todos, se lleva en forma genérica con un PR propio allá.
+- No editar archivos del núcleo acá: usar opciones de configuración o puntos de
+  reemplazo (`overrides/`).
+- Si GudLime saca algo que WAR sí usa, registrar ese commit sin aplicarlo:
+  `git merge -s ours <commit>` (así se hizo con la separación del 06/11/2026).
 
 ## Cambios respecto a upstream
 
@@ -32,7 +48,7 @@ Basada en el fork de GudLime (`GudLime/vocero-crm`), con la marca cambiada a War
 
 Color y logo: cada cliente los configura en **Configuración → Marca** (DB).
 
-## Actualizar desde upstream
+## Actualizar desde Vocero (lo hace GudLime)
 
 ```bash
 git remote add upstream https://github.com/kevinrivm/vocero-crm.git  # una vez
