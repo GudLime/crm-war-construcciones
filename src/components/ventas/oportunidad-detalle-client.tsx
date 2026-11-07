@@ -37,7 +37,6 @@ import { cn } from "@/lib/utils";
 import {
   CAMINO_OPORTUNIDAD,
   ESTADOS_OPORTUNIDAD,
-  MOTIVOS_CIERRE,
   TIPOLOGIAS,
   TIPOS_CONTACTO,
   TIPOS_OPORTUNIDAD,
@@ -46,6 +45,7 @@ import {
   type EstadoOportunidad,
 } from "@/lib/ventas";
 import type { OportunidadDetalleDto } from "@/server/oportunidad-detalle";
+import { useMotivosCierre } from "./use-motivos-cierre";
 import { ObjetosDeOportunidad } from "@/components/motor/oportunidad-objetos";
 
 /**
@@ -330,6 +330,7 @@ function BarraDeAvance({
 }) {
   const [cerrando, setCerrando] = useState(false);
   const [motivoNuevo, setMotivoNuevo] = useState("");
+  const motivosCierre = useMotivosCierre();
   const indice = CAMINO_OPORTUNIDAD.indexOf(estado);
   const perdida = estado === "perdido" || estado === "no_calificado";
 
@@ -381,7 +382,7 @@ function BarraDeAvance({
             <p className="mb-1 text-[12px] font-medium text-text-2">Motivo</p>
             <Select value={motivoNuevo} onValueChange={setMotivoNuevo} className="w-full">
               <option value="">Sin motivo</option>
-              {MOTIVOS_CIERRE.map((m) => (
+              {motivosCierre.map((m) => (
                 <option key={m} value={m}>
                   {m}
                 </option>

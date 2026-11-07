@@ -189,3 +189,15 @@ una oportunidad, 200 si se sumó a una o si el `leadId` ya había entrado.
   cada nota queda en la oportunidad abierta cuando se escribió. En el chat se ven
   todas las del contacto (con la etiqueta de su oportunidad); en la oportunidad,
   solo las suyas.
+
+## Migraciones propias de WAR
+
+Las migraciones que vienen de GudLime se llaman `00NN_…` y avanzan su `when`
+de a 3 horas. Las propias de WAR se llaman `war_NNNN_…` y su `when` va apenas
+después (+1 minuto) de la última de GudLime que haya en ese momento. Así la
+próxima de GudLime (+3 h) siempre queda después y no se saltea. Al traer
+cambios de GudLime, si `_journal.json` choca, se ordenan las entradas por
+`when` y se renumera `idx`.
+
+- `war_0001_motivos_cierre`: motivos de cierre configurables (Ajustes →
+  Motivos de cierre), sembrados con los 27 de Notion.

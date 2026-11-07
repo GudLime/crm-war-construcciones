@@ -306,6 +306,23 @@ export const agentInstruccionesVersion = pgTable(
  * lo que se guarda en `oportunidad.origen` (texto, sin FK: borrar un origen
  * no le cambia nada a las oportunidades que ya lo tienen) y lo que manda Make.
  */
+/** War — Motivos de cierre configurables (migración war_0001). */
+export const motivoCierre = pgTable(
+  "motivo_cierre",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    nombre: text("nombre").notNull(),
+    /** Posición en la lista y en los desplegables. */
+    orden: integer("orden").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("motivo_cierre_org_nombre_uq").on(t.organizationId, t.nombre)]
+);
+
 export const origenOportunidad = pgTable(
   "origen_oportunidad",
   {

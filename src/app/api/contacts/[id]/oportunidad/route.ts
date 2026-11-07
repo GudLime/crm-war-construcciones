@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { apiError, parseBody, withAuth } from "@/lib/api";
+import { motivoDesconocido, motivoValido } from "@/server/motivos-cierre";
 import {
   VALORES_ESTADO_OPORTUNIDAD,
-  VALORES_MOTIVO,
   VALORES_TIPOLOGIA,
   type EstadoOportunidad,
   type Tipologia,
@@ -51,10 +51,8 @@ const patchSchema = z.object({
   estado: z
     .enum(VALORES_ESTADO_OPORTUNIDAD as [EstadoOportunidad, ...EstadoOportunidad[]])
     .optional(),
-  motivoCierre: z
-    .enum(VALORES_MOTIVO as unknown as [string, ...string[]])
-    .nullable()
-    .optional(),
+  // War — configurables: se valida contra Ajustes → Motivos de cierre.
+  motivoCierre: z.string().trim().min(1).max(80).nullable().optional(),
   edificioIds: z.array(z.string().min(1)).max(50).optional(),
   tipologias: z
     .array(z.enum(VALORES_TIPOLOGIA as [Tipologia, ...Tipologia[]]))
@@ -67,6 +65,10 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
   const body = await parseBody(req, patchSchema);
   if (!body.ok) return body.response;
+  if (!(await motivoValido(session.organizationId, body.data.motivoCierre))) {
+    const e = motivoDesconocido(body.data.motivoCierre!);
+    return apiError(e.status, e.code, e.message);
+  }
   try {
     await actualizarOportunidadDelChat({
       organizationId: session.organizationId,

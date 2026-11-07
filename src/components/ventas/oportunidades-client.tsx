@@ -10,13 +10,13 @@ import { Input } from "@/components/ui/input";
 import { parseMoneyToCents } from "@/lib/money";
 import {
   ESTADOS_OPORTUNIDAD,
-  MOTIVOS_CIERRE,
   TIPOLOGIAS,
   TIPOS_OPORTUNIDAD,
   etiqueta,
 } from "@/lib/ventas";
 import { Chips } from "./oportunidad-panel";
 import { OrigenIcono } from "./origen-icono";
+import { useMotivosCierre } from "./use-motivos-cierre";
 import type { OrigenDto } from "@/lib/origenes";
 import type { DepartamentoDto, EdificioDto, OportunidadDto } from "@/server/ventas";
 import {
@@ -113,6 +113,7 @@ function interes(o: OportunidadDto): string {
 
 export function OportunidadesClient() {
   const moneda = useMoneda();
+  const motivosCierre = useMotivosCierre();
   const avisar = useAvisoGuardado();
   const [filas, setFilas] = useState<OportunidadDto[]>([]);
   const [contactos, setContactos] = useState<Contacto[]>([]);
@@ -412,13 +413,13 @@ export function OportunidadesClient() {
                 onValueChange={(motivoCierre) => setForm({ ...form, motivoCierre })}
               >
                 <option value="">Sin motivo</option>
-                {MOTIVOS_CIERRE.map((o) => (
+                {motivosCierre.map((o) => (
                   <option key={o} value={o}>
                     {o}
                   </option>
                 ))}
                 {form.motivoCierre &&
-                  !(MOTIVOS_CIERRE as readonly string[]).includes(form.motivoCierre) && (
+                  !motivosCierre.includes(form.motivoCierre) && (
                     <option value={form.motivoCierre}>{form.motivoCierre}</option>
                   )}
               </Select>
