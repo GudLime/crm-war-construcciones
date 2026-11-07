@@ -50,23 +50,12 @@ export const TIPOS_OPORTUNIDAD = [
   { value: "inmobiliaria", label: "Inmobiliaria" },
 ] as const;
 
-export const MOTIVOS_CIERRE = [
-  "Compró",
-  "Compró en otro lado",
-  "Compró con una inmobiliaria",
-  "Presupuesto insuficiente",
-  "Busca menos metros",
-  "Busca más metros",
-  "Busca de pozo",
-  "Busca terminado",
-  "No le gusta la zona",
-  "No tenemos disponibilidad",
-  "No tenemos el producto que busca",
-  "No responde",
-  "Solo pidió info",
-  "Pausó la búsqueda",
-  "Depende de la venta",
-] as const;
+/**
+ * War — Los motivos de cierre ahora son configurables (Ajustes → Motivos de
+ * cierre, `src/lib/motivos-cierre.ts`). Esta es solo la lista con la que
+ * arranca cada organización.
+ */
+export { MOTIVOS_POR_DEFECTO as MOTIVOS_CIERRE } from "./motivos-cierre";
 
 /** Lo que una persona del equipo hace a mano. La IA no crea ni cierra estas. */
 export const TIPOS_TAREA = [
@@ -99,7 +88,6 @@ export const VALORES_ESTADO_UNIDAD = valores(ESTADOS_UNIDAD);
 export const VALORES_TIPOLOGIA = valores(TIPOLOGIAS);
 export const VALORES_ESTADO_OPORTUNIDAD = valores(ESTADOS_OPORTUNIDAD);
 export const VALORES_TIPO_OPORTUNIDAD = valores(TIPOS_OPORTUNIDAD);
-export const VALORES_MOTIVO = valores(MOTIVOS_CIERRE);
 export const VALORES_TIPO_TAREA = valores(TIPOS_TAREA);
 export const VALORES_ESTADO_TAREA = valores(ESTADOS_TAREA);
 

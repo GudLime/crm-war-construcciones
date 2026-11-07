@@ -157,6 +157,8 @@ export function settingsSections({
     { href: "/settings/quick-replies", label: "Respuestas rápidas" },
     // War — de dónde llegan las oportunidades (nombre e ícono).
     { href: "/settings/origenes", label: "Orígenes" },
+    // War — por qué se cierra una oportunidad (los desplegables de cierre).
+    { href: "/settings/motivos-cierre", label: "Motivos de cierre" },
     // War — sin respuesta, cierre por silencio y reapertura.
     { href: "/settings/ventas", label: "Ventas" },
     { href: "/settings/team", label: "Equipo" },

@@ -2,6 +2,7 @@ import { asc, count, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db";
 import { completarColumnasDe } from "@/server/motor/sincronizar";
+import { motivoDesconocido, motivoValido } from "@/server/motivos-cierre";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
 import {
@@ -12,7 +13,6 @@ import {
   VALORES_ESTADO_OPORTUNIDAD,
   VALORES_ESTADO_TAREA,
   VALORES_ESTADO_UNIDAD,
-  VALORES_MOTIVO,
   VALORES_TIPO_OPORTUNIDAD,
   VALORES_TIPO_TAREA,
   VALORES_TIPOLOGIA,
@@ -71,7 +71,8 @@ const estadoOportunidad = z.enum(
 const tipoOportunidad = z.enum(
   VALORES_TIPO_OPORTUNIDAD as [TipoOportunidad, ...TipoOportunidad[]]
 );
-const motivo = z.enum(VALORES_MOTIVO as unknown as [string, ...string[]]);
+// War — los motivos son configurables: el nombre se valida contra Ajustes al guardar.
+const motivo = z.string().trim().min(1).max(80);
 const tipoTarea = z.enum(VALORES_TIPO_TAREA as [TipoTarea, ...TipoTarea[]]);
 const estadoTarea = z.enum(VALORES_ESTADO_TAREA as [EstadoTarea, ...EstadoTarea[]]);
 
@@ -684,8 +685,14 @@ async function valoresOportunidad(
   organizationId: string,
   datos: z.infer<typeof oportunidadSchema>,
   /** Al editar: el origen que ya tenía, que vale aunque se haya borrado de Ajustes. */
-  origenActual: string | null = null
+  origenActual: string | null = null,
+  /** Al editar: el motivo que ya tenía, ídem. */
+  motivoActual: string | null = null
 ) {
+  if (!(await motivoValido(organizationId, datos.motivoCierre, motivoActual))) {
+    const e = motivoDesconocido(datos.motivoCierre!);
+    throw new VentasError(e.status, e.code, e.message);
+  }
   const origenNuevo = datos.origen && datos.origen !== origenActual;
   if (origenNuevo && !(await existeOrigen(organizationId, datos.origen!))) {
     throw new VentasError(
@@ -818,7 +825,7 @@ export async function editarOportunidad(
   userId: string | null = null
 ): Promise<OportunidadDto> {
   const [previa] = await getDb()
-    .select({ origen: schema.oportunidad.origen })
+    .select({ origen: schema.oportunidad.origen, motivo: schema.oportunidad.motivoCierre })
     .from(schema.oportunidad)
     .where(scoped(schema.oportunidad.organizationId, organizationId, eq(schema.oportunidad.id, id)))
     .limit(1);
@@ -826,7 +833,8 @@ export async function editarOportunidad(
   const { estado, motivoCierre, ...valores } = await valoresOportunidad(
     organizationId,
     datos,
-    previa.origen
+    previa.origen,
+    previa.motivo
   );
   // El estado (y el motivo de cierre) pasan por el historial.
   await cambiarEstadoOportunidad({

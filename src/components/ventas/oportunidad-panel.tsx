@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 import {
   CAMINO_OPORTUNIDAD,
   ESTADOS_OPORTUNIDAD,
-  MOTIVOS_CIERRE,
   TIPOLOGIAS,
   TIPOS_CONTACTO,
   etiqueta,
@@ -16,6 +15,7 @@ import {
   type Tipologia,
 } from "@/lib/ventas";
 import type { EstadoComercialDto } from "@/server/oportunidades";
+import { useMotivosCierre } from "./use-motivos-cierre";
 import { Select } from "@/components/ui/select";
 
 const CIERRES: EstadoOportunidad[] = ["no_calificado", "perdido"];
@@ -43,6 +43,7 @@ export function OportunidadPanel({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [motivo, setMotivo] = useState("");
+  const motivosCierre = useMotivosCierre();
 
   const cargar = useCallback(async () => {
     const res = await fetch(`/api/contacts/${contactId}/oportunidad`).catch(() => null);
@@ -226,7 +227,7 @@ export function OportunidadPanel({
                   className="mb-2 h-8 w-full text-[12px]"
                 >
                   <option value="">Motivo (opcional)</option>
-                  {MOTIVOS_CIERRE.map((m) => (
+                  {motivosCierre.map((m) => (
                     <option key={m} value={m}>
                       {m}
                     </option>
