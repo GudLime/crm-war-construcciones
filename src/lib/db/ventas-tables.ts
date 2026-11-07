@@ -7,10 +7,13 @@ import {
   numeric,
   pgTable,
   primaryKey,
+  check,
+  date,
   text,
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { contact, organization, user } from "./schema";
 
 /**
@@ -430,3 +433,49 @@ export const ventasAjustes = pgTable("ventas_ajustes", {
   reaperturaDias: integer("reapertura_dias").notNull().default(120),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+/** War — Datos personales del contacto (migración war_0002). Una fila por contacto. */
+export const contactoDatos = pgTable(
+  "contacto_datos",
+  {
+    contactId: text("contact_id")
+      .primaryKey()
+      .references(() => contact.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    dni: text("dni"),
+    cuil: text("cuil"),
+    nacimiento: date("nacimiento", { mode: "string" }),
+    direccion: text("direccion"),
+    genero: text("genero", { enum: ["mujer", "hombre"] }),
+    newsletter: boolean("newsletter").notNull().default(false),
+    googleContactId: text("google_contact_id"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("contacto_datos_org_idx").on(t.organizationId), index("contacto_datos_dni_idx").on(t.organizationId, t.dni)]
+);
+
+/** War — Parientes: un vínculo por par (contact_a < contact_b), se ve desde los dos. */
+export const contactoPariente = pgTable(
+  "contacto_pariente",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    contactA: text("contact_a")
+      .notNull()
+      .references(() => contact.id, { onDelete: "cascade" }),
+    contactB: text("contact_b")
+      .notNull()
+      .references(() => contact.id, { onDelete: "cascade" }),
+    relacion: text("relacion"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.contactA, t.contactB] }),
+    index("contacto_pariente_b_idx").on(t.contactB),
+    check("contacto_pariente_orden", sql`${t.contactA} < ${t.contactB}`),
+  ]
+);

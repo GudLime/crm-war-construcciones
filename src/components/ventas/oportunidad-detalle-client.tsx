@@ -46,6 +46,7 @@ import {
 } from "@/lib/ventas";
 import type { OportunidadDetalleDto } from "@/server/oportunidad-detalle";
 import { useMotivosCierre } from "./use-motivos-cierre";
+import { DatosPersonales } from "@/components/contacts/datos-personales";
 import { ObjetosDeOportunidad } from "@/components/motor/oportunidad-objetos";
 
 /**
@@ -263,6 +264,8 @@ export function OportunidadDetalleClient() {
           {/* Tarjetas */}
           <aside className="space-y-4">
             <TarjetaContacto contacto={contacto} enChat={enChat} />
+            {/* War — DNI, CUIL, nacimiento, dirección y parientes. */}
+            {contacto && <DatosPersonales contactId={contacto.id} className={cn(TARJETA, "mb-0 p-5")} />}
             <ProximosPasos
               tareas={datos.tareasPendientes}
               oportunidadId={op.id}
