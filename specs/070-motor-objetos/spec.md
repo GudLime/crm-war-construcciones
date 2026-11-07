@@ -1,6 +1,6 @@
 # 070 — Motor de objetos personalizados
 
-Estado: pasos 1 a 3 de 8 (metadatos y configuración; lectura y escritura; pantallas) · Repo: GudLime/gudlime-crm-service
+Estado: pasos 1 a 4 de 8 (metadatos y configuración; lectura y escritura; pantallas; CSV) · Repo: GudLime/gudlime-crm-service
 Diseño completo: documento «Diseño técnico: objetos personalizados en Vocero».
 
 ## Qué
@@ -67,10 +67,25 @@ núcleo.
 - Menú: cada objeto entra solo en «Ventas» (`appNavGroups({ objetos })`).
 - La moneda se escribe en unidades y viaja en centavos.
 
+## Paso 4: CSV genérico
+
+- `src/lib/motor/csv.ts` (puro): reconoce columnas por nombre o clave del
+  campo (sin acentos ni mayúsculas), el padre por su nombre; celda vacía = no
+  cambiar; la moneda se escribe en unidades; exporta las mismas columnas.
+- `src/server/motor/importar.ts`: plan por fila (crear, actualizar, igual,
+  error) y aplicación. Empareja por nombre, dentro del padre si corresponde.
+  Nunca crea padres. Cada fila se guarda sola; todo comparte un lote en el
+  historial. Columnas no reconocidas: se avisan, «las tiene que agregar un
+  administrador».
+- API `POST /api/objetos/<objeto>/importar` (`aplicar: false` = vista previa;
+  `padre` fija la relación) y `GET /api/objetos/<objeto>/exportar` (mismos
+  filtros que la lista).
+- Botones Importar y Exportar en la lista y en cada sección de hijos.
+
 ## Próximos pasos
 
-4. CSV genérico ·
+
 5. Relación oportunidad ↔ objetos · 6. Agente · 7. Estadísticas ·
 8. Configuración de WAR (adopta Edificio y Departamento).
 
-Tests: `tests/unit/motor-config.test.ts`, `motor-valores.test.ts`, `motor-registros-db.test.ts` (con Postgres), `motor-pantallas.test.ts`.
+Tests: `tests/unit/motor-config.test.ts`, `motor-valores.test.ts`, `motor-registros-db.test.ts` (con Postgres), `motor-pantallas.test.ts`, `motor-csv.test.ts`.

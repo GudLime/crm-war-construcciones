@@ -60,6 +60,8 @@ const prefixes = {
   /** Registros de los objetos que crea el motor (`obj_<clave>`). */
   registro: "reg",
   motorCambio: "mcb",
+  /** Una importación de CSV: agrupa sus cambios en el historial. */
+  lote: "lot",
 } as const;
 
 export type IdKind = keyof typeof prefixes;

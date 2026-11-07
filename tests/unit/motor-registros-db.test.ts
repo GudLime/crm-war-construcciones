@@ -173,4 +173,43 @@ describe.skipIf(!URL)("motor: registros en Postgres", () => {
     expect(tratamiento.padres.map((p) => p.clave)).toEqual(["sede_tratamientos"]);
     expect((await objetosDelMenu(org)).map((o) => o.clave)).toEqual(["sede", "tratamiento"]);
   });
+
+  it("importa un CSV: vista previa, aplicar, actualizar y errores por fila", async () => {
+    const imp = await import("@/server/motor/importar");
+    await m.crearRegistro(org, "sede", { valores: { nombre: "Vicente López" } }, actor);
+    const csv = [
+      "Sede,Nombre,Precio,Modalidad,Activo,Color",
+      "vicente lopez,Endodoncia,25.000,Presencial,sí,rojo",
+      "Vicente López,Periodoncia,,Virtual,no,",
+      "Sede inventada,Prótesis,10,,,",
+      "Vicente López,Endodoncia,1,,,",
+    ].join("\n");
+
+    const previa = await imp.previsualizarImportacion(org, "tratamiento", csv);
+    expect(previa.aplicado).toBe(false);
+    expect(previa.noReconocidas).toEqual(["Color"]);
+    expect(previa.resumen).toEqual({ crear: 2, actualizar: 0, sin_cambios: 0, error: 2 });
+    expect(previa.filas.find((f) => f.fila === 4)?.mensaje).toMatch(/No existe «Sede inventada»/);
+    expect(previa.filas.find((f) => f.fila === 5)?.mensaje).toMatch(/repetido/);
+    // La vista previa no guarda nada.
+    expect((await m.listarRegistros(org, "tratamiento", { busqueda: "Endodoncia" })).total).toBe(0);
+
+    const hecha = await imp.aplicarImportacion(org, "tratamiento", csv, "usr_prueba");
+    expect(hecha.resumen.crear).toBe(2);
+    const endo = (await m.listarRegistros(org, "tratamiento", { busqueda: "Endodoncia" })).registros[0];
+    expect(endo?.valores).toMatchObject({ precio: 2500000, modalidad: "presencial", activo: true });
+
+    // Segunda vuelta: una fila cambia, otra queda igual, ninguna se duplica.
+    const otra = ["Sede,Nombre,Precio", "Vicente López,Endodoncia,30000", "Vicente López,Periodoncia,"].join("\n");
+    const segunda = await imp.aplicarImportacion(org, "tratamiento", otra, "usr_prueba");
+    expect(segunda.resumen).toEqual({ crear: 0, actualizar: 1, sin_cambios: 1, error: 0 });
+    const historial = await m.historialRegistro(org, "tratamiento", endo!.id);
+    expect(historial[0]).toMatchObject({ campo: "precio", actorTipo: "importacion", loteId: segunda.lote });
+
+    // Exportar devuelve las mismas columnas que lee el importador.
+    const { csv: exportado } = await imp.exportarCsv(org, "tratamiento", { busqueda: "Endodoncia" });
+    expect(exportado.replace("\uFEFF", "").split("\n")[0]).toBe("Sede,Nombre,Duración (min),Precio,Modalidad,Activo");
+    expect(exportado).toContain("Vicente López,Endodoncia,,30000,Presencial,Sí");
+  });
 });
+

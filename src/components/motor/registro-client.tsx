@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Box, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Box, Download, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select } from "@/components/ui/select";
@@ -24,6 +24,7 @@ import {
 import type { CampoDto, ObjetoDto, RegistroDto } from "@/lib/motor/dto";
 import { aEntrada, CampoEditor, desdeRegistro, valorVisible, type Formulario } from "./campos";
 import { usePadres } from "./objeto-lista-client";
+import { ImportarCsv } from "./importar-csv";
 
 /**
  * Motor — la página de un registro de cualquier objeto: sus datos, de quién
@@ -153,6 +154,7 @@ export function RegistroClient({ clave, id }: { clave: string; id: string }) {
   const [noExiste, setNoExiste] = useState(false);
   const [editando, setEditando] = useState(false);
   const [altaHijo, setAltaHijo] = useState<string | null>(null);
+  const [importarHijo, setImportarHijo] = useState<string | null>(null);
   const [borrando, setBorrando] = useState(false);
   const [errorBorrar, setErrorBorrar] = useState<string | null>(null);
   const moneda = useMoneda();
@@ -334,11 +336,40 @@ export function RegistroClient({ clave, id }: { clave: string; id: string }) {
               <h3 className="text-sm font-semibold">
                 {h.nombre} <span className="font-normal text-text-3">({h.total})</span>
               </h3>
-              <Button size="sm" variant="outline" onClick={() => setAltaHijo(altaHijo === h.relacion ? null : h.relacion)}>
-                <Plus className="h-4 w-4" strokeWidth={1.8} />
-                Agregar
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={`/api/objetos/${encodeURIComponent(h.objeto.clave)}/exportar?padre=${encodeURIComponent(`${h.relacion}:${id}`)}`}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border-strong px-3 text-sm hover:border-foreground"
+                >
+                  <Download className="h-4 w-4" strokeWidth={1.8} />
+                  Exportar
+                </a>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setImportarHijo(importarHijo === h.relacion ? null : h.relacion)}
+                >
+                  <Upload className="h-4 w-4" strokeWidth={1.8} />
+                  Importar
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setAltaHijo(altaHijo === h.relacion ? null : h.relacion)}>
+                  <Plus className="h-4 w-4" strokeWidth={1.8} />
+                  Agregar
+                </Button>
+              </div>
             </div>
+            {importarHijo === h.relacion && (
+              <ImportarCsv
+                objeto={h.objeto.clave}
+                nombrePlural={h.nombre}
+                padre={{ relacion: h.relacion, id }}
+                onAplicado={() => {
+                  setImportarHijo(null);
+                  void cargar();
+                }}
+                onCancelar={() => setImportarHijo(null)}
+              />
+            )}
             {altaHijo === h.relacion && (
               <Ficha titulo={`Nuevo: ${h.objeto.nombre.toLowerCase()}`}>
                 <FormRegistro

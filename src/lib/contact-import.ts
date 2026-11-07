@@ -33,6 +33,15 @@ export const PROBLEM_LABELS: Record<ImportProblem["reason"], string> = {
  * exporta con `;`).
  */
 export function parseCsv(text: string): string[][] {
+  return parseCsvConVacias(text).filter((r) => r.some((c) => c.trim() !== ""));
+}
+
+/**
+ * Como `parseCsv`, pero conserva las filas vacías: el índice de cada fila es
+ * su número en la planilla (menos uno), así un error dice «fila 7» y en Sheets
+ * es la fila 7.
+ */
+export function parseCsvConVacias(text: string): string[][] {
   const src = text.replace(/^﻿/, "");
   const firstLine = src.split(/\r?\n/, 1)[0] ?? "";
   const delimiter = [",", ";", "\t"]
@@ -69,7 +78,7 @@ export function parseCsv(text: string): string[][] {
     row.push(field);
     rows.push(row);
   }
-  return rows.filter((r) => r.some((c) => c.trim() !== ""));
+  return rows;
 }
 
 const plain = (s: string) =>
