@@ -11,6 +11,7 @@ import { BrandLogo } from "@/components/brand-mark";
 import { cn } from "@/lib/utils";
 import { BandaSinConexion } from "@/components/banda-sin-conexion";
 import { AtajosGlobales } from "@/components/atajos-globales";
+import type { ObjetoMenuDto } from "@/lib/motor/dto";
 
 /**
  * Cascarón de la app en dos modos:
@@ -32,6 +33,7 @@ export function AppShell({
   commit,
   agenda = false,
   kicker,
+  objetos = [],
   aviso = null,
   children,
 }: {
@@ -45,6 +47,8 @@ export function AppShell({
   agenda?: boolean;
   /** 028 — La etiqueta bajo el logo (`navKicker`). */
   kicker?: string;
+  /** 070 — Los objetos personalizados del cliente, para el menú. */
+  objetos?: ObjetoMenuDto[];
   /**
    * Franja de aviso por encima de TODA la aplicación (#85).
    *
@@ -95,6 +99,7 @@ export function AppShell({
         role={role}
         apariencia={apariencia}
         agenda={agenda}
+        objetos={objetos}
         kicker={kicker}
         open={navOpen}
         onClose={() => setNavOpen(false)}
