@@ -479,3 +479,19 @@ export const contactoPariente = pgTable(
     check("contacto_pariente_orden", sql`${t.contactA} < ${t.contactB}`),
   ]
 );
+
+/** War — Qué se importó de afuera (Notion) y en qué registro quedó (migración war_0003). */
+export const importacionExterna = pgTable(
+  "importacion_externa",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    fuente: text("fuente").notNull(),
+    clave: text("clave").notNull(),
+    tipo: text("tipo").notNull(),
+    crmId: text("crm_id").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.organizationId, t.fuente, t.clave] })]
+);
