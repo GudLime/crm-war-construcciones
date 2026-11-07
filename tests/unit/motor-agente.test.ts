@@ -119,8 +119,11 @@ describe("motor: lo que lee el agente", () => {
 
   it("resume por grupo con rangos y ordena de menor a mayor", () => {
     const t = renderObjetosParaAgente(datos());
-    expect(t).toMatch(/- Ambientes 3: 2; precio de .*150\.000.* a .*180\.000/);
-    expect(t).toMatch(/- Ambientes 2: 1; 1 sin precio/);
+    // Con el padre listado, el resumen va por edificio: un rango no mezcla edificios.
+    expect(t).toMatch(/- Olazábal 2649 · Ambientes 3: 2; precio de .*150\.000.* a .*180\.000/);
+    expect(t).toMatch(/- Olazábal 2649 · Ambientes 2: 1; 1 sin precio/);
+    // Ambientes en orden numérico.
+    expect(t.indexOf("Ambientes 2:")).toBeLessThan(t.indexOf("Ambientes 3:"));
     expect(t.indexOf("Unidad 2A")).toBeLessThan(t.indexOf("Unidad 6B"));
   });
 
@@ -165,5 +168,17 @@ describe("motor: lo que lee el agente", () => {
     expect(errores).toContain("filtra por «estado»");
     expect(errores).toContain("agrupa por «nada»");
     expect(errores).toContain("«nombre» no es numérico");
+  });
+});
+
+describe("motor: resumen por padre", () => {
+  it("dos edificios con unidades de 2 ambientes: un rango por edificio", () => {
+    const d = datos();
+    d.registros.get("edificio")![1]!.valores.en_memoria = true;
+    const t = renderObjetosParaAgente(d);
+    expect(t).toMatch(/- Lavalle 100 · Ambientes 3: 1; precio /);
+    expect(t).toMatch(/- Olazábal 2649 · Ambientes 3: 2; precio de /);
+    // Las líneas también van agrupadas por edificio.
+    expect(t.indexOf("Edificio: Lavalle 100 ·")).toBeLessThan(t.indexOf("Unidad 2A"));
   });
 });
