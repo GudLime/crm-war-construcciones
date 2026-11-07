@@ -10,7 +10,6 @@ import { getBranding } from "@/server/branding";
 import { enabledChannels } from "@/server/channels/enabled";
 import { productName } from "@/lib/channels";
 import "./globals.css";
-import "./war-theme.css"; // War base theme (radii/shadows/neutrals; accent/logo stay white-label)
 
 // Las voces de la marca, dentro del repo (`./fonts`, subconjunto latino de
 // Google Fonts, licencia OFL en `fonts/licencias/`). Antes next/font las

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { apiError, parseBody, withAuth } from "@/lib/api";
 import { VALORES_ESTADO_OPORTUNIDAD, VALORES_MOTIVO, type EstadoOportunidad } from "@/lib/ventas";
 import { cambiarEstadoOportunidad } from "@/server/oportunidad-historial";
-import { avisarConversaciones } from "@/server/oportunidades-war";
+import { avisarConversaciones } from "@/server/oportunidades";
 
 export const dynamic = "force-dynamic";
 

@@ -63,7 +63,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=ref,event=pr
             type=sha
-            # War: cada push a main también publica `main` y la versión de
+            # Cada push a main también publica `main` y la versión de
             # package.json (p. ej. 2.7.0), para no depender de crear tags.
             type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=${{ steps.version.outputs.version }},enable=${{ github.ref == 'refs/heads/main' }}
@@ -82,47 +82,3 @@ jobs:
             SOURCE_COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  # War: cuando la imagen de `main` ya está publicada, le pide a Coolify que
-  # redespliegue el CRM de War (app `vocero-crm` del equipo War, que usa el tag
-  # `:main`). Así un merge a main llega solo a producción.
-  #
-  # Necesita dos secretos del repo (Settings → Secrets and variables → Actions):
-  #   COOLIFY_URL   — URL del panel de Coolify, p. ej. https://coolify.gudlime.com.ar
-  #   DEPLOY_WAR_COOLIFY_API — token del equipo War con permiso `deploy`
-  #                            SOLAMENTE (también acepta COOLIFY_TOKEN)
-  # Sin ellos, el paso avisa y termina en verde: no rompe el workflow.
-  # Volver atrás: en Coolify, poner en la app el tag `sha-<commit anterior>`
-  # y redesplegar.
-  desplegar:
-    name: desplegar en Coolify (War)
-    needs: imagen
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    # Un deploy a la vez: si llegan dos merges seguidos, el segundo espera.
-    concurrency:
-      group: desplegar-war
-      cancel-in-progress: false
-    permissions:
-      contents: read
-    env:
-      COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
-      COOLIFY_TOKEN: ${{ secrets.DEPLOY_WAR_COOLIFY_API || secrets.COOLIFY_TOKEN }}
-      COOLIFY_APP_UUID: znisfv3ruzuwspfsqcgm2vfq
-    steps:
-      - name: Pedir el redeploy
-        run: |
-          if [ -z "$COOLIFY_URL" ] || [ -z "$COOLIFY_TOKEN" ]; then
-            echo "::notice::Faltan los secretos COOLIFY_URL / DEPLOY_WAR_COOLIFY_API: no se despliega solo. Redesplegá a mano en Coolify."
-            exit 0
-          fi
-          url="${COOLIFY_URL%/}/api/v1/deploy?uuid=${COOLIFY_APP_UUID}&force=false"
-          code=$(curl -sS -X POST -o respuesta.json -w '%{http_code}' \
-            -H "Authorization: Bearer ${COOLIFY_TOKEN}" "$url")
-          echo "Coolify respondió HTTP $code"
-          # Solo el id del deploy; nunca se imprime el token.
-          grep -o '"deployment_uuid":"[^"]*"' respuesta.json || cat respuesta.json
-          if [ "$code" -ge 300 ]; then
-            echo "::error::Coolify no aceptó el deploy (HTTP $code). 401 = token inválido (equipo War, permiso deploy); 404 = UUID de la app o URL; 405 = método."
-            exit 1
-          fi

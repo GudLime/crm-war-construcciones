@@ -1,62 +1,64 @@
-# Customizaciones WAR Construcciones
+# GudLime CRM — repo madre
 
-Copia de [kevinrivm/vocero-crm](https://github.com/kevinrivm/vocero-crm) usada
-por la agencia WAR Construcciones para todas las instancias de CRM-as-a-service.
-Basada en el fork de GudLime (`GudLime/vocero-crm`), con la marca cambiada a War.
+Base de los CRM que la agencia GudLime instala para sus clientes. Parte de
+[kevinrivm/vocero-crm](https://github.com/kevinrivm/vocero-crm) (upstream) y le
+suma el núcleo comercial: oportunidades, orígenes, historial, leads, «sin
+respuesta». No tiene nada de ningún cliente.
 
-## Cambios respecto a upstream
+## Repos y flujo
 
-1. **`src/app/war-theme.css`** — override del look (radios chicos, sombras
-   mínimas, neutros slate). No toca `--accent*` ni el logo. El hilo de la
-   Bandeja (`.thread-bg`) es un plano de `--accent-tint` (el lavado que ya
-   inyecta la marca), sin el mosaico de dibujos de `globals.css`.
-2. **`src/app/layout.tsx`** — una línea: `import "./war-theme.css"` después
-   de `globals.css`.
-3. **`src/lib/temas.ts`** — `APARIENCIA_POR_DEFECTO.letra = "inter"`.
-4. **`src/components/app-nav.tsx`** — sidebar de escritorio con **icono + label**
-   (ancho `w-56`, activo = acento sólido), en lugar del riel solo-iconos.
-5. **Ventas de la constructora** — grupo de menú Edificios, Oportunidades y
-   Tareas. Los departamentos cuelgan del edificio (unidad, orientación del
-   edificio, orientación geográfica, metros cubiertos / semidescubiertos /
-   descubiertos, valor). Los metros totales se calculan. Una oportunidad
-   tiene origen, contacto y un interés que es un edificio o un departamento
-   de ese edificio. Las tareas son llamadas, visitas y mensajes que hace una
-   persona; la IA no las crea. Migración `0028_ventas_war`.
+- **GudLime/gudlime-crm-service** (este): núcleo y motor. Publica
+  `ghcr.io/gudlime/gudlime-crm-service` (`:main`, `:<versión>`, `:sha-<commit>`).
+  No despliega en ningún lado.
+- **Un repo por cliente** (por ejemplo `GudLime/crm-war-construcciones`), que
+  trae este como `upstream` y suma solo lo suyo: su configuración y, si hace
+  falta, overrides. Cada cliente tiene su proyecto, servidor y base en Coolify,
+  y su propio workflow de despliegue.
+- **El flujo va solo hacia abajo**: GudLime → clientes. Un repo de cliente nunca
+  se mergea hacia acá. Si algo nacido en un cliente sirve para todos, se trae en
+  forma genérica con un PR propio.
+- **El núcleo no se edita en el repo del cliente.** Overrides, de más limpio a
+  más sucio: (1) una opción en la configuración; (2) un punto de reemplazo que el
+  núcleo deja preparado (carpeta `overrides/` del cliente); (3) editar archivos
+  del núcleo en el cliente: no se usa. Si un override se repite en dos clientes,
+  pasa al núcleo como opción.
+- **Migraciones**: este repo nunca agrega una migración que borre tablas o datos
+  que un cliente pueda tener; llegaría a producción con el merge.
 
-6. **Coexistencia (spec 067)** — `specs/067-coexistencia/`. Pensada para
-   proponer upstream. Toca `src/server/whatsapp/coexistencia/`,
-   `embedded.ts`, `signup-event.ts`, `embedded-signup.tsx`,
-   `webhooks/procesar.ts`, `credentials.ts`, el esquema y la migración
-   `0027_coexistencia`. Si upstream publica su propia coexistencia, preferir
-   la suya y revisar el número de migración antes del merge.
-
-Color y logo: cada cliente los configura en **Configuración → Marca** (DB).
-
-## Actualizar desde upstream
+### Traer mejoras a un cliente
 
 ```bash
-git remote add upstream https://github.com/kevinrivm/vocero-crm.git  # una vez
+# en el repo del cliente, una vez por copia local
+git remote add upstream https://github.com/GudLime/gudlime-crm-service.git
 git fetch upstream
-git checkout main
-git merge upstream/main
-# Conflictos esperables: import en layout.tsx, default de letra en temas.ts,
-# y cambios en app-nav.tsx (sidebar con labels) si upstream tocó el riel.
+git merge upstream/main   # en una rama, por PR
 ```
 
-Después: un push a `main` → GitHub Actions publica la imagen en
-`ghcr.io/gudlime/crm-war-construcciones` (`:main`, `:<versión>` y `:sha-<commit>`)
-→ el job `desplegar` del workflow «Imagen» le pide a Coolify que redespliegue la
-app `vocero-crm` del equipo War, que usa el tag `:main`. No hay que tocar Coolify.
+Cuando acá se saca algo que el cliente sí usa (como pasó al separar WAR), el
+cliente registra ese commit sin aplicarlo: `git merge -s ours <commit>`.
 
-- Secretos del repo que necesita: `COOLIFY_URL` y `DEPLOY_WAR_COOLIFY_API` (token del
-  equipo War con permiso `deploy` solamente). Sin ellos, el job avisa y no despliega.
-- Volver atrás: en Coolify, poner el tag `sha-<commit anterior>` y redesplegar
-  (y volver a `:main` cuando esté arreglado).
-- Como todo lo que entra a `main` sale a producción, los cambios van por PR.
+### Actualizar desde Vocero
+
+```bash
+git remote add vocero https://github.com/kevinrivm/vocero-crm.git  # una vez
+git fetch vocero
+git merge vocero/main   # en una rama, por PR
+```
+
+Diferencias con Vocero: spec 067 (coexistencia), 068 (oportunidades), 069
+(CSV de unidades) y las secciones de abajo. Si Vocero publica su propia
+coexistencia, preferir la suya y revisar el número de migración antes del merge.
+
+## Pendiente
+
+Motor de objetos personalizados (edificio y departamento pasan a ser objetos
+del cliente), interruptor de configuración para las reglas que se suman a las
+instrucciones del agente (`src/lib/instrucciones-oportunidades.ts`). Diseño
+técnico: documento «Diseño técnico: objetos personalizados en Vocero».
 
 ## Oportunidades (spec 068)
 
-En War lo que avanza en el embudo es la **oportunidad**, no el contacto
+Lo que avanza en el embudo es la **oportunidad**, no el contacto
 (detalle en `specs/068-oportunidades-war/spec.md`):
 
 - `contact.tipo_contacto`: lead · comprador · inmobiliaria · proveedor · propio
@@ -67,8 +69,8 @@ En War lo que avanza en el embudo es la **oportunidad**, no el contacto
   suma interés con `edificios_interes` / `tipologias_interes`, y mueve la
   oportunidad abierta hasta «Conoce información» con `POST /api/bot/stage`.
   Las reglas se le agregan solas a las instrucciones del agente
-  (`src/lib/instrucciones-war.ts`).
-- Código: `src/server/oportunidades-war.ts`, panel del chat en
+  (`src/lib/instrucciones-oportunidades.ts`).
+- Código: `src/server/oportunidades.ts`, panel del chat en
   `src/components/ventas/oportunidad-panel.tsx`.
 
 ## Orígenes de los leads (0035, imagen 0037)
@@ -94,6 +96,9 @@ volumen de medios como `origen-<id>` y servida con sesión por
   Google Ads, Facebook, Instagram, Tik Tok); un origen nuevo cuenta como «otro».
 
 ## Memoria del agente (edificios)
+
+> Edificios, departamentos y tipologías siguen fijos en el código hasta que el
+> motor de objetos personalizados los reemplace (ver «Pendiente»).
 
 Cada edificio tiene un interruptor **Memoria del agente** y un campo **Notas
 para el agente** (las unidades también tienen notas). Los edificios prendidos

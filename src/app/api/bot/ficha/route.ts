@@ -4,7 +4,7 @@ import { getDb, schema } from "@/lib/db";
 import { apiError, parseBody } from "@/lib/api";
 import { requireBotKey, resolveInstanceOrg } from "@/server/bot/auth";
 import { upsertFicha } from "@/server/bot/ficha";
-import { aplicarFichaDelCerebro } from "@/server/oportunidades-war";
+import { aplicarFichaDelCerebro } from "@/server/oportunidades";
 
 export const dynamic = "force-dynamic";
 

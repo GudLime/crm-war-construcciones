@@ -48,7 +48,7 @@ import {
 import type { OportunidadDetalleDto } from "@/server/oportunidad-detalle";
 
 /**
- * War — La página de una oportunidad (ver WAR.md → «Página de la oportunidad»).
+ * La página de una oportunidad (ver GUDLIME.md → «Página de la oportunidad»).
  *
  * Encabezado con el avance, y debajo dos columnas: a la izquierda las
  * pestañas (Timeline, Reuniones, Notas, Últimos mensajes) y a la derecha las
