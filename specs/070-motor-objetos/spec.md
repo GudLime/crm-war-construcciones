@@ -149,8 +149,27 @@ núcleo.
 - Cálculo puro en `src/lib/estadisticas-oportunidades.ts`; lectura en
   `src/server/analytics/oportunidades.ts`.
 
+## Paso 8a: tablas adoptadas que crecen (para WAR)
+
+- `crear: true` en un campo de un objeto adoptado: el motor agrega la columna
+  (`ALTER TABLE IF EXISTS … ADD COLUMN IF NOT EXISTS`). Nunca cambia ni borra.
+- `inicial`: valor fijo o copiado de otra columna (patrón y/o equivalencias),
+  una vez por organización (`motor_campo.inicializado_at`) y solo donde está
+  vacía. Si falla, se anota en el log y no se marca.
+- `columnaTitulo`: el nombre armado se guarda en una columna existente
+  (`departamento.unidad`). Se lee lo guardado (sirve para «PB 02» de antes) y
+  se reescribe solo cuando cambia un campo del título; para rearmarlo tienen
+  que estar todos.
+- Migración `0042_motor_war`. `aplicarConfig(config, orgs?)` separa la
+  sincronización de la lectura del archivo.
+- Vista previa «Lo que lee el agente» (`/agent/conocimiento`, solo
+  administrador): el texto exacto de hoy y, simulando objetos prendidos, cómo
+  quedaría. Perfil, Laboratorio y vista previa usan `conocimientoDelAgente`.
+- La memoria de edificios de WAR se apaga sola cuando un objeto que adopta
+  `edificio` está visible para el agente.
+
 ## Próximos pasos
 
 8. Configuración de WAR (adopta Edificio y Departamento).
 
-Tests: `tests/unit/motor-config.test.ts`, `motor-valores.test.ts`, `motor-registros-db.test.ts` (con Postgres), `motor-pantallas.test.ts`, `motor-csv.test.ts`, `motor-agente.test.ts`, `estadisticas-oportunidades.test.ts`.
+Tests: `tests/unit/motor-config.test.ts`, `motor-valores.test.ts`, `motor-registros-db.test.ts` (con Postgres), `motor-pantallas.test.ts`, `motor-csv.test.ts`, `motor-agente.test.ts`, `estadisticas-oportunidades.test.ts`, `motor-adopta.test.ts`.
