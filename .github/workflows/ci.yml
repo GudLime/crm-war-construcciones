@@ -49,6 +49,24 @@ jobs:
       CHANNELS: ${{ matrix.config.channels }}
       AGENDA: ${{ matrix.config.agenda }}
 
+    # Un Postgres de verdad para las pruebas que lo necesitan (el motor de
+    # objetos personalizados arma SQL sobre tablas que crea en el momento:
+    # sin base, no se puede probar en serio). Se descarta al terminar.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vocero
+          POSTGRES_PASSWORD: vocero
+          POSTGRES_DB: vocero_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vocero"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v7
 
@@ -79,8 +97,19 @@ jobs:
         if: ${{ !cancelled() }}
         run: pnpm lint
 
+      # Las mismas migraciones que corre el contenedor al arrancar: si una
+      # falla en Postgres, se ve acá y no en producción.
+      - name: migraciones (Postgres de prueba)
+        if: ${{ !cancelled() }}
+        env:
+          DATABASE_URL: postgres://vocero:vocero@localhost:5432/vocero_test
+          MIGRATIONS_DIR: drizzle
+        run: node scripts/migrate.mjs
+
       - name: test
         if: ${{ !cancelled() }}
+        env:
+          MOTOR_TEST_DATABASE_URL: postgres://vocero:vocero@localhost:5432/vocero_test
         run: pnpm test
 
       # Va al final porque es el más lento, y porque ya atrapó cosas que los

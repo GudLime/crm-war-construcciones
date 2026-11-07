@@ -1,6 +1,6 @@
 # 070 — Motor de objetos personalizados
 
-Estado: paso 1 de 8 (metadatos y configuración) · Repo: GudLime/gudlime-crm-service
+Estado: pasos 1 y 2 de 8 (metadatos y configuración; lectura y escritura) · Repo: GudLime/gudlime-crm-service
 Diseño completo: documento «Diseño técnico: objetos personalizados en Vocero».
 
 ## Qué
@@ -37,10 +37,27 @@ núcleo.
 - `clientes/ejemplo.json` y `clientes/README.md` (formato).
 - Sin `CLIENTE_CONFIG` no cambia nada: gudlime-crm-service y WAR siguen igual.
 
+## Paso 2: lectura y escritura genéricas
+
+- `src/lib/motor/valores.ts` (puro): conversión por tipo (número en formato
+  argentino o internacional, moneda en centavos, sí/no, selección por valor o
+  por nombre), título (campos pegados: «6B», «111»), suma, igualdad.
+- `src/server/motor/metadatos.ts`: metadatos vigentes de la organización y
+  las columnas reales de cada tabla.
+- `src/server/motor/registros.ts`: listar (búsqueda en el título, filtros,
+  hijos de un padre), obtener, crear, actualizar, borrar (`cascada` o
+  `soltar`), contar asociados e historial. Título único por organización o
+  dentro del padre, comparado normalizado. Resúmenes de relaciones con filtro.
+  Toda consulta lleva `organization_id`.
+- Migración `0039_motor_cambios`: `motor_cambio`, historial de solo agregar,
+  con el título del momento.
+- CI: Postgres 16 de prueba con las migraciones aplicadas;
+  `tests/unit/motor-registros-db.test.ts` corre contra él.
+
 ## Próximos pasos
 
-2. Lectura y escritura genéricas · 3. Pantallas genéricas · 4. CSV genérico ·
+3. Pantallas genéricas · 4. CSV genérico ·
 5. Relación oportunidad ↔ objetos · 6. Agente · 7. Estadísticas ·
 8. Configuración de WAR (adopta Edificio y Departamento).
 
-Tests: `tests/unit/motor-config.test.ts`.
+Tests: `tests/unit/motor-config.test.ts`, `motor-valores.test.ts`, `motor-registros-db.test.ts` (con Postgres).
