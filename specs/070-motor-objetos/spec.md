@@ -1,6 +1,6 @@
 # 070 — Motor de objetos personalizados
 
-Estado: pasos 1 a 5 de 8 (metadatos y configuración; lectura y escritura; pantallas; CSV; oportunidad y reglas de etapa) · Repo: GudLime/gudlime-crm-service
+Estado: pasos 1 a 7 de 8 (metadatos y configuración; lectura y escritura; pantallas; CSV; oportunidad y reglas de etapa; agente; estadísticas) · Repo: GudLime/gudlime-crm-service
 Diseño completo: documento «Diseño técnico: objetos personalizados en Vocero».
 
 ## Qué
@@ -128,10 +128,29 @@ núcleo.
 - Los objetos del núcleo (contacto, oportunidad) le llegan al agente por su
   propio camino; estos controles son solo para los objetos personalizados.
 
+## Paso 7: estadísticas de oportunidades
+
+- Sección «Oportunidades» arriba de todo en Resultados (`/api/analytics/oportunidades`),
+  con el mismo selector de período. Cuenta las oportunidades que ENTRARON en el
+  período (cohorte), sin las del Laboratorio.
+- Bloques: embudo (hasta qué etapa del camino llegó cada una, también las
+  perdidas), tiempo en cada etapa (mediana y promedio en días, de
+  `oportunidad_evento.segundos_en_estado_anterior`), motivos de pérdida y
+  orígenes con su conversión.
+- «Ver por» y filtros se arman solos: origen y tipo (núcleo) y, por cada
+  relación muchos a muchos de la oportunidad, el registro vinculado, sus campos
+  de selección y booleanos, los de texto o número con hasta 25 valores, y sus
+  padres (unidad → edificio). Una oportunidad con dos valores suma en los dos
+  grupos y la pantalla lo avisa. Se puede filtrar por «sin valor».
+- Tablero a medida: `estadisticas` en la configuración elige qué bloques y en
+  qué orden, y el «Ver por» de arranque. Gráficos propios por cliente, más
+  adelante.
+- Si el motor falla, las estadísticas del núcleo siguen andando.
+- Cálculo puro en `src/lib/estadisticas-oportunidades.ts`; lectura en
+  `src/server/analytics/oportunidades.ts`.
+
 ## Próximos pasos
 
-
-7. Estadísticas ·
 8. Configuración de WAR (adopta Edificio y Departamento).
 
-Tests: `tests/unit/motor-config.test.ts`, `motor-valores.test.ts`, `motor-registros-db.test.ts` (con Postgres), `motor-pantallas.test.ts`, `motor-csv.test.ts`, `motor-agente.test.ts`.
+Tests: `tests/unit/motor-config.test.ts`, `motor-valores.test.ts`, `motor-registros-db.test.ts` (con Postgres), `motor-pantallas.test.ts`, `motor-csv.test.ts`, `motor-agente.test.ts`, `estadisticas-oportunidades.test.ts`.

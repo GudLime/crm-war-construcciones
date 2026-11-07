@@ -187,6 +187,18 @@ export const configClienteSchema = z.object({
   objetos: z.array(objetoSchema).default([]),
   relaciones: z.array(relacionSchema).default([]),
   reglasEtapa: z.array(reglaEtapaSchema).default([]),
+  /**
+   * Paso 7 — el tablero de estadísticas de oportunidades (Resultados): qué
+   * bloques se ven, en qué orden, y el «Ver por» con el que arranca
+   * (`origen`, `tipo`, `<relación>`, `<relación>.<campo>` o
+   * `<relación>.<relación padre>`).
+   */
+  estadisticas: z
+    .object({
+      bloques: z.array(z.enum(["embudo", "tiempos", "motivos", "origenes"])).min(1).optional(),
+      verPor: z.string().min(1).max(130).optional(),
+    })
+    .optional(),
 });
 
 export type ConfigCliente = z.infer<typeof configClienteSchema>;
@@ -401,6 +413,22 @@ export function validarConfig(datos: unknown): ResultadoConfig {
       }
       for (const f of Object.keys(filtro ?? {})) {
         if (!camposHijo.has(f)) errores.push(`objeto «${o.clave}»: «${c.clave}» filtra por «${f}», que no existe en «${hijo.clave}»`);
+      }
+    }
+  }
+
+  const verPor = config.estadisticas?.verPor;
+  if (verPor && !["origen", "tipo"].includes(verPor)) {
+    const [rel, sub] = verPor.split(".");
+    const r = config.relaciones.find((x) => x.clave === rel);
+    if (!r || r.tipo !== "muchos_a_muchos" || r.desde !== "oportunidad") {
+      errores.push(`estadisticas.verPor «${verPor}»: «${rel}» no es una relación muchos a muchos desde la oportunidad`);
+    } else if (sub) {
+      const destino = objetos.get(r.hacia);
+      const esCampo = destino?.campos.some((c) => c.clave === sub);
+      const esPadre = config.relaciones.some((x) => x.clave === sub && x.tipo === "uno_a_muchos" && x.hacia === r.hacia);
+      if (!esCampo && !esPadre) {
+        errores.push(`estadisticas.verPor «${verPor}»: «${sub}» no es un campo ni un padre de «${r.hacia}»`);
       }
     }
   }
