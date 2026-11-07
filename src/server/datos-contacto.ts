@@ -101,21 +101,34 @@ async function parientesDe(organizationId: string, contactId: string): Promise<P
  * Guarda los datos (solo las claves que vienen). `soloVacios`: la importación
  * de Notion completa lo que falta sin pisar lo que alguien ya cargó.
  */
+/** Lo que se puede guardar; ausente = no se toca, `null` o vacío = se borra. */
+export type DatosAGuardar = {
+  dni?: string | null;
+  cuil?: string | null;
+  nacimiento?: string | null;
+  direccion?: string | null;
+  genero?: "mujer" | "hombre" | null;
+  newsletter?: boolean;
+  googleContactId?: string | null;
+};
+
+const vacioANull = (v: string | null | undefined) => (v === undefined ? undefined : v?.trim() || null);
+
 export async function guardarDatosContacto(
   organizationId: string,
   contactId: string,
-  datos: z.infer<typeof datosSchema>,
+  datos: DatosAGuardar,
   opciones: { soloVacios?: boolean } = {}
 ): Promise<void> {
   await exigirContacto(organizationId, contactId);
   const limpio = {
     ...(datos.dni !== undefined ? { dni: soloDigitos(datos.dni) } : {}),
     ...(datos.cuil !== undefined ? { cuil: soloDigitos(datos.cuil) } : {}),
-    ...(datos.nacimiento !== undefined ? { nacimiento: datos.nacimiento } : {}),
-    ...(datos.direccion !== undefined ? { direccion: datos.direccion } : {}),
+    ...(datos.nacimiento !== undefined ? { nacimiento: vacioANull(datos.nacimiento) } : {}),
+    ...(datos.direccion !== undefined ? { direccion: vacioANull(datos.direccion) } : {}),
     ...(datos.genero !== undefined ? { genero: datos.genero } : {}),
     ...(datos.newsletter !== undefined ? { newsletter: datos.newsletter } : {}),
-    ...(datos.googleContactId !== undefined ? { googleContactId: datos.googleContactId } : {}),
+    ...(datos.googleContactId !== undefined ? { googleContactId: vacioANull(datos.googleContactId) } : {}),
   };
   const db = getDb();
   const t = schema.contactoDatos;
