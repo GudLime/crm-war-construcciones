@@ -66,6 +66,10 @@ export const envSchema = z.object({
   // formularios y portales a POST /api/integraciones/leads. Sin ella (o con
   // menos de 16 caracteres), esa entrada responde 401.
   LEADS_API_KEY: z.string().optional(),
+  // Motor de objetos personalizados: archivo de configuración del cliente,
+  // relativo a la raíz de la app. Ej.: clientes/war.json. Sin ella, el motor
+  // no hace nada (no hay objetos personalizados).
+  CLIENTE_CONFIG: z.string().optional(),
   // «Quién responde a tus clientes»: el /health del cerebro externo (Nea),
   // consultado desde el servidor. Ej.: http://nea:8000/health (alias de la
   // red de Coolify). Sin ella, la tarjeta del Agente no pregunta a nadie.

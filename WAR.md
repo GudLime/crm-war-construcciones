@@ -70,6 +70,13 @@ app `vocero-crm` del equipo War, que usa el tag `:main`. No hay que tocar Coolif
   (y volver a `:main` cuando esté arreglado).
 - Como todo lo que entra a `main` sale a producción, los cambios van por PR.
 
+## Motor de objetos personalizados (spec 070, desde GudLime)
+
+El motor viene del núcleo (paso 1 de 8: metadatos y archivo de
+configuración). WAR todavía no lo usa: sin `CLIENTE_CONFIG` no hace nada.
+En el paso 8 se suma `clientes/war.json`, que adopta las tablas `edificio` y
+`departamento` sin mover datos. Formato: [clientes/README.md](clientes/README.md).
+
 ## Oportunidades (spec 068)
 
 En War lo que avanza en el embudo es la **oportunidad**, no el contacto
