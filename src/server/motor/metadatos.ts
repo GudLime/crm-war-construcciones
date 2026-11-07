@@ -2,6 +2,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import type { TipoCampo } from "@/lib/motor/config";
+import type { AgenteObjeto } from "@/lib/db/motor-tables";
 import type { CalculoMeta, CampoMeta } from "@/lib/motor/valores";
 
 /**
@@ -23,6 +24,7 @@ export type ObjetoMeta = {
   titulo: string[];
   tituloUnicoDentroDe: string | null;
   visibleAgente: boolean;
+  agente: AgenteObjeto | null;
   campos: CampoMeta[];
   /** Columnas reales de la tabla. */
   columnas: Set<string>;
@@ -113,6 +115,7 @@ export async function cargarMotor(organizationId: string): Promise<Motor> {
       titulo: o.titulo,
       tituloUnicoDentroDe: o.tituloUnicoDentroDe,
       visibleAgente: o.visibleAgente,
+      agente: o.agente ?? null,
       columnas: columnas.get(o.tabla) ?? new Set(),
       campos: campos
         .filter((c) => c.objetoId === o.id)

@@ -288,6 +288,13 @@
       "when": 1793800800000,
       "tag": "0040_motor_oportunidad",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793811600000,
+      "tag": "0041_motor_agente",
+      "breakpoints": true
     }
   ]
 }

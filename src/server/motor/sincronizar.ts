@@ -110,6 +110,7 @@ async function registrarEnOrganizacion(organizationId: string, config: ConfigCli
           titulo: o.titulo,
           tituloUnicoDentroDe: o.tituloUnicoDentroDe ?? null,
           visibleAgente: o.visibleAgente,
+          agente: o.agente ?? null,
           orden,
           archivado: false,
         })
@@ -124,6 +125,7 @@ async function registrarEnOrganizacion(organizationId: string, config: ConfigCli
             adoptada: Boolean(o.adopta),
             titulo: o.titulo,
             tituloUnicoDentroDe: o.tituloUnicoDentroDe ?? null,
+            agente: o.agente ?? null,
             orden,
             archivado: false,
             updatedAt: ahora,

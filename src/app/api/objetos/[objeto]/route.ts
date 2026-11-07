@@ -1,4 +1,5 @@
 import { parseBody, withAuth } from "@/lib/api";
+import { canConfigure } from "@/lib/auth/roles";
 import { aDto, describirObjeto, entradaSchema, padreDeParametro, respuestaDeError } from "@/server/motor/api";
 import { cargarMotor } from "@/server/motor/metadatos";
 import { crearRegistro, listarRegistros, MotorError } from "@/server/motor/registros";
@@ -35,7 +36,13 @@ export const GET = withAuth(async (session, req: Request, ctx: Params) => {
       limite: Number(url.searchParams.get("limite")) || undefined,
       desde: Number(url.searchParams.get("desde")) || undefined,
     });
-    return Response.json({ objeto: describirObjeto(motor, objeto), registros: registros.map(aDto), total });
+    return Response.json({
+      objeto: describirObjeto(motor, objeto),
+      registros: registros.map(aDto),
+      total,
+      // Paso 6: quien administra ve los controles de qué lee el agente.
+      puedeConfigurar: canConfigure(session.role),
+    });
   } catch (err) {
     return respuestaDeError(err);
   }

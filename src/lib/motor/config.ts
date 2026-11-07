@@ -113,6 +113,23 @@ const objetoSchema = z.object({
   tituloUnicoDentroDe: clave.optional(),
   /** Si el agente puede leer este objeto. Lo puede cambiar el administrador. */
   visibleAgente: z.boolean().default(false),
+  /**
+   * Cómo se le presenta el objeto al agente (opcional):
+   * - `filtro`: solo se listan los registros cuyo campo vale alguno de estos
+   *   valores (las unidades disponibles); los demás solo se cuentan.
+   * - `agruparPor`: un campo para agrupar (ambientes) y calcularle `rangos`
+   *   (mínimo y máximo de campos numéricos): el agente copia el rango en vez
+   *   de hacer la cuenta.
+   * - `indicacion`: una línea para el agente sobre este objeto.
+   */
+  agente: z
+    .object({
+      filtro: z.record(clave, z.array(z.string()).min(1)).optional(),
+      agruparPor: clave.optional(),
+      rangos: z.array(clave).optional(),
+      indicacion: z.string().max(400).optional(),
+    })
+    .optional(),
   campos: z.array(campoSchema).min(1),
 });
 
@@ -281,6 +298,22 @@ export function validarConfig(datos: unknown): ResultadoConfig {
       const c = campos.get(t);
       if (!c) errores.push(`objeto «${o.clave}»: el título nombra el campo «${t}», que no existe`);
       else if (!tieneColumna(c.tipo)) errores.push(`objeto «${o.clave}»: el título no puede usar el campo calculado «${t}»`);
+    }
+
+    if (o.agente) {
+      for (const f of Object.keys(o.agente.filtro ?? {})) {
+        if (!campos.has(f)) errores.push(`objeto «${o.clave}»: el agente filtra por «${f}», que no existe`);
+      }
+      if (o.agente.agruparPor && !campos.has(o.agente.agruparPor)) {
+        errores.push(`objeto «${o.clave}»: el agente agrupa por «${o.agente.agruparPor}», que no existe`);
+      }
+      for (const r of o.agente.rangos ?? []) {
+        const c = campos.get(r);
+        if (!c) errores.push(`objeto «${o.clave}»: el rango «${r}» no es un campo`);
+        else if (!["numero", "moneda", "calculado"].includes(c.tipo)) {
+          errores.push(`objeto «${o.clave}»: el rango «${r}» no es numérico`);
+        }
+      }
     }
 
     for (const c of o.campos) {

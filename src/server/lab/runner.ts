@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gt } from "drizzle-orm";
 import { conMemoria } from "@/lib/memoria-agente";
 import { memoriaDeEdificios } from "@/server/ventas";
+import { textoDeObjetosParaAgente } from "@/server/motor/agente";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
@@ -130,7 +131,10 @@ async function runAllCases(
     .where(eq(schema.kbEntry.organizationId, organizationId));
   // War — El juez ve lo mismo que el agente: el conocimiento más la memoria
   // de edificios, así no marca como inventado lo que salió del CRM.
-  const kbText = conMemoria(renderKb(kbEntries), await memoriaDeEdificios(organizationId));
+  const kbText = conMemoria(
+    conMemoria(renderKb(kbEntries), await memoriaDeEdificios(organizationId)),
+    await textoDeObjetosParaAgente(organizationId)
+  );
 
   const profileRows = await db
     .select()
