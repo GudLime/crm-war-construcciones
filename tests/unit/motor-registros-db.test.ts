@@ -450,6 +450,21 @@ describe.skipIf(!URL)("motor: registros en Postgres", () => {
       expect((await filas())[0]?.tipologia_unidad).toBeNull();
       await d.execute(sql`UPDATE prueba_depto SET tipologia_unidad = 'B' WHERE id = 'pd1'`);
 
+      // Una pantalla vieja crea una fila sin las columnas nuevas: se completan solas.
+      await d.execute(sql`INSERT INTO prueba_depto (id, organization_id, edificio_id, unidad, piso, tipologia) VALUES ('pd4', ${org4}, 'pe1', '9D', 9, '1_ambiente')`);
+      // Con la configuración del archivo (no adopta prueba_depto) no hace nada y no lanza.
+      await sincronizar.completarColumnasDe(org4, "prueba_depto", ["pd4"]);
+      expect((await filas())[3]?.tipologia_unidad).toBeNull();
+      await sincronizar.completarColumnasDe(org4, "prueba_depto", ["pd4"], r.config);
+      expect((await filas())[3]).toMatchObject({ tipologia_unidad: "D", tipo: "departamento" });
+      expect(Number((await filas())[3]?.ambientes)).toBe(1);
+      // Solo las filas pedidas: la que se vació antes a propósito sigue vacía.
+      await d.execute(sql`UPDATE prueba_depto SET tipologia_unidad = NULL WHERE id = 'pd1'`);
+      await sincronizar.completarColumnasDe(org4, "prueba_depto", ["pd4"], r.config);
+      expect((await filas())[0]?.tipologia_unidad).toBeNull();
+      await d.execute(sql`UPDATE prueba_depto SET tipologia_unidad = 'B' WHERE id = 'pd1'`);
+      await d.execute(sql`DELETE FROM prueba_depto WHERE id = 'pd4'`);
+
       // El nombre es lo guardado, también lo de antes del motor.
       const lista = await m.listarRegistros(org4, "depto", {});
       expect(lista.registros.map((x) => x.titulo).sort()).toEqual(["12A", "6B", "PB 02"]);

@@ -1,6 +1,7 @@
 import { asc, count, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db";
+import { completarColumnasDe } from "@/server/motor/sincronizar";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
 import {
@@ -462,6 +463,8 @@ export async function crearDepartamento(
         ...valoresDepartamento(datos),
       })
       .returning();
+    // Paso 8 — las columnas que agregó el motor (tipo, ambientes, tipología) no quedan vacías.
+    await completarColumnasDe(organizationId, "departamento", [fila!.id]);
     return aDepartamento(fila!);
   } catch (err) {
     if (esDuplicado(err)) {
@@ -485,6 +488,7 @@ export async function editarDepartamento(
       )
       .returning();
     if (!fila) throw new VentasError(404, "not_found", "Ese departamento no existe");
+    await completarColumnasDe(organizationId, "departamento", [fila.id]);
     return aDepartamento(fila);
   } catch (err) {
     if (err instanceof VentasError) throw err;
@@ -1074,11 +1078,16 @@ export async function importarUnidadesCsv(input: {
   const moneda = lectura.monedaDetectada ?? input.monedaNegocio;
   if (!input.aplicar) return { ...comparacion, moneda };
 
+  const tocadas: string[] = comparacion.modificadas.map((m) => m.id);
   await getDb().transaction(async (tx) => {
     if (comparacion.nuevas.length) {
       await tx.insert(schema.departamento).values(
         comparacion.nuevas.map((n) => ({
-          id: newId("departamento"),
+          id: (() => {
+            const nuevo = newId("departamento");
+            tocadas.push(nuevo);
+            return nuevo;
+          })(),
           organizationId,
           edificioId,
           unidad: n.unidad,
@@ -1100,6 +1109,7 @@ export async function importarUnidadesCsv(input: {
         );
     }
   });
+  await completarColumnasDe(organizationId, "departamento", tocadas);
   return {
     ...comparacion,
     moneda,

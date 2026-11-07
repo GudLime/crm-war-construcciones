@@ -43,6 +43,8 @@ export const motorObjeto = pgTable(
     tituloUnicoDentroDe: text("titulo_unico_dentro_de"),
     /** Columna donde se guarda el nombre armado (0042), como `departamento.unidad`. */
     columnaTitulo: text("columna_titulo"),
+    /** Si aparece en el menú (0043). */
+    enMenu: boolean("en_menu").notNull().default(true),
     visibleAgente: boolean("visible_agente").notNull().default(false),
     /** Cómo se le presenta al agente (0041): filtro, agrupación, rangos, indicación. */
     agente: jsonb("agente").$type<AgenteObjeto>(),

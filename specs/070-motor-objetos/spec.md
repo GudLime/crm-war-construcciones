@@ -167,6 +167,13 @@ núcleo.
   quedaría. Perfil, Laboratorio y vista previa usan `conocimientoDelAgente`.
 - La memoria de edificios de WAR se apaga sola cuando un objeto que adopta
   `edificio` está visible para el agente.
+- `enMenu: false` (migración `0043_motor_menu`): el objeto no aparece en el
+  menú, pero sus pantallas andan por enlace (un hijo que se ve dentro del
+  padre, o mientras un cliente usa una página propia).
+- Mientras conviven pantallas viejas y el motor, lo que crean o editan las
+  viejas se completa con la misma regla de `inicial`
+  (`completarColumnasDe`): en WAR, crear o importar unidades desde la página
+  de Edificios llena tipo, ambientes y tipología.
 
 ## Próximos pasos
 

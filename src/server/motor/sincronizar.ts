@@ -13,6 +13,7 @@ import {
   tablaDeRelacion,
   tieneColumna,
   validarConfig,
+  type CampoConfig,
   type ConfigCliente,
   type TipoCampo,
 } from "@/lib/motor/config";
@@ -111,6 +112,7 @@ async function registrarEnOrganizacion(organizationId: string, config: ConfigCli
           titulo: o.titulo,
           tituloUnicoDentroDe: o.tituloUnicoDentroDe ?? null,
           columnaTitulo: o.columnaTitulo ?? null,
+          enMenu: o.enMenu,
           visibleAgente: o.visibleAgente,
           agente: o.agente ?? null,
           orden,
@@ -128,6 +130,7 @@ async function registrarEnOrganizacion(organizationId: string, config: ConfigCli
             titulo: o.titulo,
             tituloUnicoDentroDe: o.tituloUnicoDentroDe ?? null,
           columnaTitulo: o.columnaTitulo ?? null,
+          enMenu: o.enMenu,
             agente: o.agente ?? null,
             orden,
             archivado: false,
@@ -361,34 +364,84 @@ async function completarIniciales(organizationId: string, config: ConfigCliente)
             limit 1`
       )) as unknown as { id: string; inicializado_at: Date | null }[];
       if (!campo || campo.inicializado_at) continue;
-      const col = columnaDeCampo(c);
-      const tipo = sql.raw(TIPO_SQL[c.tipo as Exclude<TipoCampo, "calculado">]);
-      let origen: SQL;
-      if ("valor" in c.inicial) {
-        origen = sql`${String(c.inicial.valor)}`;
-      } else {
-        let expr: SQL = sql`CAST(${sql.identifier(c.inicial.copiarDe)} AS text)`;
-        if (c.inicial.patron) expr = sql`substring(${expr} from ${c.inicial.patron})`;
-        const mapa = Object.entries(c.inicial.mapa ?? {});
-        if (mapa.length) {
-          expr = sql`CASE ${expr} ${sql.join(
-            mapa.map(([k, v]) => sql`WHEN ${k} THEN ${String(v)}`),
-            sql` `
-          )} END`;
-        }
-        origen = sql`NULLIF(trim(${expr}), '')`;
-      }
       try {
-        const r = (await db.execute(
-          sql`UPDATE ${sql.identifier(tabla)} SET ${sql.identifier(col)} = CAST(${origen} AS ${tipo})
-              WHERE organization_id = ${organizationId} AND ${sql.identifier(col)} IS NULL`
-        )) as unknown as { count?: number };
+        const r = (await db.execute(sentenciaInicial(tabla, c, organizationId))) as unknown as { count?: number };
         await db.execute(sql`update motor_campo set inicializado_at = now() where id = ${campo.id}`);
         console.log(`[motor] «${o.clave}.${c.clave}» completado${typeof r.count === "number" ? ` en ${r.count} fila(s)` : ""}`);
       } catch (err) {
         console.error(`[motor] no se pudo completar «${o.clave}.${c.clave}»:`, err);
       }
     }
+  }
+}
+
+/** El UPDATE que completa la columna de un campo con `inicial`, solo donde está vacía. */
+function sentenciaInicial(tabla: string, c: CampoConfig, organizationId: string, ids?: string[]): SQL {
+  const inicial = c.inicial!;
+  const col = columnaDeCampo(c);
+  const tipo = sql.raw(TIPO_SQL[c.tipo as Exclude<TipoCampo, "calculado">]);
+  let origen: SQL;
+  if ("valor" in inicial) {
+    origen = sql`${String(inicial.valor)}`;
+  } else {
+    let expr: SQL = sql`CAST(${sql.identifier(inicial.copiarDe)} AS text)`;
+    if (inicial.patron) expr = sql`substring(${expr} from ${inicial.patron})`;
+    const mapa = Object.entries(inicial.mapa ?? {});
+    if (mapa.length) {
+      expr = sql`CASE ${expr} ${sql.join(
+        mapa.map(([k, v]) => sql`WHEN ${k} THEN ${String(v)}`),
+        sql` `
+      )} END`;
+    }
+    origen = sql`NULLIF(trim(${expr}), '')`;
+  }
+  const soloIds = ids
+    ? sql` AND id IN (${sql.join(
+        ids.map((x) => sql`${x}`),
+        sql`, `
+      )})`
+    : sql``;
+  return sql`UPDATE ${sql.identifier(tabla)} SET ${sql.identifier(col)} = CAST(${origen} AS ${tipo})
+             WHERE organization_id = ${organizationId} AND ${sql.identifier(col)} IS NULL${soloIds}`;
+}
+
+/**
+ * Paso 8 — una pantalla vieja (fuera del motor) creó o editó filas de una tabla
+ * adoptada: se les completan las columnas nuevas vacías con la misma regla de
+ * `inicial`, así no quedan huecos mientras conviven las dos pantallas. Solo
+ * para campos ya completados una vez. Nunca lanza.
+ */
+export async function completarColumnasDe(
+  organizationId: string,
+  tabla: string,
+  ids: string[],
+  /** Para los tests; por defecto, la del archivo del cliente. */
+  configDada?: ConfigCliente
+): Promise<void> {
+  if (!ids.length) return;
+  try {
+    let config = configDada;
+    if (!config) {
+      const leida = await leerConfigCliente();
+      if (leida.estado !== "ok") return;
+      config = leida.config;
+    }
+    const db = getDb();
+    for (const o of config.objetos) {
+      if (o.adopta !== tabla) continue;
+      for (const c of o.campos) {
+        if (!c.inicial || !c.crear || !tieneColumna(c.tipo)) continue;
+        const [hecho] = (await db.execute(
+          sql`select 1 as ok from motor_campo mc join motor_objeto mo on mo.id = mc.objeto_id
+              where mc.organization_id = ${organizationId} and mo.clave = ${o.clave} and mc.clave = ${c.clave}
+                and mc.inicializado_at is not null limit 1`
+        )) as unknown as { ok: number }[];
+        if (!hecho) continue;
+        await db.execute(sentenciaInicial(tabla, c, organizationId, ids));
+      }
+    }
+  } catch (err) {
+    console.error(`[motor] no se pudieron completar las columnas nuevas de «${tabla}»:`, err);
   }
 }
 

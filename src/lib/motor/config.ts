@@ -151,6 +151,12 @@ const objetoSchema = z.object({
    * cambia un campo del título; mientras tanto, el nombre es lo guardado.
    */
   columnaTitulo: clave.optional(),
+  /**
+   * Paso 8 — Si aparece en el menú (por defecto, sí). Apagado, sus pantallas
+   * siguen andando por enlace: sirve para un hijo que se ve dentro del padre,
+   * o mientras un cliente sigue usando una página propia.
+   */
+  enMenu: z.boolean().default(true),
   /** Si el agente puede leer este objeto. Lo puede cambiar el administrador. */
   visibleAgente: z.boolean().default(false),
   /**
