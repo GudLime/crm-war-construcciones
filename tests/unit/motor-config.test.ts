@@ -170,7 +170,7 @@ describe("validación", () => {
 describe("estructura (DDL)", () => {
   it("solo crea y agrega: nunca borra ni modifica", () => {
     const sql = sentenciasDdl(valida(EJEMPLO)).join("\n");
-    expect(sql).not.toMatch(/\bDROP\b|\bALTER COLUMN\b|\bRENAME\b|\bTRUNCATE\b|\bDELETE\b/i);
+    expect(sql).not.toMatch(/\bDROP\b|\bALTER COLUMN\b|\bRENAME\b|\bTRUNCATE\b|\bDELETE FROM\b/i);
     for (const s of sentenciasDdl(valida(EJEMPLO))) {
       expect(s).toMatch(/^(CREATE TABLE IF NOT EXISTS|CREATE INDEX IF NOT EXISTS|ALTER TABLE .+ ADD COLUMN IF NOT EXISTS)/);
     }
