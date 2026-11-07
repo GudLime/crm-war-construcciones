@@ -10,7 +10,7 @@ import { normalizarTelefono } from "@/lib/telefono";
 import { ESTADOS_ABIERTOS, resolverEdificiosPorNombre, type EstadoOportunidad } from "@/lib/ventas";
 import { findWhatsappContact } from "@/server/inbox/identity";
 import { createLeadForContact } from "@/server/inbox/lead-activity";
-import { avisarConversaciones, sumarInteres } from "@/server/oportunidades-war";
+import { avisarConversaciones, sumarInteres } from "@/server/oportunidades";
 import { registrarCreada, registrarEvento } from "@/server/oportunidad-historial";
 
 /**

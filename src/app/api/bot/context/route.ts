@@ -8,7 +8,7 @@ import { isWindowOpen, windowRemainingMs } from "@/server/inbox/window";
 import { windowMsFor } from "@/server/channels/capabilities";
 import { citasParaContexto } from "@/server/agenda/context";
 import { anuncioDelContacto } from "@/server/attribution/store";
-import { leadParaElCerebro } from "@/server/oportunidades-war";
+import { leadParaElCerebro } from "@/server/oportunidades";
 
 export const dynamic = "force-dynamic";
 

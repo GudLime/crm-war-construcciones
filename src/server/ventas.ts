@@ -23,7 +23,7 @@ import {
   type TipoOportunidad,
   type TipoTarea,
 } from "@/lib/ventas";
-import { reemplazarInteres } from "@/server/oportunidades-war";
+import { reemplazarInteres } from "@/server/oportunidades";
 import {
   cambiarEstadoOportunidad,
   leerAjustesVentas,
