@@ -10,6 +10,8 @@ import type {
 import { AdsSection } from "./ads-section";
 import { BotSection } from "./bot-section";
 import { HygieneSection } from "./hygiene-section";
+import { OportunidadesSection, type Consulta } from "./oportunidades-section";
+import type { EstadisticasOportunidadesDto } from "@/lib/estadisticas-oportunidades";
 import { defaultRange, RangePicker, type Range } from "./range-picker";
 import { SalesSection } from "./sales-section";
 
@@ -77,6 +79,9 @@ export function ResultsClient({
   const [ads, setAds] = useState<Block<AdsBlockDto>>(inicial);
   const [bot, setBot] = useState<Block<BotBlockDto>>(inicial);
   const [hygiene, setHygiene] = useState<Block<HygieneBlockDto>>(inicial);
+  const [ops, setOps] = useState<Block<EstadisticasOportunidadesDto>>(inicial);
+  // `verPor` undefined = todavía no eligió: arranca con el de la configuración del cliente.
+  const [consulta, setConsulta] = useState<Consulta>({ verPor: undefined, filtros: {} });
 
   useEffect(() => {
     const ctl = new AbortController();
@@ -86,6 +91,16 @@ export function ResultsClient({
     void cargar(`/api/analytics/bot?${q}`, setBot, ctl.signal);
     return () => ctl.abort();
   }, [range]);
+
+  // Paso 7 — Oportunidades: depende del rango y de «Ver por» / filtros.
+  useEffect(() => {
+    const ctl = new AbortController();
+    const p = new URLSearchParams({ from: range.from, to: range.to });
+    if (consulta.verPor !== undefined) p.set("verPor", consulta.verPor ?? "");
+    for (const [k, v] of Object.entries(consulta.filtros)) if (v.length) p.set(`f.${k}`, v.join(","));
+    void cargar(`/api/analytics/oportunidades?${p.toString()}`, setOps, ctl.signal);
+    return () => ctl.abort();
+  }, [range, consulta]);
 
   // La higiene describe el AHORA: no depende del rango elegido.
   useEffect(() => {
@@ -100,13 +115,14 @@ export function ResultsClient({
         <div className="min-w-0">
           <h2 className="text-[17px] font-bold tracking-tight">Resultados</h2>
           <p className="text-xs text-text-3">
-            Ventas, el trabajo del agente, de dónde llegan y qué se está cayendo.
+            Oportunidades, ventas, el trabajo del agente, de dónde llegan y qué se está cayendo.
           </p>
         </div>
         <RangePicker value={range} onChange={setRange} today={today} timezone={timezone} />
       </header>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3 sm:p-6">
+        <OportunidadesSection {...ops} consulta={consulta} onConsulta={setConsulta} />
         <SalesSection {...sales} currency={currency} />
         <AdsSection {...ads} />
         <BotSection {...bot} agenda={agenda} />
