@@ -6,6 +6,7 @@ import { iniciarWorker, tanda } from "@/server/dispatch/worker";
 import { cifrarSecretosEnClaro } from "@/server/zernio/secreto-guardado";
 import { barrido, iniciarBarrido } from "@/server/webhooks/worker";
 import { iniciarBarridoSilencios } from "@/server/oportunidad-historial";
+import { sincronizarMotorAlArrancar } from "@/server/motor/sincronizar";
 
 /**
  * 008 — Aviso al arranque si MEDIA_DIR no es escribible. Sin esto, el primer
@@ -131,4 +132,13 @@ export function resumeWebhooks(): void {
  */
 export function resumeVentas(): void {
   iniciarBarridoSilencios();
+}
+
+/**
+ * Motor de objetos personalizados: aplica `CLIENTE_CONFIG` (los objetos,
+ * campos y relaciones del cliente). Sin la variable no hace nada; con errores
+ * avisa y sigue: nunca tumba el arranque.
+ */
+export async function syncMotor(): Promise<void> {
+  await sincronizarMotorAlArrancar();
 }

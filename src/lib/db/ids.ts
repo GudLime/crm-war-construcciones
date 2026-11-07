@@ -53,6 +53,12 @@ const prefixes = {
   instruccionVersion: "inv",
   // War 0035 — orígenes de las oportunidades
   origenOportunidad: "ori",
+  // Motor de objetos personalizados (0038)
+  motorObjeto: "mob",
+  motorCampo: "mca",
+  motorRelacion: "mre",
+  /** Registros de los objetos que crea el motor (`obj_<clave>`). */
+  registro: "reg",
 } as const;
 
 export type IdKind = keyof typeof prefixes;

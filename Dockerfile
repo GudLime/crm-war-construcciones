@@ -54,6 +54,8 @@ COPY --from=builder --chown=vocero:vocero /app/public ./public
 COPY --from=builder --chown=vocero:vocero /app/migrate.bundle.mjs ./migrate.mjs
 COPY --from=builder --chown=vocero:vocero /app/seed-demo.bundle.mjs ./seed-demo.mjs
 COPY --from=builder --chown=vocero:vocero /app/drizzle ./drizzle
+# Motor de objetos personalizados: la configuración de cada cliente (CLIENTE_CONFIG).
+COPY --from=builder --chown=vocero:vocero /app/clientes ./clientes
 # Nombre propio a propósito: la imagen de node ya trae su docker-entrypoint.sh
 # (antepone `node` si el primer argumento no es un comando) y el nuestro le
 # pasa la posta en vez de pisarlo.

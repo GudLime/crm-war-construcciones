@@ -1,0 +1,101 @@
+import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { organization } from "./schema";
+
+/**
+ * Motor de objetos personalizados — metadatos (migración 0038).
+ *
+ * Describen la estructura que define el archivo de configuración del cliente.
+ * Los escribe solo el arranque (`server/motor/sincronizar.ts`): ni el
+ * administrador ni el cliente cambian la estructura desde la interfaz. Lo que
+ * sale de la configuración queda `archivado`, nunca se borra.
+ *
+ * Los registros de cada objeto viven en su propia tabla (`tabla`): una tabla
+ * adoptada que ya existía (como `edificio`) o una `obj_<clave>` que crea el
+ * motor. Una columna real por campo; nada de clave-valor.
+ */
+
+export const motorObjeto = pgTable(
+  "motor_objeto",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    clave: text("clave").notNull(),
+    nombre: text("nombre").notNull(),
+    nombrePlural: text("nombre_plural").notNull(),
+    icono: text("icono").notNull().default("box"),
+    /** Tabla física de los registros. */
+    tabla: text("tabla").notNull(),
+    /** La tabla existía antes del motor: el motor no toca su estructura. */
+    adoptada: boolean("adoptada").notNull().default(false),
+    /** Claves de los campos que, pegados, forman el nombre del registro. */
+    titulo: jsonb("titulo").$type<string[]>().notNull(),
+    /** Clave de la relación dentro de cuyo padre el título es único. */
+    tituloUnicoDentroDe: text("titulo_unico_dentro_de"),
+    visibleAgente: boolean("visible_agente").notNull().default(false),
+    orden: integer("orden").notNull().default(0),
+    archivado: boolean("archivado").notNull().default(false),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("motor_objeto_org_clave_uq").on(t.organizationId, t.clave)]
+);
+
+export const motorCampo = pgTable(
+  "motor_campo",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    objetoId: text("objeto_id")
+      .notNull()
+      .references(() => motorObjeto.id, { onDelete: "cascade" }),
+    clave: text("clave").notNull(),
+    nombre: text("nombre").notNull(),
+    /** Uno de `TIPOS_CAMPO` (`src/lib/motor/config.ts`). */
+    tipo: text("tipo").notNull(),
+    /** Columna física; NULL en los campos calculados. */
+    columna: text("columna"),
+    obligatorio: boolean("obligatorio").notNull().default(false),
+    opciones: jsonb("opciones").$type<{ valor: string; nombre: string }[]>(),
+    calculo: jsonb("calculo").$type<Record<string, unknown>>(),
+    visibleLista: boolean("visible_lista").notNull().default(true),
+    visibleAgente: boolean("visible_agente").notNull().default(true),
+    orden: integer("orden").notNull().default(0),
+    archivado: boolean("archivado").notNull().default(false),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("motor_campo_objeto_clave_uq").on(t.objetoId, t.clave),
+    index("motor_campo_org_idx").on(t.organizationId, t.objetoId),
+  ]
+);
+
+export const motorRelacion = pgTable(
+  "motor_relacion",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    clave: text("clave").notNull(),
+    /** Clave de un objeto, o `oportunidad` / `contacto` (núcleo). */
+    desde: text("desde").notNull(),
+    hacia: text("hacia").notNull(),
+    tipo: text("tipo", { enum: ["uno_a_muchos", "muchos_a_muchos"] }).notNull(),
+    nombreDesde: text("nombre_desde").notNull(),
+    nombreHacia: text("nombre_hacia").notNull(),
+    /** Uno a muchos: columna en la tabla del lado «hacia». */
+    columna: text("columna"),
+    /** Muchos a muchos: tabla intermedia. */
+    tabla: text("tabla"),
+    obligatoria: boolean("obligatoria").notNull().default(false),
+    archivado: boolean("archivado").notNull().default(false),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("motor_relacion_org_clave_uq").on(t.organizationId, t.clave)]
+);

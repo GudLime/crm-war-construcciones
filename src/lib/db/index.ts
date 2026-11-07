@@ -3,13 +3,14 @@ import postgres from "postgres";
 import { getEnv } from "@/lib/env";
 import * as baseSchema from "./schema";
 import * as ventasSchema from "./ventas-tables";
+import * as motorSchema from "./motor-tables";
 
 /**
  * Las tablas de Ventas viven aparte para no reescribir el esquema base.
  * `schema` tiene que ser un binding local: `export { x as schema }` no
  * crea esa variable, y `getDb` (y el runtime) la necesitan por nombre.
  */
-const schema = { ...baseSchema, ...ventasSchema };
+const schema = { ...baseSchema, ...ventasSchema, ...motorSchema };
 export { schema };
 
 /**
