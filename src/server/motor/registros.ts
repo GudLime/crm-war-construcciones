@@ -213,11 +213,13 @@ async function completarResumenes(
             GROUP BY h.${fk}`
       )) as unknown as { k: string; v: unknown }[];
     } else {
+      const jd = id(r.columnaDesde);
+      const jh = id(r.columnaHacia);
       filas = (await ex.execute(
-        sql`SELECT j.desde_id AS k, ${expr} AS v FROM ${id(r.tabla as string)} j
-            JOIN ${id(tablaHijo)} h ON h.id = j.hacia_id
-            WHERE j.organization_id = ${organizationId} AND j.desde_id IN (${ids})${extra}
-            GROUP BY j.desde_id`
+        sql`SELECT j.${jd} AS k, ${expr} AS v FROM ${id(r.tabla as string)} j
+            JOIN ${id(tablaHijo)} h ON h.id = j.${jh}
+            WHERE j.organization_id = ${organizationId} AND j.${jd} IN (${ids})${extra}
+            GROUP BY j.${jd}`
       )) as unknown as { k: string; v: unknown }[];
     }
     const porId = new Map(filas.map((f) => [String(f.k), f.v] as const));
