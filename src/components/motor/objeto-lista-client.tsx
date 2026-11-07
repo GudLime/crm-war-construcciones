@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { Box, Download, Plus, Search, Upload } from "lucide-react";
+import { Box, Download, Plus, Search, Sparkles, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
 import { Acciones, Campo, Ficha, Pagina, Tabla, Td, Th, grilla, mensajeDe, useMoneda } from "@/components/ventas/ui";
 import type { ObjetoDto, RegistroDto } from "@/lib/motor/dto";
@@ -70,6 +72,7 @@ export function ObjetoListaClient({ clave }: { clave: string }) {
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [importando, setImportando] = useState(false);
+  const [puedeConfigurar, setPuedeConfigurar] = useState(false);
   const moneda = useMoneda();
   const avisar = useAvisoGuardado();
   const padres = usePadres(objeto);
@@ -84,8 +87,14 @@ export function ObjetoListaClient({ clave }: { clave: string }) {
       return;
     }
     if (!res?.ok) return;
-    const data = (await res.json()) as { objeto: ObjetoDto; registros: RegistroDto[]; total: number };
+    const data = (await res.json()) as {
+      objeto: ObjetoDto;
+      registros: RegistroDto[];
+      total: number;
+      puedeConfigurar?: boolean;
+    };
     setObjeto(data.objeto);
+    setPuedeConfigurar(data.puedeConfigurar === true);
     setRegistros(data.registros);
     setTotal(data.total);
     setListo(true);
@@ -101,6 +110,34 @@ export function ObjetoListaClient({ clave }: { clave: string }) {
     () => objeto?.campos.filter((c) => c.tipo === "seleccion" || c.tipo === "booleano") ?? [],
     [objeto]
   );
+
+  /** Paso 6 — qué lee el agente (solo quien administra). Optimista: si falla, vuelve. */
+  async function cambiarAgente(cambio: { visible?: boolean; campos?: Record<string, boolean> }) {
+    if (!objeto) return;
+    const antes = objeto;
+    setObjeto({
+      ...objeto,
+      visibleAgente: cambio.visible ?? objeto.visibleAgente,
+      campos: objeto.campos.map((c) =>
+        cambio.campos && c.clave in cambio.campos ? { ...c, visibleAgente: cambio.campos[c.clave] === true } : c
+      ),
+    });
+    const res = await fetch(`/api/objetos/${encodeURIComponent(clave)}/agente`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(cambio),
+    }).catch(() => null);
+    if (!res?.ok) {
+      setObjeto(antes);
+      avisar(res ? await mensajeDe(res) : "No se pudo guardar");
+      return;
+    }
+    const data = (await res.json()) as { objeto: ObjetoDto };
+    setObjeto(data.objeto);
+    if (cambio.visible !== undefined) {
+      avisar(cambio.visible ? "El agente ahora lee este objeto" : "El agente dejó de leer este objeto");
+    }
+  }
 
   function abrirAlta() {
     if (!objeto) return;
@@ -149,7 +186,22 @@ export function ObjetoListaClient({ clave }: { clave: string }) {
       detalle={objeto ? `${total} ${total === 1 ? objeto.nombre.toLowerCase() : objeto.nombrePlural.toLowerCase()}` : undefined}
       accion={
         objeto && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {puedeConfigurar && (
+              <label
+                className="mr-1 inline-flex items-center gap-2 text-sm text-text-2"
+                title="Si está prendido, el agente lee estos registros (solo las columnas con el ícono de IA)"
+              >
+                <Sparkles className="h-4 w-4" strokeWidth={1.8} />
+                Visible para el agente
+                <Switch
+                  size="sm"
+                  checked={objeto.visibleAgente}
+                  onCheckedChange={(v) => void cambiarAgente({ visible: v })}
+                  label="Visible para el agente"
+                />
+              </label>
+            )}
             <a
               href={`/api/objetos/${encodeURIComponent(clave)}/exportar?${parametros(busqueda, filtros)}`}
               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border-strong px-3 text-sm hover:border-foreground"
@@ -286,7 +338,24 @@ export function ObjetoListaClient({ clave }: { clave: string }) {
                     key={c.clave}
                     className={c.tipo === "numero" || c.tipo === "moneda" || c.tipo === "calculado" ? "text-right" : undefined}
                   >
-                    {c.nombre}
+                    <span className="inline-flex items-center gap-1">
+                      {c.nombre}
+                      {puedeConfigurar && objeto.visibleAgente && (
+                        <button
+                          type="button"
+                          onClick={() => void cambiarAgente({ campos: { [c.clave]: !c.visibleAgente } })}
+                          title={c.visibleAgente ? "El agente lee esta columna (tocá para ocultarla)" : "El agente no lee esta columna (tocá para mostrarla)"}
+                          aria-label={`${c.visibleAgente ? "Ocultar" : "Mostrar"} «${c.nombre}» al agente`}
+                          aria-pressed={c.visibleAgente}
+                          className={cn(
+                            "rounded p-0.5 transition-colors hover:bg-accent",
+                            c.visibleAgente ? "text-brand" : "opacity-30 hover:opacity-70"
+                          )}
+                        >
+                          <Sparkles className="h-3.5 w-3.5" strokeWidth={c.visibleAgente ? 2.2 : 1.6} />
+                        </button>
+                      )}
+                    </span>
                   </Th>
                 ))}
             </tr>

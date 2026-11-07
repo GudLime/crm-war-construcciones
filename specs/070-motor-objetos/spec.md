@@ -103,10 +103,35 @@ núcleo.
 - Las columnas viejas de WAR (`edificio_id`, `departamento_id`,
   `oportunidad_edificio`) no se tocan: el paso 8 las adopta o las siembra.
 
+## Paso 6: el agente lee los objetos
+
+- Es del núcleo (vale para todo cliente): el administrador decide qué lee el
+  agente desde la tabla de cada objeto. Interruptor «Visible para el agente»
+  en la cabecera y, con el objeto prendido, un ícono de IA en cada columna.
+  Solo quien administra (`canConfigure`); el cliente no ve los controles.
+  La sincronización nunca pisa lo que eligió el administrador.
+- `PATCH /api/objetos/<objeto>/agente` `{ visible?, campos? }`. El GET del
+  objeto devuelve `puedeConfigurar`.
+- Texto genérico (`src/lib/motor/agente.ts`, puro): una línea por registro que
+  se entiende sola (repite el título de sus padres), solo columnas visibles;
+  el título va siempre. Tope de 400 líneas por objeto.
+- Bloque opcional `agente` por objeto en la configuración: `filtro` (solo se
+  listan los que lo cumplen; los demás se cuentan; si el padre queda afuera,
+  sus hijos también), `agruparPor` + `rangos` (mínimo y máximo por grupo, para
+  que el agente copie y no calcule; una columna oculta no entra al resumen),
+  `indicacion`. Migración `0041_motor_agente` (columna `agente` jsonb).
+- Se suma al conocimiento en `GET /api/bot/profile` y en el juez del
+  Laboratorio, después de la memoria de edificios de WAR. Nunca lanza.
+- La memoria de edificios vieja (`memoriaDeEdificios`) sigue hasta el paso 8:
+  ahí WAR prende Edificio y Unidad en el motor, se compara el texto que recibe
+  Mateo y recién entonces se apaga la vieja (para no duplicar).
+- Los objetos del núcleo (contacto, oportunidad) le llegan al agente por su
+  propio camino; estos controles son solo para los objetos personalizados.
+
 ## Próximos pasos
 
 
-5. Relación oportunidad ↔ objetos · 6. Agente · 7. Estadísticas ·
+7. Estadísticas ·
 8. Configuración de WAR (adopta Edificio y Departamento).
 
-Tests: `tests/unit/motor-config.test.ts`, `motor-valores.test.ts`, `motor-registros-db.test.ts` (con Postgres), `motor-pantallas.test.ts`, `motor-csv.test.ts`.
+Tests: `tests/unit/motor-config.test.ts`, `motor-valores.test.ts`, `motor-registros-db.test.ts` (con Postgres), `motor-pantallas.test.ts`, `motor-csv.test.ts`, `motor-agente.test.ts`.

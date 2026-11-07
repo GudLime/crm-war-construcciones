@@ -293,5 +293,47 @@ describe.skipIf(!URL)("motor: registros en Postgres", () => {
     expect(Number(n?.n)).toBe(1);
     await d.execute(sql`DROP TABLE prueba_siembra`);
   });
+
+  it("paso 6: el agente lee lo visible y el administrador lo cambia por columna", async () => {
+    const agente = await import("@/server/motor/agente");
+    const sede = await m.crearRegistro(org, "sede", { valores: { nombre: "Recoleta", direccion: "Ayacucho 9" } }, actor);
+    await m.crearRegistro(
+      org,
+      "tratamiento",
+      { valores: { nombre: "Ortodoncia", precio: 9000000, modalidad: "presencial", activo: true }, padres: { sede_tratamientos: sede.id } },
+      actor
+    );
+    await m.crearRegistro(
+      org,
+      "tratamiento",
+      { valores: { nombre: "Implante", precio: 30000000, modalidad: "presencial", activo: false }, padres: { sede_tratamientos: sede.id } },
+      actor
+    );
+
+    let t = await agente.textoDeObjetosParaAgente(org);
+    expect(t).toContain("Tratamiento Ortodoncia · Sede: Recoleta");
+    expect(t).toContain("Ofrecé solo los tratamientos de esta lista");
+    expect(t).not.toContain("Tratamiento Implante");
+    expect(t).toContain("Precio:");
+
+    // Columna oculta por el administrador: desaparece del texto.
+    expect(await agente.cambiarVisibilidadAgente(org, "tratamiento", { campos: { precio: false, inexistente: true } })).toBe(true);
+    t = await agente.textoDeObjetosParaAgente(org);
+    expect(t).not.toContain("Precio:");
+    // …y sincronizar no la vuelve a prender.
+    await sincronizar.sincronizarMotor();
+    t = await agente.textoDeObjetosParaAgente(org);
+    expect(t).not.toContain("Precio:");
+
+    // Objeto apagado: no entra; la otra organización no se entera.
+    await agente.cambiarVisibilidadAgente(org, "tratamiento", { visible: false });
+    t = await agente.textoDeObjetosParaAgente(org);
+    expect(t).not.toContain("Tratamiento Ortodoncia");
+    expect(t).toContain("Recoleta");
+    expect(await agente.textoDeObjetosParaAgente(otraOrg)).not.toContain("Recoleta");
+    expect(await agente.cambiarVisibilidadAgente(org, "no_existe", { visible: true })).toBe(false);
+
+    await agente.cambiarVisibilidadAgente(org, "tratamiento", { visible: true, campos: { precio: true } });
+  });
 });
 
