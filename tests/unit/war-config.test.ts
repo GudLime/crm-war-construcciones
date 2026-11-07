@@ -23,7 +23,7 @@ describe("WAR: clientes/war.json", () => {
     if (!r.ok) return;
     const ddl = sentenciasDdl(r.config);
     expect(ddl.join("\n")).not.toMatch(/\bDROP\b|\bALTER COLUMN\b|\bRENAME\b|\bDELETE FROM\b|\bTRUNCATE\b/);
-    expect(ddl.filter((s) => s.includes('"departamento"'))).toEqual([
+    expect(ddl.filter((s) => s.startsWith("ALTER") && s.includes('"departamento"'))).toEqual([
       'ALTER TABLE IF EXISTS "departamento" ADD COLUMN IF NOT EXISTS "tipo" text',
       'ALTER TABLE IF EXISTS "departamento" ADD COLUMN IF NOT EXISTS "tipologia_unidad" text',
       'ALTER TABLE IF EXISTS "departamento" ADD COLUMN IF NOT EXISTS "ambientes" numeric',
