@@ -274,6 +274,13 @@
       "when": 1793779200000,
       "tag": "0038_motor_objetos",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1793790000000,
+      "tag": "0039_motor_cambios",
+      "breakpoints": true
     }
   ]
 }

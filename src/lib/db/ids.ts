@@ -59,6 +59,7 @@ const prefixes = {
   motorRelacion: "mre",
   /** Registros de los objetos que crea el motor (`obj_<clave>`). */
   registro: "reg",
+  motorCambio: "mcb",
 } as const;
 
 export type IdKind = keyof typeof prefixes;
