@@ -12,10 +12,12 @@ export async function register(): Promise<void> {
       resumeDispatch,
       resumeWebhooks,
       resumeVentas,
+      syncMotor,
     } = await import("./instrumentation-node");
     await checkMediaDir();
     await cleanupOrphanRuns();
     await encryptLegacySecrets();
+    await syncMotor();
     resumeDispatch();
     resumeWebhooks();
     resumeVentas();

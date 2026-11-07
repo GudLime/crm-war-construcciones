@@ -49,9 +49,16 @@ Diferencias con Vocero: spec 067 (coexistencia), 068 (oportunidades), 069
 (CSV de unidades) y las secciones de abajo. Si Vocero publica su propia
 coexistencia, preferir la suya y revisar el número de migración antes del merge.
 
+## Motor de objetos personalizados (spec 070)
+
+Cada cliente define sus objetos, campos y relaciones en `clientes/<cliente>.json`
+y la instancia lo elige con `CLIENTE_CONFIG`. Formato y reglas en
+[clientes/README.md](clientes/README.md). Se aplica al arrancar, nunca borra y
+puede «adoptar» tablas que ya existen. Paso 1 de 8: metadatos y configuración.
+
 ## Pendiente
 
-Motor de objetos personalizados (edificio y departamento pasan a ser objetos
+Pasos 2 a 8 del motor (edificio y departamento pasan a ser objetos
 del cliente), interruptor de configuración para las reglas que se suman a las
 instrucciones del agente (`src/lib/instrucciones-oportunidades.ts`). Diseño
 técnico: documento «Diseño técnico: objetos personalizados en Vocero».
