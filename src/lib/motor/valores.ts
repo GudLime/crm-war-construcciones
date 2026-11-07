@@ -60,6 +60,9 @@ export function aNumero(v: unknown): number | null {
   const punto = s.lastIndexOf(".");
   if (coma > punto) s = s.replace(/\./g, "").replace(",", ".");
   else if (coma !== -1) s = s.replace(/,/g, "");
+  // Solo puntos, en grupos de a tres: separador de miles, como se escribe en
+  // Argentina («120.000», «1.250.000»). «6.5» sigue siendo decimal.
+  else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, "");
   if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
   const n = Number(s);
   return Number.isFinite(n) ? n : null;

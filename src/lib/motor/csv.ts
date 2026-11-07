@@ -1,4 +1,4 @@
-import { parseCsv } from "@/lib/contact-import";
+import { parseCsvConVacias } from "@/lib/contact-import";
 import type { CampoDto, ObjetoDto, RegistroDto } from "./dto";
 import { aNumero, normalizar } from "./valores";
 
@@ -79,7 +79,7 @@ export function reconocerColumnas(objeto: ObjetoDto, encabezados: string[]): {
 }
 
 export function leerCsv(objeto: ObjetoDto, texto: string): LecturaCsv {
-  const tabla = parseCsv(texto);
+  const tabla = parseCsvConVacias(texto);
   const encabezados = tabla[0] ?? [];
   const { columnas, noReconocidas } = reconocerColumnas(objeto, encabezados);
   const errores: { fila: number; mensaje: string }[] = [];
