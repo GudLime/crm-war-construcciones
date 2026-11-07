@@ -8,7 +8,7 @@ import {
   siguientesParaLaIA,
   tipoExcluyeDeVenta,
 } from "@/lib/ventas";
-import { INSTRUCCIONES_WAR, conInstruccionesWar } from "@/lib/instrucciones-war";
+import { INSTRUCCIONES_OPORTUNIDADES, conInstruccionesOportunidades } from "@/lib/instrucciones-oportunidades";
 
 /**
  * 068 — Oportunidades de War. Las reglas de negocio se prueban como tabla y
@@ -123,7 +123,7 @@ describe("edificios por nombre o calle", () => {
 
 describe("instrucciones fijas para el agente", () => {
   it("se suman después de las del negocio, sin pisarlas", () => {
-    const out = conInstruccionesWar("Sos Mateo.");
+    const out = conInstruccionesOportunidades("Sos Mateo.");
     expect(out.startsWith("Sos Mateo.")).toBe(true);
     expect(out).toContain("tipo_contacto");
     expect(out).toContain("edificios_interes");
@@ -131,7 +131,7 @@ describe("instrucciones fijas para el agente", () => {
   });
 
   it("sin instrucciones del negocio, van solas", () => {
-    expect(conInstruccionesWar(null)).toBe(INSTRUCCIONES_WAR);
-    expect(conInstruccionesWar("   ")).toBe(INSTRUCCIONES_WAR);
+    expect(conInstruccionesOportunidades(null)).toBe(INSTRUCCIONES_OPORTUNIDADES);
+    expect(conInstruccionesOportunidades("   ")).toBe(INSTRUCCIONES_OPORTUNIDADES);
   });
 });

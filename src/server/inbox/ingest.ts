@@ -26,7 +26,7 @@ import { registrarAnuncioDeOrigen } from "@/server/attribution/store";
 import { onLeadActivity } from "@/server/inbox/lead-activity";
 import { despachoActivo } from "@/server/brains/config";
 import { despacharAlCerebro } from "@/server/dispatch/encolar";
-import { registrarInteraccionDelContacto } from "@/server/oportunidades-war";
+import { registrarInteraccionDelContacto } from "@/server/oportunidades";
 import { registrarSaliente } from "@/server/oportunidad-historial";
 import {
   aCitaDto,

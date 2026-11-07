@@ -4,7 +4,7 @@ import { apiError } from "@/lib/api";
 import { requireBotKey, resolveInstanceOrg } from "@/server/bot/auth";
 import { serializeBotProfile, type BotLlm } from "@/server/bot/profile";
 import { resolveAiProvider } from "@/lib/ai/provider";
-import { conInstruccionesWar } from "@/lib/instrucciones-war";
+import { conInstruccionesOportunidades } from "@/lib/instrucciones-oportunidades";
 import { conMemoria } from "@/lib/memoria-agente";
 import { memoriaDeEdificios } from "@/server/ventas";
 
@@ -50,7 +50,7 @@ export async function GET(req: Request) {
   // 068 (War) — Las reglas de clasificación y oportunidad van siempre, después
   // de las instrucciones del negocio: son contrato con el CRM, no estilo.
   const out = serializeBotProfile(profile, kb, llm);
-  out.profile.instructions = conInstruccionesWar(out.profile.instructions);
+  out.profile.instructions = conInstruccionesOportunidades(out.profile.instructions);
   // War — Los edificios con «Memoria del agente» prendido van con el
   // conocimiento: datos, unidades disponibles y notas para el agente.
   out.kb = conMemoria(out.kb, await memoriaDeEdificios(organizationId));

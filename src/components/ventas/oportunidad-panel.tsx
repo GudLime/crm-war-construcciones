@@ -15,7 +15,7 @@ import {
   type TipoContacto,
   type Tipologia,
 } from "@/lib/ventas";
-import type { EstadoComercialDto } from "@/server/oportunidades-war";
+import type { EstadoComercialDto } from "@/server/oportunidades";
 import { Select } from "@/components/ui/select";
 
 const CIERRES: EstadoOportunidad[] = ["no_calificado", "perdido"];

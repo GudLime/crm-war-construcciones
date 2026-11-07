@@ -5,7 +5,7 @@ import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
 import { NOTA_MAX, puedeBorrarNota, type NotaDto } from "@/lib/notas";
 import { publish } from "@/server/events/bus";
-import { oportunidadAbierta } from "@/server/oportunidades-war";
+import { oportunidadAbierta } from "@/server/oportunidades";
 
 /**
  * 050 — Notas internas.

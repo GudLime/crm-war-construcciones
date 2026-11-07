@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { apiError, parseBody } from "@/lib/api";
 import { requireBotKey, resolveInstanceOrg } from "@/server/bot/auth";
-import { moverOportunidadPorElCerebro } from "@/server/oportunidades-war";
+import { moverOportunidadPorElCerebro } from "@/server/oportunidades";
 import { publish } from "@/server/events/bus";
 
 export const dynamic = "force-dynamic";

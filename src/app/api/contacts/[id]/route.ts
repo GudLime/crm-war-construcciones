@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { VALORES_TIPO_CONTACTO, type TipoContacto } from "@/lib/ventas";
-import { clasificarContacto } from "@/server/oportunidades-war";
+import { clasificarContacto } from "@/server/oportunidades";
 import { apiError, parseBody, withAuth } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";

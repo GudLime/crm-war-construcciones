@@ -83,8 +83,8 @@ En War lo que avanza en el embudo es la **oportunidad**, no el contacto
   suma interés con `edificios_interes` / `tipologias_interes`, y mueve la
   oportunidad abierta hasta «Conoce información» con `POST /api/bot/stage`.
   Las reglas se le agregan solas a las instrucciones del agente
-  (`src/lib/instrucciones-war.ts`).
-- Código: `src/server/oportunidades-war.ts`, panel del chat en
+  (`src/lib/instrucciones-oportunidades.ts`).
+- Código: `src/server/oportunidades.ts`, panel del chat en
   `src/components/ventas/oportunidad-panel.tsx`.
 
 ## Orígenes de los leads (0035, imagen 0037)

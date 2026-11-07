@@ -11,7 +11,7 @@ import {
   abrirOportunidad,
   actualizarOportunidadDelChat,
   estadoComercialDelContacto,
-} from "@/server/oportunidades-war";
+} from "@/server/oportunidades";
 import { VentasError } from "@/server/ventas";
 
 export const dynamic = "force-dynamic";
