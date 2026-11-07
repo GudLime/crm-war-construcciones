@@ -362,7 +362,7 @@ describe.skipIf(!URL)("motor: registros en Postgres", () => {
       await op.vincularOportunidad(org3, b, "oportunidad_tratamientos", [t1.id, t2.id]);
 
       // Sin fechas: los últimos 30 días hasta hoy, en la zona del negocio.
-      const period = await periodFromRequest(org3, new URL("http://x/"));
+      const period = await periodFromRequest(org3, new globalThis.URL("http://x/"));
 
       // Sin pedir nada: arranca con el «Ver por» de la configuración (sede del tratamiento).
       const r = await estadisticasOportunidades(org3, period, { filtros: {} });
