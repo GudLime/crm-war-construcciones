@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "cliente": "Clínica de ejemplo",
+  "rubro": "salud",
+  "objetos": [
+    {
+      "clave": "sede",
+      "nombre": "Sede",
+      "nombrePlural": "Sedes",
+      "icono": "building",
+      "titulo": ["nombre"],
+      "campos": [
+        { "clave": "nombre", "nombre": "Nombre", "tipo": "texto", "obligatorio": true },
+        { "clave": "direccion", "nombre": "Dirección", "tipo": "texto" },
+        { "clave": "horarios", "nombre": "Horarios de atención", "tipo": "texto" },
+        { "clave": "tratamientos_activos", "nombre": "Tratamientos activos", "tipo": "calculado",
+          "calculo": { "resumen": { "relacion": "sede_tratamientos", "operacion": "cantidad",
+            "filtro": { "activo": ["true"] } } } }
+      ]
+    },
+    {
+      "clave": "tratamiento",
+      "nombre": "Tratamiento",
+      "nombrePlural": "Tratamientos",
+      "icono": "stethoscope",
+      "titulo": ["nombre"],
+      "tituloUnicoDentroDe": "sede_tratamientos",
+      "visibleAgente": true,
+      "campos": [
+        { "clave": "nombre", "nombre": "Nombre", "tipo": "texto", "obligatorio": true },
+        { "clave": "duracion_min", "nombre": "Duración (min)", "tipo": "numero" },
+        { "clave": "precio", "nombre": "Precio", "tipo": "moneda" },
+        { "clave": "modalidad", "nombre": "Modalidad", "tipo": "seleccion",
+          "opciones": [
+            { "valor": "presencial", "nombre": "Presencial" },
+            { "valor": "virtual", "nombre": "Virtual" }
+          ] },
+        { "clave": "activo", "nombre": "Activo", "tipo": "booleano" }
+      ]
+    }
+  ],
+  "relaciones": [
+    { "clave": "sede_tratamientos", "desde": "sede", "hacia": "tratamiento", "tipo": "uno_a_muchos",
+      "nombreDesde": "Tratamientos", "nombreHacia": "Sede", "obligatoria": true },
+    { "clave": "oportunidad_tratamientos", "desde": "oportunidad", "hacia": "tratamiento",
+      "tipo": "muchos_a_muchos", "nombreDesde": "Tratamientos de interés", "nombreHacia": "Oportunidades" }
+  ]
+}
