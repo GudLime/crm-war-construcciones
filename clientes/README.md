@@ -82,6 +82,9 @@ conserva ids, datos e historial. El motor no cambia su estructura, salvo:
   armado (como `departamento.unidad` = «6B»), para que lo que ya la usa siga
   andando. Se reescribe solo cuando cambia un campo del título.
 
+`"enMenu": false` en un objeto lo saca del menú (sus pantallas siguen andando
+por enlace).
+
 ## Estadísticas y agente
 
 - `"estadisticas": { "bloques": [...], "verPor": "..." }`: qué bloques muestra

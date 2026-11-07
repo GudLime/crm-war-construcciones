@@ -52,7 +52,7 @@ export function aDto(r: Registro): RegistroDto {
 export async function objetosDelMenu(organizationId: string): Promise<ObjetoMenuDto[]> {
   try {
     const motor = await cargarMotor(organizationId);
-    return [...motor.objetos.values()].map((o) => ({
+    return [...motor.objetos.values()].filter((o) => o.enMenu).map((o) => ({
       clave: o.clave,
       nombrePlural: o.nombrePlural,
       icono: o.icono,
