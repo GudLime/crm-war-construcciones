@@ -50,6 +50,12 @@ describe("aNumero", () => {
     expect(aNumero("$ 120000")).toBe(120000);
     expect(aNumero("6")).toBe(6);
   });
+  it("solo puntos de a tres cifras son miles; si no, decimal", () => {
+    expect(aNumero("120.000")).toBe(120000);
+    expect(aNumero("1.250.000")).toBe(1250000);
+    expect(aNumero("6.5")).toBe(6.5);
+    expect(aNumero("80.25")).toBe(80.25);
+  });
   it("devuelve null si no es un número", () => {
     expect(aNumero("seis")).toBeNull();
     expect(aNumero("")).toBeNull();
