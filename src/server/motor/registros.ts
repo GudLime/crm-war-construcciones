@@ -70,7 +70,8 @@ type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type Ejecutor = Db | Tx;
 type Fila = Record<string, unknown>;
 
-const id = (nombre: string) => sql.identifier(nombre);
+/** Identificador SQL (ya validado por la configuración), como fragmento. */
+const id = (nombre: string): SQL => sql`${sql.identifier(nombre)}`;
 
 // ── Metadatos ───────────────────────────────────────────────────────────────
 
