@@ -78,8 +78,11 @@ describe("el archivo de ejemplo", () => {
   it("aplica los valores por defecto", () => {
     const c = valida(EJEMPLO);
     const sede = c.objetos[0]!;
-    expect(sede.visibleAgente).toBe(false);
+    // El ejemplo la prende a propósito (paso 6); sin decirlo, arranca apagada.
+    expect(sede.visibleAgente).toBe(true);
+    expect(valida(base()).objetos[0]!.visibleAgente).toBe(false);
     expect(sede.campos[0]!.visibleLista).toBe(true);
+    expect(sede.campos[0]!.visibleAgente).toBe(true);
   });
 });
 

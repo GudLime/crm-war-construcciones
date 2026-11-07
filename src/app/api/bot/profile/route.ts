@@ -7,6 +7,7 @@ import { resolveAiProvider } from "@/lib/ai/provider";
 import { conInstruccionesOportunidades } from "@/lib/instrucciones-oportunidades";
 import { conMemoria } from "@/lib/memoria-agente";
 import { memoriaDeEdificios } from "@/server/ventas";
+import { textoDeObjetosParaAgente } from "@/server/motor/agente";
 
 export const dynamic = "force-dynamic";
 
@@ -54,5 +55,8 @@ export async function GET(req: Request) {
   // War — Los edificios con «Memoria del agente» prendido van con el
   // conocimiento: datos, unidades disponibles y notas para el agente.
   out.kb = conMemoria(out.kb, await memoriaDeEdificios(organizationId));
+  // Motor (paso 6) — los objetos personalizados con «visible para el agente»
+  // prendido, solo con las columnas que tienen el ícono de IA.
+  out.kb = conMemoria(out.kb, await textoDeObjetosParaAgente(organizationId));
   return Response.json(out);
 }

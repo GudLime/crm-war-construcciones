@@ -1,6 +1,14 @@
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { organization } from "./schema";
 
+/** Cómo se le presenta un objeto al agente (`clientes/<cliente>.json` → `agente`). */
+export type AgenteObjeto = {
+  filtro?: Record<string, string[]>;
+  agruparPor?: string;
+  rangos?: string[];
+  indicacion?: string;
+};
+
 /**
  * Motor de objetos personalizados — metadatos (migración 0038).
  *
@@ -34,6 +42,8 @@ export const motorObjeto = pgTable(
     /** Clave de la relación dentro de cuyo padre el título es único. */
     tituloUnicoDentroDe: text("titulo_unico_dentro_de"),
     visibleAgente: boolean("visible_agente").notNull().default(false),
+    /** Cómo se le presenta al agente (0041): filtro, agrupación, rangos, indicación. */
+    agente: jsonb("agente").$type<AgenteObjeto>(),
     orden: integer("orden").notNull().default(0),
     archivado: boolean("archivado").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),

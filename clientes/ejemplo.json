@@ -9,6 +9,7 @@
       "nombrePlural": "Sedes",
       "icono": "building",
       "titulo": ["nombre"],
+      "visibleAgente": true,
       "campos": [
         { "clave": "nombre", "nombre": "Nombre", "tipo": "texto", "obligatorio": true },
         { "clave": "direccion", "nombre": "Dirección", "tipo": "texto" },
@@ -26,6 +27,12 @@
       "titulo": ["nombre"],
       "tituloUnicoDentroDe": "sede_tratamientos",
       "visibleAgente": true,
+      "agente": {
+        "filtro": { "activo": ["true"] },
+        "agruparPor": "modalidad",
+        "rangos": ["precio"],
+        "indicacion": "Ofrecé solo los tratamientos de esta lista; el turno lo confirma recepción."
+      },
       "campos": [
         { "clave": "nombre", "nombre": "Nombre", "tipo": "texto", "obligatorio": true },
         { "clave": "duracion_min", "nombre": "Duración (min)", "tipo": "numero" },
