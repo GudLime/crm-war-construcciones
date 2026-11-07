@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { validarConfig, type ConfigCliente } from "@/lib/motor/config";
-import { columnasEsperadas, ident, sentenciasDdl } from "@/lib/motor/ddl";
+import { columnasEsperadas, ident, sentenciaSiembra, sentenciasDdl } from "@/lib/motor/ddl";
 import { rutaConfig } from "@/server/motor/sincronizar";
 
 /** Motor de objetos personalizados — paso 1: configuración y estructura. */
@@ -223,5 +223,66 @@ describe("ruta del archivo", () => {
     expect(rutaConfig("../etc/passwd", "/app")).toBeNull();
     expect(rutaConfig("clientes/../package.json", "/app")).toBeNull();
     expect(rutaConfig("clientes/war.txt", "/app")).toBeNull();
+  });
+});
+
+describe("paso 5: relaciones con la oportunidad y reglas de etapa", () => {
+  function conOportunidad(extra: Record<string, unknown> = {}, regla?: Record<string, unknown>) {
+    const c = base();
+    (c.relaciones as unknown[]).push({
+      clave: "oportunidad_unidades",
+      desde: "oportunidad",
+      hacia: "unidad",
+      tipo: "muchos_a_muchos",
+      nombreDesde: "Unidades",
+      nombreHacia: "Oportunidades",
+      ...extra,
+    });
+    c.reglasEtapa = regla ? [regla] : [];
+    return c;
+  }
+  const reserva = { clave: "reserva", etapa: "reservo", relacion: "oportunidad_unidades", campo: "estado", valor: "vendido" };
+
+  it("acepta una regla de etapa bien armada", () => {
+    expect(errores(conOportunidad({}, reserva))).toEqual([]);
+  });
+
+  it("rechaza etapas, relaciones, campos y valores que no existen", () => {
+    expect(errores(conOportunidad({}, { ...reserva, etapa: "firmo" })).join(" ")).toMatch(/no es una etapa/);
+    expect(errores(conOportunidad({}, { ...reserva, relacion: "edificio_unidades" })).join(" ")).toMatch(
+      /muchos a muchos desde la oportunidad/
+    );
+    expect(errores(conOportunidad({}, { ...reserva, campo: "color" })).join(" ")).toMatch(/no es un campo/);
+    expect(errores(conOportunidad({}, { ...reserva, valor: "reservadisimo" })).join(" ")).toMatch(/no es una opción/);
+  });
+
+  it("adoptar una tabla intermedia exige nombrarla; no se crea y se verifica", () => {
+    expect(errores(conOportunidad({ adoptaTabla: true })).join(" ")).toMatch(/nombrarla/);
+    const config = valida(
+      conOportunidad({ adoptaTabla: true, tabla: "oportunidad_departamento", columnaDesde: "oportunidad_id", columnaHacia: "departamento_id" })
+    );
+    expect(sentenciasDdl(config).join("\n")).not.toContain("oportunidad_departamento");
+    expect(columnasEsperadas(config).get("oportunidad_departamento")).toEqual([
+      "organization_id",
+      "oportunidad_id",
+      "departamento_id",
+    ]);
+  });
+
+  it("las opciones de muchos a muchos no van en uno a muchos", () => {
+    const c = base();
+    (c.relaciones as Record<string, unknown>[])[0]!.adoptaTabla = true;
+    expect(errores(c).join(" ")).toMatch(/solo para muchos a muchos/);
+  });
+
+  it("la siembra copia una sola columna a la tabla intermedia, sin pisar", () => {
+    const config = valida(
+      conOportunidad({ sembrarDesde: { tabla: "oportunidad", columnaDesde: "id", columnaHacia: "departamento_id" } })
+    );
+    const r = config.relaciones.find((x) => x.clave === "oportunidad_unidades")!;
+    expect(sentenciaSiembra(r)).toBe(
+      `INSERT INTO "rel_oportunidad_unidades" ("organization_id", "desde_id", "hacia_id") SELECT "organization_id", "id", "departamento_id" FROM "oportunidad" WHERE "id" IS NOT NULL AND "departamento_id" IS NOT NULL ON CONFLICT DO NOTHING`
+    );
+    expect(sentenciaSiembra(config.relaciones[0]!)).toBeNull();
   });
 });

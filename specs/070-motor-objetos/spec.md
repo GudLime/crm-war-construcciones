@@ -1,6 +1,6 @@
 # 070 — Motor de objetos personalizados
 
-Estado: pasos 1 a 4 de 8 (metadatos y configuración; lectura y escritura; pantallas; CSV) · Repo: GudLime/gudlime-crm-service
+Estado: pasos 1 a 5 de 8 (metadatos y configuración; lectura y escritura; pantallas; CSV; oportunidad y reglas de etapa) · Repo: GudLime/gudlime-crm-service
 Diseño completo: documento «Diseño técnico: objetos personalizados en Vocero».
 
 ## Qué
@@ -81,6 +81,27 @@ núcleo.
   `padre` fija la relación) y `GET /api/objetos/<objeto>/exportar` (mismos
   filtros que la lista).
 - Botones Importar y Exportar en la lista y en cada sección de hijos.
+
+## Paso 5: la oportunidad y los objetos
+
+- Relaciones muchos a muchos desde `oportunidad`: la oportunidad se vincula con
+  registros del cliente (unidades, tratamientos). Nunca se borra por un objeto.
+- La tabla intermedia puede adoptarse (`adoptaTabla`, con `columnaDesde` /
+  `columnaHacia`), como `oportunidad_edificio` en WAR, y puede sembrarse UNA
+  vez desde una columna existente (`sembrarDesde`, marca `sembrado_at`), como
+  `oportunidad.departamento_id`.
+- `reglasEtapa`: cuando la oportunidad pasa a una etapa, un campo de los
+  vinculados toma un valor. Se enganchan en `cambiarEstadoOportunidad` (vale
+  para personas, agente y cierres automáticos): con un vinculado se aplica
+  sola; con varios, la pantalla pregunta cuáles. Nunca frena el cambio de
+  estado.
+- Migración `0040_motor_oportunidad`: columnas nuevas en `motor_relacion`,
+  tabla `motor_regla`.
+- API `GET/PUT /api/oportunidades/<id>/objetos` y
+  `GET/POST /api/oportunidades/<id>/reglas`; tarjeta «Interés» en la página de
+  la oportunidad (solo con configuración).
+- Las columnas viejas de WAR (`edificio_id`, `departamento_id`,
+  `oportunidad_edificio`) no se tocan: el paso 8 las adopta o las siembra.
 
 ## Próximos pasos
 

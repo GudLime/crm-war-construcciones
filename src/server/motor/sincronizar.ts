@@ -8,13 +8,14 @@ import { getEnv } from "@/lib/env";
 import {
   columnaDeCampo,
   columnaDeRelacion,
+  columnasDeRelacion,
   tablaDeObjeto,
   tablaDeRelacion,
   tieneColumna,
   validarConfig,
   type ConfigCliente,
 } from "@/lib/motor/config";
-import { columnasEsperadas, sentenciasDdl } from "@/lib/motor/ddl";
+import { columnasEsperadas, sentenciaSiembra, sentenciasDdl } from "@/lib/motor/ddl";
 
 /**
  * Motor — aplica el archivo de configuración del cliente al arrancar.
@@ -202,6 +203,10 @@ async function registrarEnOrganizacion(organizationId: string, config: ConfigCli
         nombreHacia: r.nombreHacia,
         columna: r.tipo === "uno_a_muchos" ? columnaDeRelacion(r) : null,
         tabla: r.tipo === "muchos_a_muchos" ? tablaDeRelacion(r) : null,
+        adoptaTabla: r.tipo === "muchos_a_muchos" && r.adoptaTabla,
+        columnaDesde: r.tipo === "muchos_a_muchos" ? columnasDeRelacion(r).desde : null,
+        columnaHacia: r.tipo === "muchos_a_muchos" ? columnasDeRelacion(r).hacia : null,
+        sembrarDesde: r.sembrarDesde ?? null,
         obligatoria: r.obligatoria,
         archivado: false,
       };
@@ -213,6 +218,28 @@ async function registrarEnOrganizacion(organizationId: string, config: ConfigCli
           set: { ...valores, updatedAt: ahora },
         });
     }
+    for (const g of config.reglasEtapa) {
+      const valores = { etapa: g.etapa, relacion: g.relacion, campo: g.campo, valor: g.valor, archivado: false };
+      await tx
+        .insert(schema.motorRegla)
+        .values({ id: newId("motorRegla"), organizationId, clave: g.clave, ...valores })
+        .onConflictDoUpdate({
+          target: [schema.motorRegla.organizationId, schema.motorRegla.clave],
+          set: { ...valores, updatedAt: ahora },
+        });
+    }
+    const clavesReglas = config.reglasEtapa.map((g) => g.clave);
+    await tx
+      .update(schema.motorRegla)
+      .set({ archivado: true, updatedAt: ahora })
+      .where(
+        scoped(
+          schema.motorRegla.organizationId,
+          organizationId,
+          clavesReglas.length ? notInArray(schema.motorRegla.clave, clavesReglas) : undefined
+        )
+      );
+
     const clavesRelaciones = config.relaciones.map((r) => r.clave);
     await tx
       .update(schema.motorRelacion)
@@ -245,24 +272,52 @@ export async function sincronizarMotor(): Promise<ResultadoSincronizacion> {
   // no existen); sus relaciones tampoco.
   const faltan = await adoptadosIncompletos(config);
   const omitidos = config.objetos.filter((o) => o.adopta && faltan.has(o.adopta)).map((o) => o.clave);
+  const relacionesOmitidas = config.relaciones
+    .filter((r) => r.tipo === "muchos_a_muchos" && r.adoptaTabla && faltan.has(tablaDeRelacion(r)))
+    .map((r) => r.clave);
+  const relaciones = config.relaciones.filter(
+    (r) => !omitidos.includes(r.desde) && !omitidos.includes(r.hacia) && !relacionesOmitidas.includes(r.clave)
+  );
   const registrable: ConfigCliente = {
     ...config,
     objetos: config.objetos.filter((o) => !omitidos.includes(o.clave)),
-    relaciones: config.relaciones.filter((r) => !omitidos.includes(r.desde) && !omitidos.includes(r.hacia)),
+    relaciones,
+    reglasEtapa: config.reglasEtapa.filter((g) => relaciones.some((r) => r.clave === g.relacion)),
   };
 
   const orgs = await db.select({ id: schema.organization.id }).from(schema.organization);
   for (const org of orgs) await registrarEnOrganizacion(org.id, registrable);
 
+  // Siembras de una sola vez (después de registrar: la marca vive en motor_relacion).
+  for (const r of registrable.relaciones) {
+    const siembra = sentenciaSiembra(r);
+    if (!siembra) continue;
+    const [hecha] = (await db.execute(
+      sql`select 1 as ok from motor_relacion where clave = ${r.clave} and sembrado_at is not null limit 1`
+    )) as unknown as { ok: number }[];
+    if (hecha) continue;
+    await db.transaction(async (tx) => {
+      await tx.execute(sql.raw(siembra));
+      await tx.execute(sql`update motor_relacion set sembrado_at = now() where clave = ${r.clave}`);
+    });
+    console.log(`[motor] vínculos de «${r.clave}» copiados desde ${r.sembrarDesde?.tabla}.${r.sembrarDesde?.columnaHacia}`);
+  }
+
   return {
     estado: "ok",
     objetos: registrable.objetos.length,
     organizaciones: orgs.length,
-    omitidos: omitidos.map((clave) => {
-      const o = config.objetos.find((x) => x.clave === clave);
-      const tabla = o?.adopta ?? "";
-      return `${clave}: faltan ${(faltan.get(tabla) ?? []).join(", ")}`;
-    }),
+    omitidos: [
+      ...omitidos.map((clave) => {
+        const o = config.objetos.find((x) => x.clave === clave);
+        const tabla = o?.adopta ?? "";
+        return `${clave}: faltan ${(faltan.get(tabla) ?? []).join(", ")}`;
+      }),
+      ...relacionesOmitidas.map((clave) => {
+        const r = config.relaciones.find((x) => x.clave === clave);
+        return `${clave}: faltan ${(faltan.get(r ? tablaDeRelacion(r) : "") ?? []).join(", ")}`;
+      }),
+    ],
   };
 }
 

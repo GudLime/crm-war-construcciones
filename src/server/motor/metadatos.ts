@@ -37,12 +37,24 @@ export type RelacionMeta = {
   nombreHacia: string;
   columna: string | null;
   tabla: string | null;
+  /** Muchos a muchos: columnas de la tabla intermedia. */
+  columnaDesde: string;
+  columnaHacia: string;
   obligatoria: boolean;
+};
+
+export type ReglaMeta = {
+  clave: string;
+  etapa: string;
+  relacion: string;
+  campo: string;
+  valor: string | number | boolean;
 };
 
 export type Motor = {
   objetos: Map<string, ObjetoMeta>;
   relaciones: RelacionMeta[];
+  reglas: ReglaMeta[];
 };
 
 /** Columnas por tabla del esquema actual. */
@@ -81,6 +93,11 @@ export async function cargarMotor(organizationId: string): Promise<Motor> {
     .select()
     .from(schema.motorRelacion)
     .where(scoped(schema.motorRelacion.organizationId, organizationId, eq(schema.motorRelacion.archivado, false)));
+
+  const reglas = await db
+    .select()
+    .from(schema.motorRegla)
+    .where(scoped(schema.motorRegla.organizationId, organizationId, eq(schema.motorRegla.archivado, false)));
 
   const columnas = await columnasPorTabla(objetos.map((o) => o.tabla));
   const mapa = new Map<string, ObjetoMeta>();
@@ -126,8 +143,11 @@ export async function cargarMotor(organizationId: string): Promise<Motor> {
         nombreHacia: r.nombreHacia,
         columna: r.columna,
         tabla: r.tabla,
+        columnaDesde: r.columnaDesde ?? "desde_id",
+        columnaHacia: r.columnaHacia ?? "hacia_id",
         obligatoria: r.obligatoria,
       })),
+    reglas: reglas.map((g) => ({ clave: g.clave, etapa: g.etapa, relacion: g.relacion, campo: g.campo, valor: g.valor })),
   };
 }
 

@@ -35,7 +35,12 @@
             { "valor": "presencial", "nombre": "Presencial" },
             { "valor": "virtual", "nombre": "Virtual" }
           ] },
-        { "clave": "activo", "nombre": "Activo", "tipo": "booleano" }
+        { "clave": "activo", "nombre": "Activo", "tipo": "booleano" },
+        { "clave": "cupo", "nombre": "Cupo", "tipo": "seleccion",
+          "opciones": [
+            { "valor": "libre", "nombre": "Libre" },
+            { "valor": "ocupado", "nombre": "Ocupado" }
+          ] }
       ]
     }
   ],
@@ -44,5 +49,9 @@
       "nombreDesde": "Tratamientos", "nombreHacia": "Sede", "obligatoria": true },
     { "clave": "oportunidad_tratamientos", "desde": "oportunidad", "hacia": "tratamiento",
       "tipo": "muchos_a_muchos", "nombreDesde": "Tratamientos de interés", "nombreHacia": "Oportunidades" }
+  ],
+  "reglasEtapa": [
+    { "clave": "reserva_ocupa_cupo", "etapa": "reservo", "relacion": "oportunidad_tratamientos",
+      "campo": "cupo", "valor": "ocupado" }
   ]
 }
