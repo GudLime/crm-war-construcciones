@@ -14,6 +14,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { canConfigure } from "@/lib/auth/roles";
+import type { ObjetoMenuDto } from "@/lib/motor/dto";
+import { iconoDeOrigen } from "@/lib/origenes";
 
 /**
  * #87 — El modelo del menú, separado del componente que lo pinta.
@@ -53,11 +55,14 @@ export const SETTINGS_ITEM: NavItem = {
 export function appNavGroups({
   agenda = false,
   role,
+  objetos = [],
 }: {
   /** 015 — "Citas" solo existe si esta instancia encendió la agenda. */
   agenda?: boolean;
   /** #86 — La guía de inicio solo para quien puede configurar. */
   role?: string | null;
+  /** 070 — Los objetos personalizados del cliente (Edificio, Tratamiento…). */
+  objetos?: ObjetoMenuDto[];
 }): NavGroup[] {
   const trabajo: NavItem[] = [
     { href: "/inbox", label: "Bandeja", icon: Inbox, badge: true },
@@ -80,6 +85,8 @@ export function appNavGroups({
 
   const ventas: NavItem[] = [
     { href: "/edificios", label: "Edificios", icon: Building2 },
+    // 070 — Cada objeto personalizado del cliente, en el orden de su configuración.
+    ...objetos.map((o) => ({ href: `/objetos/${o.clave}`, label: o.nombrePlural, icon: iconoDeOrigen(o.icono) })),
     { href: "/oportunidades", label: "Oportunidades", icon: Tag },
     { href: "/tareas", label: "Tareas", icon: ListTodo },
   ];

@@ -1,6 +1,6 @@
 # 070 — Motor de objetos personalizados
 
-Estado: pasos 1 y 2 de 8 (metadatos y configuración; lectura y escritura) · Repo: GudLime/gudlime-crm-service
+Estado: pasos 1 a 3 de 8 (metadatos y configuración; lectura y escritura; pantallas) · Repo: GudLime/gudlime-crm-service
 Diseño completo: documento «Diseño técnico: objetos personalizados en Vocero».
 
 ## Qué
@@ -54,10 +54,23 @@ núcleo.
 - CI: Postgres 16 de prueba con las migraciones aplicadas;
   `tests/unit/motor-registros-db.test.ts` corre contra él.
 
+## Paso 3: pantallas genéricas
+
+- API: `GET/POST /api/objetos/<objeto>` (lista con `q`, `padre=<relación>:<id>`,
+  `f.<campo>=a,b`; alta) y `GET/PATCH/DELETE /api/objetos/<objeto>/<id>`
+  (detalle con padres, hijos, asociados e historial; edición; borrado con
+  `?modo=cascada|soltar`). Cualquier usuario de la organización: el cliente
+  carga registros, la estructura no se toca.
+- Pantallas `/objetos/<objeto>` (buscar, filtrar, crear) y
+  `/objetos/<objeto>/<id>` (datos, edición, padres, hijos con alta ya
+  relacionada, historial, borrado que pregunta qué hacer con los asociados).
+- Menú: cada objeto entra solo en «Ventas» (`appNavGroups({ objetos })`).
+- La moneda se escribe en unidades y viaja en centavos.
+
 ## Próximos pasos
 
-3. Pantallas genéricas · 4. CSV genérico ·
+4. CSV genérico ·
 5. Relación oportunidad ↔ objetos · 6. Agente · 7. Estadísticas ·
 8. Configuración de WAR (adopta Edificio y Departamento).
 
-Tests: `tests/unit/motor-config.test.ts`, `motor-valores.test.ts`, `motor-registros-db.test.ts` (con Postgres).
+Tests: `tests/unit/motor-config.test.ts`, `motor-valores.test.ts`, `motor-registros-db.test.ts` (con Postgres), `motor-pantallas.test.ts`.

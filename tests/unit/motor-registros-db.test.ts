@@ -161,4 +161,16 @@ describe.skipIf(!URL)("motor: registros en Postgres", () => {
     const historial = await m.historialRegistro(org, "sede", s2.id);
     expect(historial[0]).toMatchObject({ accion: "borrado", titulo: "Martínez" });
   });
+
+  it("describe el objeto para las pantallas y arma el menú", async () => {
+    const { cargarMotor } = await import("@/server/motor/metadatos");
+    const { describirObjeto, objetosDelMenu } = await import("@/server/motor/api");
+    const motor = await cargarMotor(org);
+    const sede = describirObjeto(motor, motor.objetos.get("sede")!);
+    expect(sede.hijos).toEqual([{ clave: "sede_tratamientos", objeto: "tratamiento", nombre: "Tratamientos", obligatoria: true }]);
+    expect(sede.campos.find((c) => c.clave === "tratamientos_activos")?.editable).toBe(false);
+    const tratamiento = describirObjeto(motor, motor.objetos.get("tratamiento")!);
+    expect(tratamiento.padres.map((p) => p.clave)).toEqual(["sede_tratamientos"]);
+    expect((await objetosDelMenu(org)).map((o) => o.clave)).toEqual(["sede", "tratamiento"]);
+  });
 });
