@@ -10,6 +10,7 @@ import {
   resultadoDeCierre,
   type AjustesVentas,
 } from "@/lib/ventas-ajustes";
+import { aplicarReglasDeEtapa } from "@/server/motor/oportunidad";
 
 /**
  * War — La única puerta por la que cambia el estado de una oportunidad, y lo
@@ -226,6 +227,20 @@ export async function cambiarEstadoOportunidad(input: {
     motivo: tipo === "cerrada" ? (set.motivoCierre ?? null) : null,
     segundosEnEstadoAnterior: segundosEntre(op.estadoDesde, at),
     intentosSinRespuesta: tipo === "cerrada" ? op.intentosSinRespuesta : null,
+  });
+  // 070 — Reglas de etapa del motor (Reservó → la unidad, Reservado). Con un
+  // solo vinculado se aplica sola; con varios, la pantalla pregunta. Sin
+  // configuración del cliente no hace nada; nunca lanza.
+  await aplicarReglasDeEtapa({
+    organizationId: input.organizationId,
+    oportunidadId: fila.id,
+    etapa: input.destino,
+    actor:
+      input.actor.fuente === "persona"
+        ? { tipo: "usuario", id: input.actor.userId ?? null }
+        : input.actor.fuente === "ia"
+          ? { tipo: "agente" }
+          : { tipo: "sistema" },
   });
   return fila;
 }

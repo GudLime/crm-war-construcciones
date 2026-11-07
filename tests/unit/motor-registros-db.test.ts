@@ -208,8 +208,89 @@ describe.skipIf(!URL)("motor: registros en Postgres", () => {
 
     // Exportar devuelve las mismas columnas que lee el importador.
     const { csv: exportado } = await imp.exportarCsv(org, "tratamiento", { busqueda: "Endodoncia" });
-    expect(exportado.replace("\uFEFF", "").split("\n")[0]).toBe("Sede,Nombre,Duración (min),Precio,Modalidad,Activo");
+    expect(exportado.replace("\uFEFF", "").split("\n")[0]).toBe("Sede,Nombre,Duración (min),Precio,Modalidad,Activo,Cupo");
     expect(exportado).toContain("Vicente López,Endodoncia,,30000,Presencial,Sí");
+  });
+
+  it("paso 5: vincula objetos a una oportunidad y aplica las reglas de etapa", async () => {
+    const { sql } = await import("drizzle-orm");
+    const op = await import("@/server/motor/oportunidad");
+    const { cambiarEstadoOportunidad } = await import("@/server/oportunidad-historial");
+    const d = db.getDb();
+    const sede = await m.crearRegistro(org, "sede", { valores: { nombre: "San Isidro" } }, actor);
+    const nuevo = (nombre: string) =>
+      m.crearRegistro(org, "tratamiento", { valores: { nombre, cupo: "libre" }, padres: { sede_tratamientos: sede.id } }, actor);
+    const a = await nuevo("Turno 9 h");
+    const b = await nuevo("Turno 10 h");
+
+    const opA = `op_motor_a_${Date.now()}`;
+    const opB = `op_motor_b_${Date.now()}`;
+    await d.execute(sql`INSERT INTO oportunidad (id, organization_id, nombre) VALUES (${opA}, ${org}, 'Ana'), (${opB}, ${org}, 'Beto')`);
+
+    // Vínculos: exactamente los pedidos; un id ajeno se rechaza.
+    await op.vincularOportunidad(org, opA, "oportunidad_tratamientos", [a.id, b.id]);
+    let vinculos = await op.vinculosDeOportunidad(org, opA);
+    expect(vinculos[0]?.registros.map((r) => r.titulo).sort()).toEqual(["Turno 10 h", "Turno 9 h"]);
+    await expect(op.vincularOportunidad(org, opA, "oportunidad_tratamientos", ["reg_no_existe"])).rejects.toMatchObject({
+      codigo: "padre_desconocido",
+    });
+
+    // Dos candidatos: Reservó no aplica solo; queda pendiente para elegir.
+    await cambiarEstadoOportunidad({ organizationId: org, oportunidadId: opA, destino: "reservo", actor: { fuente: "persona", userId: "usr_prueba" } });
+    expect((await m.obtenerRegistro(org, "tratamiento", a.id)).valores.cupo).toBe("libre");
+    const pendientes = await op.reglasPendientes(org, opA, "reservo");
+    expect(pendientes).toHaveLength(1);
+    expect(pendientes[0]?.descripcion).toBe("Tratamiento → Cupo: Ocupado");
+    expect(await op.aplicarRegla(org, opA, "reserva_ocupa_cupo", [a.id], actor)).toBe(1);
+    expect((await m.obtenerRegistro(org, "tratamiento", a.id)).valores.cupo).toBe("ocupado");
+    expect((await m.obtenerRegistro(org, "tratamiento", b.id)).valores.cupo).toBe("libre");
+    // Con uno solo pendiente, ya no se pregunta.
+    expect(await op.reglasPendientes(org, opA, "reservo")).toEqual([]);
+
+    // Un solo candidato: se aplica solo, y queda en el historial como del usuario.
+    await op.vincularOportunidad(org, opB, "oportunidad_tratamientos", [b.id]);
+    await cambiarEstadoOportunidad({ organizationId: org, oportunidadId: opB, destino: "reservo", actor: { fuente: "persona", userId: "usr_prueba" } });
+    expect((await m.obtenerRegistro(org, "tratamiento", b.id)).valores.cupo).toBe("ocupado");
+    const historial = await m.historialRegistro(org, "tratamiento", b.id);
+    expect(historial[0]).toMatchObject({ campo: "cupo", actorTipo: "usuario", actorId: "usr_prueba" });
+
+    // Borrar un tratamiento suelta el vínculo; la oportunidad queda.
+    await m.borrarRegistro(org, "tratamiento", a.id, "soltar", actor);
+    vinculos = await op.vinculosDeOportunidad(org, opA);
+    expect(vinculos[0]?.registros.map((r) => r.titulo)).toEqual(["Turno 10 h"]);
+    const [quedo] = (await d.execute(sql`SELECT id FROM oportunidad WHERE id = ${opA}`)) as unknown as { id: string }[];
+    expect(quedo?.id).toBe(opA);
+  });
+
+  it("paso 5: la siembra copia vínculos una vez y no pisa", async () => {
+    const { sql } = await import("drizzle-orm");
+    const { sentenciaSiembra } = await import("@/lib/motor/ddl");
+    const d = db.getDb();
+    const sede = await m.crearRegistro(org, "sede", { valores: { nombre: "Tigre" } }, actor);
+    const t = await m.crearRegistro(org, "tratamiento", { valores: { nombre: "Control" }, padres: { sede_tratamientos: sede.id } }, actor);
+    const opC = `op_motor_c_${Date.now()}`;
+    await d.execute(sql`INSERT INTO oportunidad (id, organization_id, nombre) VALUES (${opC}, ${org}, 'Carla')`);
+    // Tabla común (no TEMP): el pool puede usar otra conexión en la consulta siguiente.
+    await d.execute(sql`CREATE TABLE IF NOT EXISTS prueba_siembra (organization_id text, oportunidad_id text, tratamiento_id text)`);
+    await d.execute(sql`INSERT INTO prueba_siembra VALUES (${org}, ${opC}, ${t.id}), (${org}, ${opC}, NULL)`);
+    const siembra = sentenciaSiembra({
+      clave: "oportunidad_tratamientos",
+      desde: "oportunidad",
+      hacia: "tratamiento",
+      tipo: "muchos_a_muchos",
+      nombreDesde: "x",
+      nombreHacia: "y",
+      adoptaTabla: false,
+      obligatoria: false,
+      sembrarDesde: { tabla: "prueba_siembra", columnaDesde: "oportunidad_id", columnaHacia: "tratamiento_id" },
+    })!;
+    await d.execute(sql.raw(siembra));
+    await d.execute(sql.raw(siembra));
+    const [n] = (await d.execute(
+      sql`SELECT count(*) AS n FROM rel_oportunidad_tratamientos WHERE desde_id = ${opC}`
+    )) as unknown as { n: string }[];
+    expect(Number(n?.n)).toBe(1);
+    await d.execute(sql`DROP TABLE prueba_siembra`);
   });
 });
 

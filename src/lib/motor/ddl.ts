@@ -1,11 +1,13 @@
 import {
   columnaDeCampo,
+  columnasDeRelacion,
   columnaDeRelacion,
   IDENTIFICADOR,
   tablaDeObjeto,
   tablaDeRelacion,
   tieneColumna,
   type ConfigCliente,
+  type RelacionConfig,
   type TipoCampo,
 } from "./config";
 
@@ -96,17 +98,19 @@ export function sentenciasDdl(config: ConfigCliente): string[] {
       continue;
     }
 
+    if (r.adoptaTabla) continue; // la tabla intermedia ya existe
     const tabla = tablaDeRelacion(r);
+    const cols = columnasDeRelacion(r);
     out.push(
       `CREATE TABLE IF NOT EXISTS ${ident(tabla)} (` +
         `"organization_id" text NOT NULL REFERENCES "organization"("id") ON DELETE CASCADE, ` +
-        `"desde_id" text NOT NULL REFERENCES ${ident(desde)}("id") ON DELETE CASCADE, ` +
-        `"hacia_id" text NOT NULL REFERENCES ${ident(hacia)}("id") ON DELETE CASCADE, ` +
+        `${ident(cols.desde)} text NOT NULL REFERENCES ${ident(desde)}("id") ON DELETE CASCADE, ` +
+        `${ident(cols.hacia)} text NOT NULL REFERENCES ${ident(hacia)}("id") ON DELETE CASCADE, ` +
         `"created_at" timestamp DEFAULT now() NOT NULL, ` +
-        `PRIMARY KEY ("desde_id", "hacia_id"))`
+        `PRIMARY KEY (${ident(cols.desde)}, ${ident(cols.hacia)}))`
     );
     out.push(
-      `CREATE INDEX IF NOT EXISTS ${ident(`${tabla}_hacia_idx`.slice(0, 63))} ON ${ident(tabla)} ("organization_id", "hacia_id")`
+      `CREATE INDEX IF NOT EXISTS ${ident(`${tabla}_hacia_idx`.slice(0, 63))} ON ${ident(tabla)} ("organization_id", ${ident(cols.hacia)})`
     );
   }
 
@@ -128,5 +132,28 @@ export function columnasEsperadas(config: ConfigCliente): Map<string, string[]> 
     }
     out.set(o.adopta, cols);
   }
+  for (const r of config.relaciones) {
+    if (r.tipo !== "muchos_a_muchos" || !r.adoptaTabla) continue;
+    const cols = columnasDeRelacion(r);
+    out.set(tablaDeRelacion(r), ["organization_id", cols.desde, cols.hacia]);
+  }
   return out;
+}
+
+/**
+ * La siembra de una relación muchos a muchos desde una columna que ya existe:
+ * copia los vínculos que falten. Se corre una sola vez por relación
+ * (`motor_relacion.sembrado_at`); `ON CONFLICT DO NOTHING` la hace segura si
+ * se repitiera.
+ */
+export function sentenciaSiembra(r: RelacionConfig): string | null {
+  if (r.tipo !== "muchos_a_muchos" || !r.sembrarDesde) return null;
+  const { tabla, columnaDesde, columnaHacia } = r.sembrarDesde;
+  const cols = columnasDeRelacion(r);
+  return (
+    `INSERT INTO ${ident(tablaDeRelacion(r))} ("organization_id", ${ident(cols.desde)}, ${ident(cols.hacia)}) ` +
+    `SELECT "organization_id", ${ident(columnaDesde)}, ${ident(columnaHacia)} FROM ${ident(tabla)} ` +
+    `WHERE ${ident(columnaDesde)} IS NOT NULL AND ${ident(columnaHacia)} IS NOT NULL ` +
+    `ON CONFLICT DO NOTHING`
+  );
 }
