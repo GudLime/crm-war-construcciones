@@ -327,6 +327,34 @@ export async function obtenerRegistro(
   return reg;
 }
 
+/**
+ * Varios registros por id, de una (sin campos calculados por resumen): para
+ * las estadísticas, que solo necesitan título, campos y padres.
+ */
+export async function registrosPorIds(
+  organizationId: string,
+  motor: Motor,
+  objetoClave: string,
+  ids: string[]
+): Promise<Registro[]> {
+  const objeto = objetoDe(motor, objetoClave);
+  const unicos = [...new Set(ids)];
+  if (!unicos.length) return [];
+  const out: Registro[] = [];
+  for (let i = 0; i < unicos.length; i += 1000) {
+    const lote = unicos.slice(i, i + 1000);
+    const filas = (await getDb().execute(
+      sql`SELECT ${columnasSelect(motor, objeto)} FROM ${id(objeto.tabla)}
+          WHERE organization_id = ${organizationId} AND id IN (${sql.join(
+            lote.map((x) => sql`${x}`),
+            sql`, `
+          )})`
+    )) as unknown as Fila[];
+    out.push(...filas.map((f) => aRegistro(motor, objeto, f)));
+  }
+  return out;
+}
+
 /** Cuántos registros cuelgan de este, por relación: para la ventana de borrar. */
 export async function contarAsociados(
   organizationId: string,
