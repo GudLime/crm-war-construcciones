@@ -335,5 +335,64 @@ describe.skipIf(!URL)("motor: registros en Postgres", () => {
 
     await agente.cambiarVisibilidadAgente(org, "tratamiento", { visible: true, campos: { precio: true } });
   });
+
+  it("paso 7: estadísticas de oportunidades con Ver por y filtros desde el motor", async () => {
+    const { estadisticasOportunidades } = await import("@/server/analytics/oportunidades");
+    const { periodFromRequest } = await import("@/server/analytics/period");
+    const op = await import("@/server/motor/oportunidad");
+    const { sql } = await import("drizzle-orm");
+    const d = db.getDb();
+    const org3 = `${org}_stats`;
+    await d.insert(db.schema.organization).values({ id: org3, name: "Clínica estadísticas" });
+    try {
+      await sincronizar.sincronizarMotor();
+      const norte = await m.crearRegistro(org3, "sede", { valores: { nombre: "Norte" } }, actor);
+      const sur = await m.crearRegistro(org3, "sede", { valores: { nombre: "Sur" } }, actor);
+      const t1 = await m.crearRegistro(org3, "tratamiento", { valores: { nombre: "Limpieza", modalidad: "presencial" }, padres: { sede_tratamientos: norte.id } }, actor);
+      const t2 = await m.crearRegistro(org3, "tratamiento", { valores: { nombre: "Consulta", modalidad: "virtual" }, padres: { sede_tratamientos: sur.id } }, actor);
+      const sufijo = Date.now();
+      const [a, b, c] = [`op_st_a_${sufijo}`, `op_st_b_${sufijo}`, `op_st_c_${sufijo}`];
+      await d.execute(sql`INSERT INTO oportunidad (id, organization_id, nombre, estado, origen) VALUES
+        (${a}, ${org3}, 'A', 'compro', 'Meta Ads'), (${b}, ${org3}, 'B', 'perdido', 'Meta Ads'), (${c}, ${org3}, 'C', 'recibido', NULL)`);
+      await d.execute(sql`INSERT INTO oportunidad_evento (id, organization_id, oportunidad_id, tipo, estado_desde, estado_hasta, segundos_en_estado_anterior, fuente) VALUES
+        (${`ev1_${sufijo}`}, ${org3}, ${a}, 'estado', 'recibido', 'visito', 86400, 'sistema'),
+        (${`ev2_${sufijo}`}, ${org3}, ${a}, 'cerrada', 'visito', 'compro', 172800, 'sistema'),
+        (${`ev3_${sufijo}`}, ${org3}, ${b}, 'cerrada', 'recibido', 'perdido', 3600, 'sistema')`);
+      await op.vincularOportunidad(org3, a, "oportunidad_tratamientos", [t1.id]);
+      await op.vincularOportunidad(org3, b, "oportunidad_tratamientos", [t1.id, t2.id]);
+
+      // Sin fechas: los últimos 30 días hasta hoy, en la zona del negocio.
+      const period = await periodFromRequest(org3, new globalThis.URL("http://x/"));
+
+      // Sin pedir nada: arranca con el «Ver por» de la configuración (sede del tratamiento).
+      const r = await estadisticasOportunidades(org3, period, { filtros: {} });
+      expect(r.total.entraron).toBe(3);
+      expect(r.total.compraron).toBe(1);
+      expect(r.verPor).toBe("oportunidad_tratamientos.sede_tratamientos");
+      expect(r.bloques).toEqual(["embudo", "motivos", "tiempos", "origenes"]);
+      expect(r.multiple).toBe(true);
+      expect(r.grupos.map((g) => [g.nombre, g.entraron])).toEqual([
+        ["Norte", 2],
+        ["Sur", 1],
+        ["Sin sede (tratamiento)", 1],
+      ]);
+      expect(r.opciones.map((o) => o.clave)).toEqual(
+        expect.arrayContaining(["origen", "oportunidad_tratamientos", "oportunidad_tratamientos.modalidad"])
+      );
+      expect(r.total.embudo.find((e) => e.estado === "visito")?.llegaron).toBe(1);
+
+      // Filtro por un campo del tratamiento y sin agrupar.
+      const v = await estadisticasOportunidades(org3, period, { verPor: null, filtros: { "oportunidad_tratamientos.modalidad": ["virtual"] } });
+      expect(v.verPor).toBeNull();
+      expect(v.total.entraron).toBe(1);
+      expect(v.total.perdidas).toBe(1);
+
+      // Otra organización no ve nada de esto.
+      const otra = await estadisticasOportunidades(otraOrg, period, { filtros: {} });
+      expect(otra.total.entraron).toBe(0);
+    } finally {
+      await d.execute(sql`DELETE FROM organization WHERE id = ${org3}`);
+    }
+  });
 });
 
