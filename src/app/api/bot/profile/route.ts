@@ -5,9 +5,7 @@ import { requireBotKey, resolveInstanceOrg } from "@/server/bot/auth";
 import { serializeBotProfile, type BotLlm } from "@/server/bot/profile";
 import { resolveAiProvider } from "@/lib/ai/provider";
 import { conInstruccionesOportunidades } from "@/lib/instrucciones-oportunidades";
-import { conMemoria } from "@/lib/memoria-agente";
-import { memoriaDeEdificios } from "@/server/ventas";
-import { textoDeObjetosParaAgente } from "@/server/motor/agente";
+import { conocimientoDelAgente } from "@/server/bot/conocimiento";
 
 export const dynamic = "force-dynamic";
 
@@ -52,11 +50,8 @@ export async function GET(req: Request) {
   // de las instrucciones del negocio: son contrato con el CRM, no estilo.
   const out = serializeBotProfile(profile, kb, llm);
   out.profile.instructions = conInstruccionesOportunidades(out.profile.instructions);
-  // War — Los edificios con «Memoria del agente» prendido van con el
-  // conocimiento: datos, unidades disponibles y notas para el agente.
-  out.kb = conMemoria(out.kb, await memoriaDeEdificios(organizationId));
-  // Motor (paso 6) — los objetos personalizados con «visible para el agente»
-  // prendido, solo con las columnas que tienen el ícono de IA.
-  out.kb = conMemoria(out.kb, await textoDeObjetosParaAgente(organizationId));
+  // La memoria de edificios (War, hasta que Edificio pasa al motor) y los
+  // objetos del motor visibles para el agente van con el conocimiento.
+  out.kb = (await conocimientoDelAgente(organizationId, out.kb)).texto;
   return Response.json(out);
 }

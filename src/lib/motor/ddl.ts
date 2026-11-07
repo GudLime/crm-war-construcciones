@@ -20,7 +20,9 @@ import {
  *   correr en cada arranque sin efecto si no cambió nada.
  * - Nunca borra ni cambia tablas o columnas. Quitar un campo de la
  *   configuración lo archiva en los metadatos; la columna y sus datos quedan.
- * - Los objetos adoptados (`adopta`) no se tocan: su tabla ya existe.
+ * - Los objetos adoptados (`adopta`) no se tocan: su tabla ya existe. La
+ *   única excepción son los campos marcados con `crear` (paso 8): su columna
+ *   se agrega si falta.
  * - Toda tabla lleva `organization_id` (Constitución III).
  */
 
@@ -77,6 +79,17 @@ export function sentenciasDdl(config: ConfigCliente): string[] {
     }
   }
 
+  // 1b) Paso 8 — columnas nuevas en tablas adoptadas (solo las marcadas con
+  // `crear`). Nunca se cambia ni se borra una columna que ya estaba.
+  for (const o of config.objetos) {
+    if (!o.adopta) continue;
+    for (const c of o.campos) {
+      if (!c.crear || !tieneColumna(c.tipo)) continue;
+      const tipo = TIPO_SQL[c.tipo as Exclude<TipoCampo, "calculado">];
+      out.push(`ALTER TABLE IF EXISTS ${ident(o.adopta)} ADD COLUMN IF NOT EXISTS ${ident(columnaDeCampo(c))} ${tipo}`);
+    }
+  }
+
   // 2) Relaciones. Uno a muchos: columna en la tabla del lado «muchos», si es
   // un objeto nuevo. Muchos a muchos: tabla intermedia.
   for (const r of config.relaciones) {
@@ -126,7 +139,9 @@ export function columnasEsperadas(config: ConfigCliente): Map<string, string[]> 
   for (const o of config.objetos) {
     if (!o.adopta) continue;
     const cols = ["id", "organization_id"];
-    for (const c of o.campos) if (tieneColumna(c.tipo)) cols.push(columnaDeCampo(c));
+    // Las marcadas con `crear` las agrega el propio motor: no se exigen.
+    for (const c of o.campos) if (tieneColumna(c.tipo) && !c.crear) cols.push(columnaDeCampo(c));
+    if (o.columnaTitulo) cols.push(o.columnaTitulo);
     for (const r of config.relaciones) {
       if (r.tipo === "uno_a_muchos" && r.hacia === o.clave) cols.push(columnaDeRelacion(r));
     }
