@@ -186,6 +186,8 @@ export type OportunidadDto = {
   estado: EstadoOportunidad;
   tipo: TipoOportunidad | null;
   motivoCierre: string | null;
+  /** War — Usuario responsable (id), o null. */
+  responsableId: string | null;
   valorCents: number | null;
   moneda: string | null;
   /** 068 — Todos los edificios de interés (el `edificioId` de arriba es el principal). */
@@ -612,6 +614,7 @@ function aOportunidad(
     estado: fila.estado,
     tipo: fila.tipo,
     motivoCierre: fila.motivoCierre,
+    responsableId: fila.responsableUserId ?? null,
     valorCents: fila.valorCents,
     moneda: fila.moneda,
     edificios: interes.edificios,

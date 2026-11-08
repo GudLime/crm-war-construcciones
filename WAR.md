@@ -206,3 +206,6 @@ cambios de GudLime, si `_journal.json` choca, se ordenan las entradas por
   parientes, en `contacto_datos` y `contacto_pariente` (no se toca `contact`).
 - `war_0003_importacion_externa`: qué se importó de Notion y en qué registro
   quedó (hace repetible la importación de Ajustes → `/settings/importar-notion`).
+- `war_0004_responsable`: responsable de la oportunidad (`responsable_user_id`),
+  elegible en la página de la oportunidad; la importación de Notion lo mapea
+  por primer nombre (Sebastián, Gloria) e ignora al resto.

@@ -134,6 +134,8 @@ export const oportunidad = pgTable(
       .default("recibido"),
     tipo: text("tipo", { enum: ["venta", "alquiler", "inmobiliaria"] }),
     motivoCierre: text("motivo_cierre"),
+    /** War — Quién del equipo la lleva (war_0004). */
+    responsableUserId: text("responsable_user_id").references(() => user.id, { onDelete: "set null" }),
     valorCents: integer("valor_cents"),
     moneda: text("moneda"),
     /**

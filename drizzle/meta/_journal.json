@@ -330,6 +330,13 @@
       "when": 1793833380000,
       "tag": "war_0003_importacion_externa",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793833440000,
+      "tag": "war_0004_responsable",
+      "breakpoints": true
     }
   ]
 }

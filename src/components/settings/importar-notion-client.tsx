@@ -16,6 +16,7 @@ type Informe = {
   oportunidades: { nuevas: number; yaImportadas: number; unidasPorLead: number; unidasConExistente: number };
   notas: number;
   tareas: number;
+  conResponsable: number;
   edificiosCreados: string[];
   problemas: string[];
 };
@@ -40,6 +41,7 @@ function sumar(a: Informe | null, b: Informe): Informe {
     },
     notas: a.notas + b.notas,
     tareas: a.tareas + b.tareas,
+    conResponsable: a.conResponsable + b.conResponsable,
     edificiosCreados: [...new Set([...a.edificiosCreados, ...b.edificiosCreados])],
     problemas: [...new Set([...a.problemas, ...b.problemas])],
   };
@@ -145,7 +147,7 @@ export function ImportarNotionClient() {
                   Oportunidades: {i.oportunidades.nuevas} nuevas · {i.oportunidades.unidasPorLead} unidas por ID de lead ·{" "}
                   {i.oportunidades.unidasConExistente} unidas con una del CRM · {i.oportunidades.yaImportadas} ya importadas
                 </li>
-                <li>Notas: {i.notas} · Tareas abiertas: {i.tareas}</li>
+                <li>Notas: {i.notas} · Tareas (abiertas y visitas hechas): {i.tareas} · Con responsable: {i.conResponsable}</li>
                 {i.edificiosCreados.length > 0 && <li>Edificios que se crean: {i.edificiosCreados.join(", ")}</li>}
               </ul>
               {i.problemas.length > 0 && (

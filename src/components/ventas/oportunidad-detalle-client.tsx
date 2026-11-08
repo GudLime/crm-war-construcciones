@@ -277,6 +277,9 @@ export function OportunidadDetalleClient() {
             <section className={cn(TARJETA, "p-5")}>
               <h2 className="mb-3 text-[15px] font-semibold">Datos de la oportunidad</h2>
               <dl className="space-y-2.5 text-[13.5px]">
+                <Dato titulo="Responsable">
+                  <ElegirResponsable oportunidadId={op.id} actual={op.responsableId} onCambio={cargar} />
+                </Dato>
                 <Dato titulo="Tipo">{op.tipo ? etiqueta(TIPOS_OPORTUNIDAD, op.tipo) : "—"}</Dato>
                 <Dato titulo="Valor">{op.valorCents == null ? "—" : plata(op.valorCents, op.moneda, moneda)}</Dato>
                 <Dato titulo="Origen">{op.origen ?? "—"}</Dato>
@@ -308,6 +311,48 @@ export function OportunidadDetalleClient() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** War — Responsable de la oportunidad: un desplegable con el equipo. */
+function ElegirResponsable({
+  oportunidadId,
+  actual,
+  onCambio,
+}: {
+  oportunidadId: string;
+  actual: string | null;
+  onCambio: () => void | Promise<void>;
+}) {
+  const [equipo, setEquipo] = useState<{ userId: string; nombre: string }[] | null>(null);
+  useEffect(() => {
+    void fetch("/api/oportunidades/responsables")
+      .then((r) => (r.ok ? r.json() : { responsables: [] }))
+      .then((d: { responsables: { userId: string; nombre: string }[] }) => setEquipo(d.responsables))
+      .catch(() => setEquipo([]));
+  }, []);
+  if (!equipo) return <span className="text-text-3">…</span>;
+  return (
+    <Select
+      value={actual ?? ""}
+      onValueChange={async (v) => {
+        await fetch(`/api/oportunidades/${oportunidadId}/responsable`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ userId: v || null }),
+        }).catch(() => null);
+        await onCambio();
+      }}
+      className="h-8 w-44 text-[13px]"
+      aria-label="Responsable"
+    >
+      <option value="">Sin responsable</option>
+      {equipo.map((r) => (
+        <option key={r.userId} value={r.userId}>
+          {r.nombre}
+        </option>
+      ))}
+    </Select>
   );
 }
 
