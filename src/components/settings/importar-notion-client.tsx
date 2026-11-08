@@ -18,6 +18,7 @@ type Informe = {
   tareas: number;
   conResponsable: number;
   edificiosCreados: string[];
+  edificiosUnidos: string[];
   problemas: string[];
 };
 type Archivo = { edificios: unknown[]; contactos: unknown[]; oportunidadesSinContacto: unknown[] };
@@ -43,6 +44,7 @@ function sumar(a: Informe | null, b: Informe): Informe {
     tareas: a.tareas + b.tareas,
     conResponsable: a.conResponsable + b.conResponsable,
     edificiosCreados: [...new Set([...a.edificiosCreados, ...b.edificiosCreados])],
+    edificiosUnidos: [...new Set([...a.edificiosUnidos, ...b.edificiosUnidos])],
     problemas: [...new Set([...a.problemas, ...b.problemas])],
   };
 }
@@ -148,6 +150,7 @@ export function ImportarNotionClient() {
                   {i.oportunidades.unidasConExistente} unidas con una del CRM · {i.oportunidades.yaImportadas} ya importadas
                 </li>
                 <li>Notas: {i.notas} · Tareas (abiertas y visitas hechas): {i.tareas} · Con responsable: {i.conResponsable}</li>
+                {i.edificiosUnidos.length > 0 && <li>Edificios reconocidos con otro nombre: {i.edificiosUnidos.join(" · ")}</li>}
                 {i.edificiosCreados.length > 0 && <li>Edificios que se crean: {i.edificiosCreados.join(", ")}</li>}
               </ul>
               {i.problemas.length > 0 && (

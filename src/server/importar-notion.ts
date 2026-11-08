@@ -100,6 +100,7 @@ export type Informe = {
   tareas: number;
   conResponsable: number;
   edificiosCreados: string[];
+  edificiosUnidos: string[];
   problemas: string[];
 };
 
@@ -111,6 +112,7 @@ export function informeVacio(): Informe {
     tareas: 0,
     conResponsable: 0,
     edificiosCreados: [],
+    edificiosUnidos: [],
     problemas: [],
   };
 }
@@ -125,6 +127,20 @@ export function planoEdificio(nombre: string): string {
     .toLowerCase()
     .replace(/\b(av|avda|avenida)\b\.?/g, "")
     .replace(/[^a-z0-9]/g, "");
+}
+
+/** «Gral. Justo José de Urquiza 1872, Florida» → «urquiza1872»: la última palabra de la calle y la altura. */
+export function calleYAltura(texto: string): string | null {
+  const m = planoConEspacios(texto).match(/([a-z]+)\s+(\d{2,5})\b/);
+  return m ? `${m[1]}${m[2]}` : null;
+}
+
+function planoConEspacios(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ");
 }
 
 const fechaDe = (s: string | null | undefined): Date | null => {
@@ -179,12 +195,22 @@ class Contexto {
 
   async prepararEdificios(lista: z.infer<typeof edificioSchema>[]) {
     const existentes = await this.tx
-      .select({ id: schema.edificio.id, nombre: schema.edificio.nombre })
+      .select({ id: schema.edificio.id, nombre: schema.edificio.nombre, direccion: schema.edificio.direccion })
       .from(schema.edificio)
       .where(scoped(schema.edificio.organizationId, this.org));
     for (const e of existentes) this.edificios.set(planoEdificio(e.nombre), e.id);
     for (const e of lista) {
       if (this.edificios.has(planoEdificio(e.nombre))) continue;
+      // Mismo edificio con otro nombre («Lavalle 3086» y «Lavalle 3086 · Almagro»): por calle y altura.
+      const calle = calleYAltura(e.nombre);
+      const parecidos = calle
+        ? existentes.filter((x) => calleYAltura(x.nombre) === calle || (x.direccion && calleYAltura(x.direccion) === calle))
+        : [];
+      if (parecidos.length === 1) {
+        this.edificios.set(planoEdificio(e.nombre), parecidos[0]!.id);
+        this.informe.edificiosUnidos.push(`${e.nombre} → ${parecidos[0]!.nombre}`);
+        continue;
+      }
       const id = newId("edificio");
       await this.tx.insert(schema.edificio).values({
         id,
@@ -506,6 +532,7 @@ export function sumarInformes(a: Informe, b: Informe): Informe {
     tareas: a.tareas + b.tareas,
     conResponsable: a.conResponsable + b.conResponsable,
     edificiosCreados: [...new Set([...a.edificiosCreados, ...b.edificiosCreados])],
+    edificiosUnidos: [...new Set([...a.edificiosUnidos, ...b.edificiosUnidos])],
     problemas: [...a.problemas, ...b.problemas],
   };
 }

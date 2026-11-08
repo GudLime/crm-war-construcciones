@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { planoEdificio } from "@/server/importar-notion";
+import { calleYAltura, planoEdificio } from "@/server/importar-notion";
 import { responsableDeTexto } from "@/server/responsables";
 
 /** War — Importación de Notion (punto 9 de la checklist). */
@@ -16,6 +16,13 @@ describe("War: importar Notion", () => {
     expect(responsableDeTexto("Fabian", equipo)).toBeNull();
     expect(responsableDeTexto("WAR Construcciones", equipo)).toBeNull();
     expect(responsableDeTexto(null, equipo)).toBeNull();
+  });
+
+  it("calle y altura para reconocer el mismo edificio con otro nombre", () => {
+    expect(calleYAltura("Lavalle 3086")).toBe("lavalle3086");
+    expect(calleYAltura("Edificio Lavalle 3086 - Almagro")).toBe("lavalle3086");
+    expect(calleYAltura("General Justo José de Urquiza 1872, B1602 Florida")).toBe("urquiza1872");
+    expect(calleYAltura("Cochera")).toBeNull();
   });
 
   it("reconoce el mismo edificio escrito distinto", () => {
