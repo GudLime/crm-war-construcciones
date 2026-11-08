@@ -1,9 +1,23 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { planoEdificio } from "@/server/importar-notion";
+import { responsableDeTexto } from "@/server/responsables";
 
 /** War — Importación de Notion (punto 9 de la checklist). */
 
 describe("War: importar Notion", () => {
+  it("responsable: por primer nombre, ignora a quien no está en el equipo", () => {
+    const equipo = [
+      { userId: "u_seb", nombre: "Sebastián Lima" },
+      { userId: "u_glo", nombre: "Gloria" },
+    ];
+    expect(responsableDeTexto("Sebastián Lima", equipo)).toBe("u_seb");
+    expect(responsableDeTexto("WAR Construcciones, Sebastián Lima", equipo)).toBe("u_seb");
+    expect(responsableDeTexto("Gloria", equipo)).toBe("u_glo");
+    expect(responsableDeTexto("Fabian", equipo)).toBeNull();
+    expect(responsableDeTexto("WAR Construcciones", equipo)).toBeNull();
+    expect(responsableDeTexto(null, equipo)).toBeNull();
+  });
+
   it("reconoce el mismo edificio escrito distinto", () => {
     expect(planoEdificio("Av. Independencia 4154")).toBe(planoEdificio("Independencia 4154"));
     expect(planoEdificio("OLAZÁBAL 2649")).toBe(planoEdificio("Olazábal 2649"));
@@ -62,8 +76,10 @@ describe.skipIf(!URL_DB)("War: importar Notion en Postgres", () => {
             creada: "2026-03-05T12:00:00-03:00",
             editada: "2026-03-06T12:00:00-03:00",
             notas: [],
+            responsable: "Gloria",
             tareas: [
               { clave: `ta-${sufijo}-1`, titulo: "Follow up", tipo: "llamada" as const, estado: "realizar" as const, fecha: "2026-03-10T12:00:00-03:00" },
+              { clave: `ta-${sufijo}-2`, titulo: "4. Visita", tipo: "visita" as const, estado: "listo" as const, fecha: "2026-03-06T11:00:00-03:00" },
             ],
           },
         ],
@@ -91,12 +107,15 @@ describe.skipIf(!URL_DB)("War: importar Notion en Postgres", () => {
     const d = db.getDb();
     await d.insert(db.schema.organization).values({ id: org, name: "Constructora" });
     await d.insert(db.schema.edificio).values({ id: `edi_${sufijo}`, organizationId: org, nombre: "Olazábal 2649", estado: "en_construccion" });
+    await d.insert(db.schema.user).values({ id: `usr_glo_${sufijo}`, name: "Gloria", email: `gloria${sufijo}@war.test`, emailVerified: true });
+    await d.insert(db.schema.member).values({ id: `mem_glo_${sufijo}`, organizationId: org, userId: `usr_glo_${sufijo}`, role: "member" });
   });
 
   afterAll(async () => {
     if (!db) return;
     const { sql } = await import("drizzle-orm");
     await db.getDb().execute(sql`DELETE FROM organization WHERE id = ${org}`);
+    await db.getDb().execute(sql`DELETE FROM "user" WHERE id = ${`usr_glo_${sufijo}`}`);
   });
 
   const cuenta = async (tabla: string) => {
@@ -112,7 +131,7 @@ describe.skipIf(!URL_DB)("War: importar Notion en Postgres", () => {
     expect(r.contactos).toMatchObject({ nuevos: 2, sinTelefono: 1 });
     expect(r.oportunidades.nuevas).toBe(2);
     expect(r.notas).toBe(1);
-    expect(r.tareas).toBe(1);
+    expect(r.tareas).toBe(2);
     expect(r.edificiosCreados).toEqual(["Gallo 716"]);
     expect(r.problemas.join()).toContain("Edificio Fantasma");
     expect(await cuenta("contact")).toBe(0);
@@ -128,10 +147,16 @@ describe.skipIf(!URL_DB)("War: importar Notion en Postgres", () => {
     expect(await cuenta("oportunidad_tipologia")).toBe(1);
     expect(await cuenta("oportunidad_lead")).toBe(1);
     expect(await cuenta("conversation_note")).toBe(1);
-    expect(await cuenta("tarea_venta")).toBe(1);
+    expect(await cuenta("tarea_venta")).toBe(2);
     expect(await cuenta("contacto_datos")).toBe(1);
     // creada + llegó a Conoce información + cerrada; creada + visitó
     expect(await cuenta("oportunidad_evento")).toBe(5);
+    const { sql: q } = await import("drizzle-orm");
+    const conResp = (await db.getDb().execute(
+      q`SELECT count(*)::int AS n FROM oportunidad WHERE organization_id = ${org} AND responsable_user_id = ${`usr_glo_${sufijo}`}`
+    )) as unknown as { n: number }[];
+    expect(conResp[0]?.n).toBe(1);
+    expect(r.conResponsable).toBe(1);
 
     const otra = await imp.importarLote(org, imp.loteSchema.parse(lote(true)));
     expect(otra.contactos.yaImportados).toBe(2);

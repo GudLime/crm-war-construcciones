@@ -5,6 +5,7 @@ import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
 import { soloDigitos } from "@/lib/datos-contacto";
 import { normalizarTelefono } from "@/lib/telefono";
+import { listarResponsables, responsableDeTexto, type ResponsableDto } from "@/server/responsables";
 
 /**
  * War — Importación de Notion (punto 9 de la checklist). Recibe el archivo que
@@ -32,7 +33,7 @@ const tareaSchema = z.object({
   clave: z.string().max(80),
   titulo: z.string().min(1).max(300),
   tipo: z.enum(["llamada", "visita", "mensaje", "reunion", "correo"]),
-  estado: z.enum(["realizar", "no_responde"]),
+  estado: z.enum(["realizar", "no_responde", "listo"]),
   fecha: fechaIso,
   comentarios: z.string().max(8000).nullable().optional(),
 });
@@ -97,6 +98,7 @@ export type Informe = {
   oportunidades: { nuevas: number; yaImportadas: number; unidasPorLead: number; unidasConExistente: number };
   notas: number;
   tareas: number;
+  conResponsable: number;
   edificiosCreados: string[];
   problemas: string[];
 };
@@ -107,6 +109,7 @@ export function informeVacio(): Informe {
     oportunidades: { nuevas: 0, yaImportadas: 0, unidasPorLead: 0, unidasConExistente: 0 },
     notas: 0,
     tareas: 0,
+    conResponsable: 0,
     edificiosCreados: [],
     problemas: [],
   };
@@ -136,7 +139,7 @@ export async function importarLote(organizationId: string, lote: Lote): Promise<
   const informe = informeVacio();
   try {
     await getDb().transaction(async (tx) => {
-      const ctx = new Contexto(tx, organizationId, informe);
+      const ctx = new Contexto(tx, organizationId, informe, await listarResponsables(organizationId));
       await ctx.prepararEdificios(lote.edificios);
       for (const c of lote.contactos) await ctx.contacto(c);
       for (const o of lote.oportunidadesSinContacto) await ctx.oportunidad(o, null, false);
@@ -153,7 +156,8 @@ class Contexto {
   constructor(
     private tx: Tx,
     private org: string,
-    private informe: Informe
+    private informe: Informe,
+    private equipo: ResponsableDto[]
   ) {}
 
   private async yaImportado(clave: string): Promise<string | null> {
@@ -359,6 +363,16 @@ class Contexto {
       if (!id) id = await this.crearOportunidad(o, contactId);
       await this.recordar(o.clave, "oportunidad", id);
     }
+    // Responsable (Sebastián, Gloria…): solo si la oportunidad no tiene uno.
+    const responsable = responsableDeTexto(o.responsable, this.equipo);
+    if (responsable) {
+      const r = await this.tx
+        .update(schema.oportunidad)
+        .set({ responsableUserId: responsable })
+        .where(and(eq(schema.oportunidad.id, id), sql`${schema.oportunidad.responsableUserId} is null`))
+        .returning({ id: schema.oportunidad.id });
+      if (r.length) this.informe.conResponsable++;
+    }
     for (const n of o.notas) await this.nota(n, contactId, id);
     for (const t of o.tareas) await this.tarea(t, contactId, id);
   }
@@ -490,6 +504,7 @@ export function sumarInformes(a: Informe, b: Informe): Informe {
     },
     notas: a.notas + b.notas,
     tareas: a.tareas + b.tareas,
+    conResponsable: a.conResponsable + b.conResponsable,
     edificiosCreados: [...new Set([...a.edificiosCreados, ...b.edificiosCreados])],
     problemas: [...a.problemas, ...b.problemas],
   };
