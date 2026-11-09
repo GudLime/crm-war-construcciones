@@ -212,3 +212,6 @@ cambios de GudLime, si `_journal.json` choca, se ordenan las entradas por
 - `war_0005_ia_por_defecto`: Ajustes → Ventas «El agente en conversaciones
   nuevas». Apagado, la conversación nueva nace sin IA (los contactos de Make,
   la API y WhatsApp llegan igual); se prende a mano en cada una.
+- `war_0006_cochera_no_es_edificio`: corrige la importación de Notion. Borra el
+  edificio «Cochera» (si no tiene unidades), deja la nota «Interés: cochera» en
+  sus oportunidades y les pasa el edificio principal a otro que tengan.
