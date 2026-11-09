@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   AJUSTES_VENTAS_POR_DEFECTO,
   MODOS_SIN_RESPUESTA,
@@ -66,6 +67,33 @@ export function VentasAjustesClient() {
 
   return (
     <div className="max-w-3xl space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>El agente en conversaciones nuevas</CardTitle>
+          <CardDescription>
+            Si está prendido, Mateo atiende solo a cada contacto nuevo que escribe. Apagado, los
+            contactos y las oportunidades llegan igual (WhatsApp, Make, la API) y se ven en el CRM,
+            pero la IA no contesta hasta que alguien la prenda en esa conversación. Las
+            conversaciones que ya existen no cambian.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <label className="flex items-center justify-between gap-4 text-sm">
+            <span>
+              {ajustes.iaConversacionesNuevas
+                ? "Prendido: el agente contesta solo a los contactos nuevos"
+                : "Apagado: los contactos nuevos llegan sin agente"}
+            </span>
+            <Switch
+              checked={ajustes.iaConversacionesNuevas}
+              disabled={!puedeEditar}
+              onCheckedChange={(v) => setAjustes({ ...ajustes, iaConversacionesNuevas: v })}
+              label="El agente atiende las conversaciones nuevas"
+            />
+          </label>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Leads que no responden</CardTitle>

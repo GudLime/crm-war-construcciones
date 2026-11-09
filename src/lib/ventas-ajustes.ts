@@ -22,6 +22,12 @@ export type AjustesVentas = {
   sinRespuestaModo: ModoSinRespuesta;
   /** Hasta cuántos días después de cerrada, un mensaje reabre la MISMA oportunidad. */
   reaperturaDias: number;
+  /**
+   * Si el agente atiende solo las conversaciones nuevas. Apagado, los contactos
+   * llegan y se ven, pero la IA no contesta hasta que alguien la prenda en esa
+   * conversación. Las que ya existen no cambian.
+   */
+  iaConversacionesNuevas: boolean;
 };
 
 export const AJUSTES_VENTAS_POR_DEFECTO: AjustesVentas = {
@@ -29,6 +35,7 @@ export const AJUSTES_VENTAS_POR_DEFECTO: AjustesVentas = {
   sinRespuestaDias: 7,
   sinRespuestaModo: "cerrar",
   reaperturaDias: 120,
+  iaConversacionesNuevas: true,
 };
 
 export const ajustesVentasSchema = z.object({
@@ -36,6 +43,7 @@ export const ajustesVentasSchema = z.object({
   sinRespuestaDias: z.number().int().min(1).max(365),
   sinRespuestaModo: z.enum(["cerrar", "sugerir", "apagado"]),
   reaperturaDias: z.number().int().min(0).max(3650),
+  iaConversacionesNuevas: z.boolean().default(true),
 });
 
 /** El motivo con que se cierra una oportunidad por falta de respuesta. */

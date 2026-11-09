@@ -433,6 +433,8 @@ export const ventasAjustes = pgTable("ventas_ajustes", {
     .notNull()
     .default("cerrar"),
   reaperturaDias: integer("reapertura_dias").notNull().default(120),
+  /** War — Si la IA atiende sola las conversaciones nuevas (war_0005). */
+  iaConversacionesNuevas: boolean("ia_conversaciones_nuevas").notNull().default(true),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
