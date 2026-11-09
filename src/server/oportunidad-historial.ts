@@ -54,6 +54,7 @@ export async function leerAjustesVentas(organizationId: string): Promise<Ajustes
     sinRespuestaDias: fila.sinRespuestaDias,
     sinRespuestaModo: fila.sinRespuestaModo,
     reaperturaDias: fila.reaperturaDias,
+    iaConversacionesNuevas: fila.iaConversacionesNuevas,
   };
 }
 

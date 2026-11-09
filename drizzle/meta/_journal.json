@@ -337,6 +337,13 @@
       "when": 1793833440000,
       "tag": "war_0004_responsable",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793833500000,
+      "tag": "war_0005_ia_por_defecto",
+      "breakpoints": true
     }
   ]
 }

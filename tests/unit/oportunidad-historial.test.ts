@@ -77,6 +77,7 @@ describe("cierre por silencio (3 intentos y 7 días desde el último)", () => {
       sinRespuestaDias: 7,
       sinRespuestaModo: "cerrar",
       reaperturaDias: 120,
+      iaConversacionesNuevas: true,
     });
   });
 

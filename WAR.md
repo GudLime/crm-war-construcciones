@@ -209,3 +209,6 @@ cambios de GudLime, si `_journal.json` choca, se ordenan las entradas por
 - `war_0004_responsable`: responsable de la oportunidad (`responsable_user_id`),
   elegible en la página de la oportunidad; la importación de Notion lo mapea
   por primer nombre (Sebastián, Gloria) e ignora al resto.
+- `war_0005_ia_por_defecto`: Ajustes → Ventas «El agente en conversaciones
+  nuevas». Apagado, la conversación nueva nace sin IA (los contactos de Make,
+  la API y WhatsApp llegan igual); se prende a mano en cada una.

@@ -232,7 +232,9 @@ export async function getOrCreateConversation(
       // 027: hereda la pausa del contacto en el mismo INSERT. Si se leyera
       // antes, cada mensaje entrante pagaría una consulta más, y entre la
       // lectura y la inserción cabría el primer turno del agente.
-      aiEnabled: sql<boolean>`coalesce((select not c.ai_paused from contact c where c.id = ${contactId}), true)`,
+      // War — y Ajustes → Ventas «El agente atiende las conversaciones nuevas»: apagado, nace sin IA.
+      aiEnabled: sql<boolean>`coalesce((select not c.ai_paused from contact c where c.id = ${contactId}), true)
+        and coalesce((select va.ia_conversaciones_nuevas from ventas_ajustes va where va.organization_id = ${organizationId}), true)`,
     })
     .onConflictDoNothing()
     .returning();
