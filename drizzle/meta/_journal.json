@@ -344,6 +344,13 @@
       "when": 1793833500000,
       "tag": "war_0005_ia_por_defecto",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1793833560000,
+      "tag": "war_0006_cochera_no_es_edificio",
+      "breakpoints": true
     }
   ]
 }
