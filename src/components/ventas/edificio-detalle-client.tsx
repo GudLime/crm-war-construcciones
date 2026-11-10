@@ -29,6 +29,7 @@ import {
   useMoneda,
 } from "./ui";
 import { ImportarUnidades } from "./importar-unidades";
+import { MediosMotor } from "./medios-motor";
 import { Select } from "@/components/ui/select";
 
 type UnidadForm = {
@@ -457,6 +458,9 @@ export function EdificioDetalleClient() {
           )}
         </Acciones>
       </form>
+      {unidadAbierta && unidadAbierta !== "nueva" && (
+        <MediosMotor key={unidadAbierta} objeto="unidad" id={unidadAbierta} className="mt-4 border-t pt-4" />
+      )}
     </div>
   );
 
@@ -512,6 +516,8 @@ export function EdificioDetalleClient() {
           onCheckedChange={(v) => void cambiarMemoria(v)}
         />
       </div>
+
+      <MediosMotor objeto="edificio" id={edificio.id} className="mb-4 rounded-lg border bg-card p-4" />
 
       <SeccionEditable
         titulo="Datos del edificio"

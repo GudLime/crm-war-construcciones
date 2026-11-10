@@ -13,6 +13,7 @@ import {
   tablaDeRelacion,
   tieneColumna,
   validarConfig,
+  LIMITES_ARCHIVO,
   type CampoConfig,
   type ConfigCliente,
   type TipoCampo,
@@ -154,6 +155,7 @@ async function registrarEnOrganizacion(organizationId: string, config: ConfigCli
             obligatorio: c.obligatorio,
             opciones: c.opciones ?? null,
             calculo: (c.calculo as Record<string, unknown> | undefined) ?? null,
+            limites: limitesDe(c),
             visibleLista: c.visibleLista,
             visibleAgente: c.visibleAgente,
             orden: ordenCampo,
@@ -169,6 +171,7 @@ async function registrarEnOrganizacion(organizationId: string, config: ConfigCli
               obligatorio: c.obligatorio,
               opciones: c.opciones ?? null,
               calculo: (c.calculo as Record<string, unknown> | undefined) ?? null,
+              limites: limitesDe(c),
               visibleLista: c.visibleLista,
               orden: ordenCampo,
               archivado: false,
@@ -443,6 +446,14 @@ export async function completarColumnasDe(
   } catch (err) {
     console.error(`[motor] no se pudieron completar las columnas nuevas de «${tabla}»:`, err);
   }
+}
+
+/** Galería, video, documento: los topes que valen (los de la configuración o los de siempre). */
+function limitesDe(c: CampoConfig): { maxArchivos?: number; maxMb?: number } | null {
+  if (c.tipo === "galeria") return { maxArchivos: c.maxArchivos ?? LIMITES_ARCHIVO.galeria.maxArchivos };
+  if (c.tipo === "video") return { maxMb: c.maxMb ?? LIMITES_ARCHIVO.video.maxMb };
+  if (c.tipo === "documento") return { maxMb: c.maxMb ?? LIMITES_ARCHIVO.documento.maxMb };
+  return null;
 }
 
 /** Para el arranque: corre la sincronización y cuenta el resultado en el log, sin lanzar. */

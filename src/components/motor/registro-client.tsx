@@ -25,6 +25,8 @@ import type { CampoDto, ObjetoDto, RegistroDto } from "@/lib/motor/dto";
 import { aEntrada, CampoEditor, desdeRegistro, valorVisible, type Formulario } from "./campos";
 import { usePadres } from "./objeto-lista-client";
 import { ImportarCsv } from "./importar-csv";
+import { ArchivosVista } from "./archivos";
+import { esTipoArchivo } from "@/lib/motor/config";
 
 /**
  * Motor — la página de un registro de cualquier objeto: sus datos, de quién
@@ -130,7 +132,12 @@ function FormRegistro({
         .filter((c) => c.editable)
         .map((c) => (
           <Campo key={c.clave} label={c.nombre + (c.obligatorio ? " *" : "")}>
-            <CampoEditor campo={c} valor={form[c.clave]} onChange={(v) => setForm({ ...form, [c.clave]: v })} />
+            <CampoEditor
+              campo={c}
+              valor={form[c.clave]}
+              onChange={(v) => setForm({ ...form, [c.clave]: v })}
+              objeto={objeto.clave}
+            />
           </Campo>
         ))}
       <Acciones error={error}>
@@ -316,12 +323,18 @@ export function RegistroClient({ clave, id }: { clave: string; id: string }) {
               );
             })}
             {objeto.campos.map((c) => (
-              <div key={c.clave} className="min-w-0">
+              <div key={c.clave} className={esTipoArchivo(c.tipo) ? "col-span-full min-w-0" : "min-w-0"}>
                 <dt className="text-xs font-medium text-text-3">
                   {c.nombre}
                   {!c.editable && <span className="ml-1 text-[11px] font-normal">(calculado)</span>}
                 </dt>
-                <dd className="mt-0.5 break-words text-sm">{valorVisible(c, registro.valores[c.clave] ?? null, moneda)}</dd>
+                <dd className="mt-0.5 break-words text-sm">
+                  {esTipoArchivo(c.tipo) ? (
+                    <ArchivosVista campo={c} valor={registro.valores[c.clave] ?? null} />
+                  ) : (
+                    valorVisible(c, registro.valores[c.clave] ?? null, moneda)
+                  )}
+                </dd>
               </div>
             ))}
           </dl>

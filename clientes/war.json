@@ -28,6 +28,8 @@
         { "clave": "en_venta", "nombre": "En venta", "tipo": "texto" },
         { "clave": "memoria_agente", "nombre": "Memoria del agente", "tipo": "booleano", "visibleAgente": false },
         { "clave": "notas_agente", "nombre": "Notas para el agente", "tipo": "texto", "visibleLista": false },
+        { "clave": "fotos", "nombre": "Fotos", "tipo": "galeria", "maxArchivos": 6, "crear": true, "visibleLista": false },
+        { "clave": "video", "nombre": "Video", "tipo": "video", "maxMb": 16, "crear": true, "visibleLista": false },
         { "clave": "unidades_disponibles", "nombre": "Unidades disponibles", "tipo": "calculado",
           "calculo": { "resumen": { "relacion": "edificio_unidades", "operacion": "cantidad",
             "filtro": { "estado": ["disponible", "consultar"] } } },
@@ -85,7 +87,9 @@
         { "clave": "en_suite", "nombre": "En suite", "tipo": "numero", "visibleLista": false },
         { "clave": "orientacion_edificio", "nombre": "Orientación (frente / contrafrente)", "tipo": "texto", "visibleLista": false },
         { "clave": "orientacion_geo", "nombre": "Orientación (cardinal)", "tipo": "texto", "visibleLista": false },
-        { "clave": "notas_agente", "nombre": "Notas para el agente", "tipo": "texto", "visibleLista": false }
+        { "clave": "notas_agente", "nombre": "Notas para el agente", "tipo": "texto", "visibleLista": false },
+        { "clave": "fotos", "nombre": "Fotos", "tipo": "galeria", "maxArchivos": 6, "crear": true, "visibleLista": false },
+        { "clave": "video", "nombre": "Video", "tipo": "video", "maxMb": 16, "crear": true, "visibleLista": false }
       ]
     }
   ],

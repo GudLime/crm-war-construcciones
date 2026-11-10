@@ -19,7 +19,7 @@ describe("WAR: clientes/war.json", () => {
     expect(r.ok ? [] : r.errores).toEqual([]);
   });
 
-  it("solo agrega: tipo, ambientes y tipología en departamento, y la tabla de vínculos con unidades", () => {
+  it("solo agrega: tipo, ambientes, tipología, fotos y video en departamento; fotos y video en edificio; y la tabla de vínculos", () => {
     if (!r.ok) return;
     const ddl = sentenciasDdl(r.config);
     expect(ddl.join("\n")).not.toMatch(/\bDROP\b|\bALTER COLUMN\b|\bRENAME\b|\bDELETE FROM\b|\bTRUNCATE\b/);
@@ -27,9 +27,14 @@ describe("WAR: clientes/war.json", () => {
       'ALTER TABLE IF EXISTS "departamento" ADD COLUMN IF NOT EXISTS "tipo" text',
       'ALTER TABLE IF EXISTS "departamento" ADD COLUMN IF NOT EXISTS "tipologia_unidad" text',
       'ALTER TABLE IF EXISTS "departamento" ADD COLUMN IF NOT EXISTS "ambientes" numeric',
+      'ALTER TABLE IF EXISTS "departamento" ADD COLUMN IF NOT EXISTS "fotos" jsonb',
+      'ALTER TABLE IF EXISTS "departamento" ADD COLUMN IF NOT EXISTS "video" text',
     ]);
     expect(ddl.some((s) => s.startsWith('CREATE TABLE IF NOT EXISTS "rel_oportunidad_unidades"'))).toBe(true);
-    expect(ddl.some((s) => s.includes('"edificio"') && s.startsWith("ALTER"))).toBe(false);
+    expect(ddl.filter((s) => s.startsWith("ALTER") && s.includes('"edificio"'))).toEqual([
+      'ALTER TABLE IF EXISTS "edificio" ADD COLUMN IF NOT EXISTS "fotos" jsonb',
+      'ALTER TABLE IF EXISTS "edificio" ADD COLUMN IF NOT EXISTS "video" text',
+    ]);
   });
 
   it("lo que exige de las tablas existentes coincide con el esquema de WAR", () => {

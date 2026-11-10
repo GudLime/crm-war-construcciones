@@ -80,6 +80,9 @@ export function valorParaAgente(campo: CampoMeta, valor: Valor | undefined, mone
         .map((v) => campo.opciones?.find((o) => o.valor === v)?.nombre ?? v)
         .join(", ");
     case "imagen":
+    case "galeria":
+    case "video":
+    case "documento":
       return null;
     default:
       return String(valor).replace(/\s+/g, " ").trim() || null;
@@ -217,6 +220,46 @@ function ordenar(o: ObjetoParaAgente, lista: RegistroParaAgente[], moneda: strin
   });
 }
 
+/** El código que el agente escribe para mandar las fotos y el video de un registro. */
+export const marcaFotos = (id: string) => `[fotos:${id}]`;
+export const PATRON_MARCA_FOTOS = /\[fotos:([A-Za-z0-9_-]{4,60})\]/g;
+
+/** Si el registro tiene fotos o video en columnas visibles para el agente. */
+export function tieneMedios(o: ObjetoParaAgente, r: RegistroParaAgente): boolean {
+  return o.campos.some((c) => {
+    if (!c.visibleAgente || (c.tipo !== "galeria" && c.tipo !== "video")) return false;
+    const v = r.valores[c.clave];
+    return Array.isArray(v) ? v.length > 0 : typeof v === "string" && v !== "";
+  });
+}
+
+/** Tope de registros cuyas fotos se mandan en una sola respuesta. */
+export const MAX_MARCAS_POR_MENSAJE = 3;
+
+/**
+ * Saca los códigos [fotos:…] del texto del agente: devuelve el texto limpio
+ * (sin espacios ni renglones de más) y los ids, sin repetidos y con tope.
+ */
+export function extraerMarcasFotos(texto: string): { texto: string; ids: string[] } {
+  const ids: string[] = [];
+  for (const m of texto.matchAll(PATRON_MARCA_FOTOS)) {
+    const id = m[1]!;
+    if (!ids.includes(id) && ids.length < MAX_MARCAS_POR_MENSAJE) ids.push(id);
+  }
+  if (!ids.length && !texto.includes("[fotos:")) return { texto, ids };
+  const limpio = texto
+    .replace(PATRON_MARCA_FOTOS, "")
+    .replace(/[ \t]+([.,;:!?])/g, "$1")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return { texto: limpio, ids };
+}
+
+export const INDICACION_FOTOS =
+  "Fotos y video: algunas líneas traen un código como [fotos:…]. Si la persona pide fotos, imágenes o un video de ese registro, escribí el código tal cual en tu mensaje (una vez); el sistema lo saca del texto y manda todas las fotos y el video. No describas cuántas fotos van ni prometas fotos de registros sin código.";
+
 /** Una línea por registro: título, padres y las columnas visibles para el agente. */
 export function lineaRegistro(
   o: ObjetoParaAgente,
@@ -235,6 +278,7 @@ export function lineaRegistro(
     const v = valorParaAgente(c, r.valores[c.clave], moneda);
     if (v !== null) partes.push(`${c.nombre}: ${v}`);
   }
+  if (tieneMedios(o, r)) partes.push(`Fotos y video: ${marcaFotos(r.id)}`);
   return `- ${partes.join(" · ")}`;
 }
 
@@ -248,6 +292,7 @@ export function renderObjetosParaAgente(datos: DatosParaAgente): string {
     entran.get(objeto)?.has(id) ? (titulos.get(objeto)?.get(id) ?? null) : null;
 
   const secciones: string[] = [];
+  let conMedios = false;
   for (const o of datos.objetos) {
     const todos = datos.registros.get(o.clave) ?? [];
     const set = entran.get(o.clave) ?? new Set<string>();
@@ -269,7 +314,10 @@ export function renderObjetosParaAgente(datos: DatosParaAgente): string {
     } else {
       lineas.push(...resumenPorGrupo(o, lista, datos.moneda, padreDe));
       lineas.push(`${plural(lista.length, o.nombre, o.nombrePlural)}. Cada línea es UN registro y se entiende sola: los datos se copian de su propia línea, sin mezclar con otra.`);
-      for (const r of lista.slice(0, MAX_LINEAS_AGENTE)) lineas.push(lineaRegistro(o, r, tituloPadre, datos.moneda));
+      for (const r of lista.slice(0, MAX_LINEAS_AGENTE)) {
+        lineas.push(lineaRegistro(o, r, tituloPadre, datos.moneda));
+        if (tieneMedios(o, r)) conMedios = true;
+      }
       if (lista.length > MAX_LINEAS_AGENTE) {
         lineas.push(`(y ${lista.length - MAX_LINEAS_AGENTE} más que no entran acá; si te preguntan por uno que no ves, derivá a una persona)`);
       }
@@ -281,6 +329,7 @@ export function renderObjetosParaAgente(datos: DatosParaAgente): string {
   return [
     "## Datos del negocio (del CRM, actualizados)",
     "Esta es la información vigente. Usala para responder; no inventes registros, precios ni datos que no estén acá.",
+    ...(conMedios ? [INDICACION_FOTOS] : []),
     ...secciones,
   ].join("\n\n");
 }
