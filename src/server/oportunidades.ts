@@ -6,18 +6,19 @@ import { herramientasEfectivas } from "@/lib/agent-roles";
 import {
   ESTADOS_ABIERTOS,
   ESTADOS_OPORTUNIDAD,
+  MAX_AMBIENTES,
   TIPOS_QUE_CLASIFICA_LA_IA,
-  VALORES_TIPOLOGIA,
+  ambientesDeTipologia,
   etiqueta,
   normalizarTipoContacto,
   normalizarTipologias,
+  ordenarTipologiasUnidad,
   resolverEdificiosPorNombre,
   resolverEstadoOportunidad,
   siguientesParaLaIA,
   tipoExcluyeDeVenta,
   type EstadoOportunidad,
   type TipoContacto,
-  type Tipologia,
 } from "@/lib/ventas";
 import { pauseConversations } from "@/server/contacts-import";
 import {
@@ -53,7 +54,10 @@ export type OportunidadDelChat = {
   estado: EstadoOportunidad;
   motivoCierre: string | null;
   edificios: { id: string; nombre: string }[];
-  tipologias: Tipologia[];
+  /** 0047 — Ambientes de interés (números). */
+  ambientes: number[];
+  /** 0047 — Tipologías de interés (unidades tipo «1A», «2B»). */
+  tipologiasUnidad: string[];
   updatedAt: string;
   /** War — «Sin respuesta · 3 intentos · hace 4 días», o null. */
   sinRespuesta: string | null;
@@ -117,9 +121,9 @@ export async function oportunidadAbierta(
 async function interesDe(
   organizationId: string,
   oportunidadId: string
-): Promise<{ edificios: { id: string; nombre: string }[]; tipologias: Tipologia[] }> {
+): Promise<{ edificios: { id: string; nombre: string }[]; ambientes: number[]; tipologiasUnidad: string[] }> {
   const db = getDb();
-  const [edificios, tipologias] = await Promise.all([
+  const [edificios, ambientes, tipologias] = await Promise.all([
     db
       .select({ id: schema.edificio.id, nombre: schema.edificio.nombre })
       .from(schema.oportunidadEdificio)
@@ -133,20 +137,30 @@ async function interesDe(
       )
       .orderBy(asc(schema.edificio.nombre)),
     db
-      .select({ tipologia: schema.oportunidadTipologia.tipologia })
-      .from(schema.oportunidadTipologia)
+      .select({ ambientes: schema.oportunidadAmbiente.ambientes })
+      .from(schema.oportunidadAmbiente)
       .where(
         scoped(
-          schema.oportunidadTipologia.organizationId,
+          schema.oportunidadAmbiente.organizationId,
           organizationId,
-          eq(schema.oportunidadTipologia.oportunidadId, oportunidadId)
+          eq(schema.oportunidadAmbiente.oportunidadId, oportunidadId)
+        )
+      ),
+    db
+      .select({ tipologia: schema.oportunidadTipologiaUnidad.tipologia })
+      .from(schema.oportunidadTipologiaUnidad)
+      .where(
+        scoped(
+          schema.oportunidadTipologiaUnidad.organizationId,
+          organizationId,
+          eq(schema.oportunidadTipologiaUnidad.oportunidadId, oportunidadId)
         )
       ),
   ]);
-  const set = new Set(tipologias.map((t) => t.tipologia));
   return {
     edificios,
-    tipologias: (VALORES_TIPOLOGIA as Tipologia[]).filter((t) => set.has(t)),
+    ambientes: ambientes.map((a) => a.ambientes).sort((a, b) => a - b),
+    tipologiasUnidad: ordenarTipologiasUnidad(tipologias.map((t) => t.tipologia)),
   };
 }
 
@@ -161,7 +175,8 @@ async function aDelChat(
     estado: op.estado,
     motivoCierre: op.motivoCierre,
     edificios: interes.edificios,
-    tipologias: interes.tipologias,
+    ambientes: interes.ambientes,
+    tipologiasUnidad: interes.tipologiasUnidad,
     updatedAt: op.updatedAt.toISOString(),
     sinRespuesta: textoSinRespuesta(op),
   };
@@ -447,7 +462,8 @@ export async function sumarInteres(
   organizationId: string,
   oportunidadId: string,
   edificioIds: readonly string[],
-  tipologias: readonly Tipologia[]
+  ambientes: readonly number[],
+  tipologiasUnidad: readonly string[] = []
 ): Promise<void> {
   const db = getDb();
   const validos = await edificiosValidos(organizationId, edificioIds);
@@ -457,10 +473,18 @@ export async function sumarInteres(
       .values(validos.map((edificioId) => ({ organizationId, oportunidadId, edificioId })))
       .onConflictDoNothing();
   }
-  if (tipologias.length) {
+  const amb = [...new Set(ambientes)].filter((n) => Number.isInteger(n) && n > 0 && n <= MAX_AMBIENTES);
+  if (amb.length) {
     await db
-      .insert(schema.oportunidadTipologia)
-      .values(tipologias.map((tipologia) => ({ organizationId, oportunidadId, tipologia })))
+      .insert(schema.oportunidadAmbiente)
+      .values(amb.map((n) => ({ organizationId, oportunidadId, ambientes: n })))
+      .onConflictDoNothing();
+  }
+  const tips = [...new Set(tipologiasUnidad.map((t) => t.trim()).filter(Boolean))];
+  if (tips.length) {
+    await db
+      .insert(schema.oportunidadTipologiaUnidad)
+      .values(tips.map((tipologia) => ({ organizationId, oportunidadId, tipologia })))
       .onConflictDoNothing();
   }
 }
@@ -469,7 +493,11 @@ export async function sumarInteres(
 export async function reemplazarInteres(
   organizationId: string,
   oportunidadId: string,
-  cambios: { edificioIds?: readonly string[]; tipologias?: readonly Tipologia[] }
+  cambios: {
+    edificioIds?: readonly string[];
+    ambientes?: readonly number[];
+    tipologiasUnidad?: readonly string[];
+  }
 ): Promise<void> {
   const db = getDb();
   if (cambios.edificioIds) {
@@ -484,17 +512,29 @@ export async function reemplazarInteres(
       );
     await sumarInteres(organizationId, oportunidadId, cambios.edificioIds, []);
   }
-  if (cambios.tipologias) {
+  if (cambios.ambientes) {
     await db
-      .delete(schema.oportunidadTipologia)
+      .delete(schema.oportunidadAmbiente)
       .where(
         scoped(
-          schema.oportunidadTipologia.organizationId,
+          schema.oportunidadAmbiente.organizationId,
           organizationId,
-          eq(schema.oportunidadTipologia.oportunidadId, oportunidadId)
+          eq(schema.oportunidadAmbiente.oportunidadId, oportunidadId)
         )
       );
-    await sumarInteres(organizationId, oportunidadId, [], cambios.tipologias);
+    await sumarInteres(organizationId, oportunidadId, [], cambios.ambientes);
+  }
+  if (cambios.tipologiasUnidad) {
+    await db
+      .delete(schema.oportunidadTipologiaUnidad)
+      .where(
+        scoped(
+          schema.oportunidadTipologiaUnidad.organizationId,
+          organizationId,
+          eq(schema.oportunidadTipologiaUnidad.oportunidadId, oportunidadId)
+        )
+      );
+    await sumarInteres(organizationId, oportunidadId, [], [], cambios.tipologiasUnidad);
   }
 }
 
@@ -509,7 +549,8 @@ export async function actualizarOportunidadDelChat(input: {
   estado?: EstadoOportunidad;
   motivoCierre?: string | null;
   edificioIds?: readonly string[];
-  tipologias?: readonly Tipologia[];
+  ambientes?: readonly number[];
+  tipologiasUnidad?: readonly string[];
   /** War — quién lo cambió, para el historial. */
   userId?: string | null;
 }): Promise<OportunidadDelChat> {
@@ -546,7 +587,8 @@ export async function actualizarOportunidadDelChat(input: {
   if (!fila) throw new VentasError(404, "not_found", "Esa oportunidad no existe");
   await reemplazarInteres(organizationId, oportunidadId, {
     edificioIds: input.edificioIds,
-    tipologias: input.tipologias,
+    ambientes: input.ambientes,
+    tipologiasUnidad: input.tipologiasUnidad,
   });
   if (fila.contactId) await avisarConversaciones(organizationId, fila.contactId);
   return aDelChat(organizationId, fila);
@@ -598,7 +640,8 @@ export async function aplicarFichaDelCerebro(input: {
       .where(scoped(schema.edificio.organizationId, organizationId));
     const edificios = resolverEdificiosPorNombre(rawEdificios, catalogo).map((e) => e.id);
     if (edificios.length || tipologias.length) {
-      await sumarInteres(organizationId, abierta.id, edificios, tipologias);
+      const ambientes = tipologias.map(ambientesDeTipologia).filter((n): n is number => n !== null);
+      await sumarInteres(organizationId, abierta.id, edificios, ambientes);
       await getDb()
         .update(schema.oportunidad)
         .set({ updatedAt: new Date() })

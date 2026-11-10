@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Menu, MenuItem, MenuSeparador, MenuTitulo } from "@/components/ui/menu";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
 import { cn } from "@/lib/utils";
-import { ESTADOS_OPORTUNIDAD, TIPOLOGIAS } from "@/lib/ventas";
+import { ESTADOS_OPORTUNIDAD } from "@/lib/ventas";
 import {
   RESPONSABLE_SIN,
   RESPONSABLE_YO,
@@ -293,7 +293,7 @@ export function BarraDeFiltros({
 }: {
   v: EstadoVistas;
   equipo: Miembro[];
-  opciones: { edificios: Opcion[]; origenes: Opcion[] };
+  opciones: { edificios: Opcion[]; origenes: Opcion[]; tipologias: Opcion[] };
   derecha?: React.ReactNode;
 }) {
   const [guardando, setGuardando] = useState(false);
@@ -307,7 +307,7 @@ export function BarraDeFiltros({
     edificios: opciones.edificios,
     origenes: opciones.origenes,
     estados: ESTADOS_OPORTUNIDAD.map((e) => ({ value: e.value, label: e.label })),
-    tipologias: TIPOLOGIAS.map((t) => ({ value: t.value, label: t.label })),
+    tipologias: opciones.tipologias,
   };
   const activas = (Object.keys(NOMBRE_PROPIEDAD) as Propiedad[]).filter((p) =>
     p === "paraCerrar" ? f.paraCerrar === true : f[p] !== undefined

@@ -330,6 +330,13 @@
       "when": 1793865600000,
       "tag": "0046_vistas_guardadas",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793876400000,
+      "tag": "0047_ambientes_tipologias",
+      "breakpoints": true
     }
   ]
 }

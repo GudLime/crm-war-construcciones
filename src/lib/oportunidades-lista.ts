@@ -1,4 +1,4 @@
-import { ESTADOS_OPORTUNIDAD, VALORES_TIPOLOGIA, type EstadoOportunidad, type Tipologia } from "@/lib/ventas";
+import { ESTADOS_OPORTUNIDAD, ordenarTipologiasUnidad, type EstadoOportunidad } from "@/lib/ventas";
 
 /**
  * La lista de oportunidades: columnas, orden y anchos (lo puro, sin React,
@@ -12,6 +12,7 @@ export type ClaveColumna =
   | "nombre"
   | "origen"
   | "interes"
+  | "ambientes"
   | "tipologia"
   | "departamento"
   | "estado"
@@ -35,7 +36,8 @@ export const COLUMNAS: readonly Columna[] = [
   { clave: "nombre", titulo: "Oportunidad", ancho: 240, fija: true, criterioAsc: "A → Z", criterioDesc: "Z → A" },
   { clave: "origen", titulo: "Origen", ancho: 180, criterioAsc: "A → Z", criterioDesc: "Z → A" },
   { clave: "interes", titulo: "Interés", ancho: 150, criterioAsc: "A → Z", criterioDesc: "Z → A" },
-  { clave: "tipologia", titulo: "Tipología", ancho: 150, criterioAsc: "menor primero", criterioDesc: "mayor primero" },
+  { clave: "ambientes", titulo: "Ambientes", ancho: 110, criterioAsc: "menor primero", criterioDesc: "mayor primero" },
+  { clave: "tipologia", titulo: "Tipología", ancho: 140, criterioAsc: "1A → 4B", criterioDesc: "4B → 1A" },
   { clave: "departamento", titulo: "Departamento", ancho: 130, criterioAsc: "A → Z", criterioDesc: "Z → A" },
   { clave: "estado", titulo: "Estado", ancho: 190, criterioAsc: "orden del embudo", criterioDesc: "embudo al revés" },
   { clave: "ultima", titulo: "Última interacción", ancho: 150, criterioAsc: "más vieja primero", criterioDesc: "más nueva primero" },
@@ -55,7 +57,8 @@ export type FilaOrdenable = {
   origen: string | null;
   edificios: { nombre: string }[];
   edificioNombre: string | null;
-  tipologias: readonly Tipologia[];
+  ambientes: readonly number[];
+  tipologiasUnidad: readonly string[];
   unidad: string | null;
   estado: EstadoOportunidad;
   ultimaInteraccion: string;
@@ -63,7 +66,6 @@ export type FilaOrdenable = {
 };
 
 const ORDEN_ESTADO = new Map<string, number>(ESTADOS_OPORTUNIDAD.map((e, i) => [e.value, i]));
-const ORDEN_TIPOLOGIA = new Map<string, number>(VALORES_TIPOLOGIA.map((t, i) => [t, i]));
 
 const comparaTexto = new Intl.Collator("es", { numeric: true, sensitivity: "base" }).compare;
 
@@ -76,10 +78,10 @@ function claveDe(f: FilaOrdenable, c: ClaveColumna): string | number | null {
       return f.origen || null;
     case "interes":
       return f.edificios[0]?.nombre ?? f.edificioNombre ?? null;
-    case "tipologia": {
-      const ns = f.tipologias.map((t) => ORDEN_TIPOLOGIA.get(t) ?? 99);
-      return ns.length ? Math.min(...ns) : null;
-    }
+    case "ambientes":
+      return f.ambientes.length ? Math.min(...f.ambientes) : null;
+    case "tipologia":
+      return ordenarTipologiasUnidad(f.tipologiasUnidad)[0] ?? null;
     case "departamento":
       return f.unidad || null;
     case "estado":
