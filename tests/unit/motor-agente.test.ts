@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  extraerMarcasFotos,
   MAX_LINEAS_AGENTE,
   renderObjetosParaAgente,
   valorParaAgente,
@@ -180,5 +181,64 @@ describe("motor: resumen por padre", () => {
     expect(t).toMatch(/- Olazábal 2649 · Ambientes 3: 2; precio de /);
     // Las líneas también van agrupadas por edificio.
     expect(t.indexOf("Edificio: Lavalle 100 ·")).toBeLessThan(t.indexOf("Unidad 2A"));
+  });
+});
+
+describe("fotos y video", () => {
+  const conFotos: ObjetoParaAgente = {
+    ...edificio,
+    agente: null,
+    campos: [
+      ...edificio.campos,
+      campo({ clave: "fotos", nombre: "Fotos", tipo: "galeria" }),
+      campo({ clave: "plano", nombre: "Plano", tipo: "documento" }),
+    ],
+  };
+  it("pone el código en la línea del registro con fotos y explica cómo usarlo", () => {
+    const t = renderObjetosParaAgente({
+      objetos: [conFotos],
+      moneda: "USD",
+      registros: new Map<string, RegistroParaAgente[]>([
+        [
+          "edificio",
+          [
+            { id: "e1", titulo: "Olazábal 2649", valores: { nombre: "Olazábal 2649", fotos: ["arc_aaaaaaaa"] }, padres: {} },
+            { id: "e2", titulo: "Lavalle 100", valores: { nombre: "Lavalle 100", fotos: [], plano: "arc_bbbbbbbb" }, padres: {} },
+          ],
+        ],
+      ]),
+    });
+    expect(t).toContain("- Edificio Olazábal 2649 · Fotos y video: [fotos:e1]");
+    expect(t.split("\n").find((l) => l.includes("Olazábal"))).toContain("[fotos:e1]");
+    expect(t.split("\n").find((l) => l.includes("Lavalle"))).not.toContain("[fotos:");
+    expect(t).not.toContain("arc_");
+    expect(t).toContain("escribí el código tal cual");
+  });
+  it("sin fotos visibles, no hay indicación", () => {
+    const t = renderObjetosParaAgente(datos());
+    expect(t).not.toContain("[fotos:");
+    expect(t).not.toContain("escribí el código tal cual");
+  });
+  it("los archivos no se leen como valor", () => {
+    expect(valorParaAgente(campo({ clave: "f", nombre: "F", tipo: "galeria" }), ["arc_x"], "USD")).toBeNull();
+  });
+});
+
+describe("extraerMarcasFotos", () => {
+  it("saca los códigos del texto y devuelve los ids, sin repetir y con tope", () => {
+    expect(extraerMarcasFotos("Te paso las fotos [fotos:reg_abc123] del 6B.")).toEqual({
+      texto: "Te paso las fotos del 6B.",
+      ids: ["reg_abc123"],
+    });
+    expect(extraerMarcasFotos("Acá van [fotos:a1b2] [fotos:a1b2] [fotos:c3d4] [fotos:e5f6] [fotos:g7h8]").ids).toEqual([
+      "a1b2",
+      "c3d4",
+      "e5f6",
+    ]);
+    expect(extraerMarcasFotos("[fotos:reg_abc123]")).toEqual({ texto: "", ids: ["reg_abc123"] });
+  });
+  it("un texto sin códigos no cambia", () => {
+    const t = "Hola!\n\nEl 6B tiene  3 ambientes.";
+    expect(extraerMarcasFotos(t)).toEqual({ texto: t, ids: [] });
   });
 });

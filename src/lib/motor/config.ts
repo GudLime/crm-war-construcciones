@@ -31,8 +31,29 @@ export const TIPOS_CAMPO = [
   "enlace",
   "imagen",
   "calculado",
+  // Archivos subidos al CRM (guardados en el volumen de medios): fotos JPG,
+  // un video MP4 y un documento PDF.
+  "galeria",
+  "video",
+  "documento",
 ] as const;
 export type TipoCampo = (typeof TIPOS_CAMPO)[number];
+
+/** Los tipos que guardan archivos subidos. */
+export const TIPOS_ARCHIVO = ["galeria", "video", "documento"] as const;
+export type TipoArchivo = (typeof TIPOS_ARCHIVO)[number];
+export function esTipoArchivo(tipo: TipoCampo): tipo is TipoArchivo {
+  return (TIPOS_ARCHIVO as readonly string[]).includes(tipo);
+}
+
+/** Topes por defecto y máximos (los de WhatsApp: video 16 MB). */
+export const LIMITES_ARCHIVO = {
+  galeria: { maxArchivos: 6, maxArchivosTope: 20 },
+  video: { maxMb: 16, maxMbTope: 16 },
+  documento: { maxMb: 10, maxMbTope: 25 },
+} as const;
+/** Una foto ya achicada en el navegador no debería pasar de esto. */
+export const MAX_MB_FOTO = 2;
 
 /** Los tipos que el motor guarda en una columna propia (todos menos `calculado`). */
 export function tieneColumna(tipo: TipoCampo): boolean {
@@ -76,6 +97,10 @@ const campoSchema = z
     visibleLista: z.boolean().default(true),
     /** Si el agente puede leer este campo (cuando el objeto le es visible). */
     visibleAgente: z.boolean().default(true),
+    /** `galeria`: cuántas fotos como máximo (por defecto 6). */
+    maxArchivos: z.number().int().min(1).max(LIMITES_ARCHIVO.galeria.maxArchivosTope).optional(),
+    /** `video` y `documento`: tamaño máximo en MB (video hasta 16, el tope de WhatsApp). */
+    maxMb: z.number().positive().max(LIMITES_ARCHIVO.documento.maxMbTope).optional(),
     /**
      * Paso 8 — En un objeto adoptado, el motor crea esta columna si la tabla
      * no la tiene (solo agrega; nunca cambia ni borra columnas). En un objeto
@@ -114,7 +139,16 @@ const campoSchema = z
     if (c.tipo !== "calculado" && c.calculo) {
       ctx.addIssue({ code: "custom", message: `«${c.clave}»: solo los campos calculados llevan «calculo»` });
     }
-    if (c.inicial && (c.tipo === "calculado" || c.tipo === "seleccion_multiple")) {
+    if (c.maxArchivos !== undefined && c.tipo !== "galeria") {
+      ctx.addIssue({ code: "custom", message: `«${c.clave}»: «maxArchivos» es solo para galerías` });
+    }
+    if (c.maxMb !== undefined && c.tipo !== "video" && c.tipo !== "documento") {
+      ctx.addIssue({ code: "custom", message: `«${c.clave}»: «maxMb» es solo para video y documento` });
+    }
+    if (c.tipo === "video" && (c.maxMb ?? 0) > LIMITES_ARCHIVO.video.maxMbTope) {
+      ctx.addIssue({ code: "custom", message: `«${c.clave}»: WhatsApp no acepta videos de más de 16 MB` });
+    }
+    if (c.inicial && (c.tipo === "calculado" || c.tipo === "seleccion_multiple" || esTipoArchivo(c.tipo))) {
       ctx.addIssue({ code: "custom", message: `«${c.clave}»: este tipo de campo no lleva «inicial»` });
     }
     if (c.inicial && "patron" in c.inicial && c.inicial.patron) {
@@ -356,6 +390,7 @@ export function validarConfig(datos: unknown): ResultadoConfig {
       const c = campos.get(t);
       if (!c) errores.push(`objeto «${o.clave}»: el título nombra el campo «${t}», que no existe`);
       else if (!tieneColumna(c.tipo)) errores.push(`objeto «${o.clave}»: el título no puede usar el campo calculado «${t}»`);
+      else if (esTipoArchivo(c.tipo)) errores.push(`objeto «${o.clave}»: el título no puede usar el campo de archivos «${t}»`);
     }
 
     if (o.columnaTitulo) {

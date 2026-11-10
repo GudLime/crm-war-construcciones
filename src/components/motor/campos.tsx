@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import type { CampoDto, RegistroDto } from "@/lib/motor/dto";
 import { aNumero } from "@/lib/motor/valores";
 import { plata } from "@/components/ventas/ui";
+import { ArchivosEditor } from "./archivos";
 
 /**
  * Motor — cómo se ve y cómo se edita cada tipo de campo.
@@ -38,6 +39,14 @@ export function valorVisible(campo: CampoDto, valor: RegistroDto["valores"][stri
       return (Array.isArray(valor) ? valor : [String(valor)])
         .map((v) => campo.opciones?.find((o) => o.valor === v)?.nombre ?? v)
         .join(", ");
+    case "galeria": {
+      const n = Array.isArray(valor) ? valor.length : 0;
+      return n ? `${n} foto${n === 1 ? "" : "s"}` : "—";
+    }
+    case "video":
+      return "Video";
+    case "documento":
+      return "PDF";
     default:
       return String(valor);
   }
@@ -50,7 +59,7 @@ export function desdeRegistro(campos: CampoDto[], valores: RegistroDto["valores"
     if (!c.editable) continue;
     const v = valores?.[c.clave] ?? null;
     if (c.tipo === "booleano") form[c.clave] = v === true;
-    else if (c.tipo === "seleccion_multiple") form[c.clave] = Array.isArray(v) ? v : [];
+    else if (c.tipo === "seleccion_multiple" || c.tipo === "galeria") form[c.clave] = Array.isArray(v) ? v : [];
     else if (c.tipo === "moneda") form[c.clave] = typeof v === "number" ? String(v / 100) : "";
     else if (c.tipo === "fecha") form[c.clave] = v ? String(v).slice(0, 10) : "";
     else form[c.clave] = v === null ? "" : String(v);
@@ -77,13 +86,20 @@ export function CampoEditor({
   campo,
   valor,
   onChange,
+  objeto,
 }: {
   campo: CampoDto;
   valor: ValorForm | undefined;
   onChange: (v: ValorForm) => void;
+  /** Clave del objeto: para que el servidor aplique el tope de tamaño del campo. */
+  objeto?: string;
 }) {
   const texto = typeof valor === "string" ? valor : "";
   switch (campo.tipo) {
+    case "galeria":
+    case "video":
+    case "documento":
+      return <ArchivosEditor campo={campo} valor={valor} onChange={onChange} objeto={objeto} />;
     case "booleano":
       return <Switch checked={valor === true} onCheckedChange={(v) => onChange(v)} label={campo.nombre} />;
     case "seleccion":
