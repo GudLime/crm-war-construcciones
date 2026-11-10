@@ -25,6 +25,7 @@ import {
 } from "./ui";
 import { ImportarUnidades } from "./importar-unidades";
 import { Select } from "@/components/ui/select";
+import { tonoDeEdificio } from "@/lib/colores-edificio";
 
 const vacio = { nombre: "", direccion: "", estado: "en_construccion", enVenta: "" };
 
@@ -214,7 +215,12 @@ export function EdificiosClient() {
             {edificios.map((e) => (
               <tr key={e.id} className="border-b last:border-0 hover:bg-accent/40">
                 <Td>
-                  <Link href={`/edificios/${e.id}`} className="font-medium hover:underline">
+                  <Link href={`/edificios/${e.id}`} className="inline-flex items-center gap-2 font-medium hover:underline">
+                    <span
+                      aria-hidden
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{ background: tonoDeEdificio(e.color).punto }}
+                    />
                     {e.nombre}
                   </Link>
                   {e.memoriaAgente && (
