@@ -31,6 +31,10 @@ import { cn } from "@/lib/utils";
  * el `combobox`, la lista un `listbox`, y se maneja entero con el teclado
  * (flechas, Inicio/Fin, Enter/Espacio, Escape y escribir para saltar). Con
  * muchas opciones suma un buscador.
+ *
+ * Con `multiple` se eligen varias: la lista no se cierra al tocar, cada
+ * opción lleva una casilla y el botón muestra las elegidas como etiquetas
+ * (`values` + `onValuesChange` en lugar de `value` + `onValueChange`).
  */
 
 export type OpcionSelect = {
@@ -102,21 +106,75 @@ type Posicion = {
   alto: number;
 };
 
-export function Select({
-  value,
-  onValueChange,
-  children,
-  id,
-  disabled,
-  placeholder = "Elegí una opción",
-  buscador,
-  className,
-  iconoDe,
-  "aria-label": ariaLabel,
-  "aria-labelledby": ariaLabelledby,
-}: {
+type PropsSimple = {
+  multiple?: false;
   value: string | number | null | undefined;
   onValueChange: (value: string) => void;
+  values?: never;
+  onValuesChange?: never;
+};
+
+type PropsMultiple = {
+  multiple: true;
+  values: readonly string[];
+  onValuesChange: (values: string[]) => void;
+  value?: never;
+  onValueChange?: never;
+};
+
+export function Select(props: (PropsSimple | PropsMultiple) & PropsComunes) {
+  const {
+    children,
+    id,
+    disabled,
+    placeholder = "Elegí una opción",
+    buscador,
+    className,
+    iconoDe,
+    "aria-label": ariaLabel,
+    "aria-labelledby": ariaLabelledby,
+  } = props;
+  const multiple = props.multiple === true;
+  const value = props.multiple ? undefined : props.value;
+  const valores = useMemo(() => (props.multiple ? props.values : []), [props.multiple, props.values]);
+  const opciones = useMemo(() => leerOpciones(children), [children]);
+  const actual = value === null || value === undefined ? "" : String(value);
+  const elegida = multiple ? null : (opciones.find((o) => o.value === actual) ?? null);
+  const elegidas = multiple ? opciones.filter((o) => valores.includes(o.value)) : [];
+  const conBuscador = buscador ?? opciones.length >= CON_BUSCADOR;
+  const esElegida = (v: string) => (multiple ? valores.includes(v) : v === actual);
+  const onValueChange = (v: string) => {
+    if (props.multiple) {
+      props.onValuesChange(valores.includes(v) ? valores.filter((x) => x !== v) : [...valores, v]);
+    } else {
+      props.onValueChange(v);
+    }
+  };
+
+  return (
+    <SelectInterno
+      {...{
+        opciones,
+        actual,
+        elegida,
+        elegidas,
+        multiple,
+        conBuscador,
+        esElegida,
+        onValueChange,
+        id,
+        disabled,
+        placeholder,
+        className,
+        iconoDe,
+        ariaLabel,
+        ariaLabelledby,
+      }}
+    />
+  );
+}
+
+type PropsComunes = {
   children: ReactNode;
   id?: string;
   disabled?: boolean;
@@ -130,12 +188,41 @@ export function Select({
   iconoDe?: (value: string) => ReactNode;
   "aria-label"?: string;
   "aria-labelledby"?: string;
-}) {
-  const opciones = useMemo(() => leerOpciones(children), [children]);
-  const actual = value === null || value === undefined ? "" : String(value);
-  const elegida = opciones.find((o) => o.value === actual) ?? null;
-  const conBuscador = buscador ?? opciones.length >= CON_BUSCADOR;
+};
 
+function SelectInterno({
+  opciones,
+  actual,
+  elegida,
+  elegidas,
+  multiple,
+  conBuscador,
+  esElegida,
+  onValueChange,
+  id,
+  disabled,
+  placeholder,
+  className,
+  iconoDe,
+  ariaLabel,
+  ariaLabelledby,
+}: {
+  opciones: OpcionSelect[];
+  actual: string;
+  elegida: OpcionSelect | null;
+  elegidas: OpcionSelect[];
+  multiple: boolean;
+  conBuscador: boolean;
+  esElegida: (v: string) => boolean;
+  onValueChange: (v: string) => void;
+  id?: string;
+  disabled?: boolean;
+  placeholder: string;
+  className?: string;
+  iconoDe?: (value: string) => ReactNode;
+  ariaLabel?: string;
+  ariaLabelledby?: string;
+}) {
   const baseId = useId();
   const listaId = `${baseId}-lista`;
   const botonRef = useRef<HTMLButtonElement>(null);
@@ -191,10 +278,15 @@ export function Select({
   const elegir = useCallback(
     (o: OpcionSelect | undefined) => {
       if (!o || o.disabled) return;
+      if (multiple) {
+        // Varias: se marca o desmarca y la lista sigue abierta.
+        onValueChange(o.value);
+        return;
+      }
       if (o.value !== actual) onValueChange(o.value);
       cerrar();
     },
-    [actual, cerrar, onValueChange]
+    [actual, cerrar, onValueChange, multiple]
   );
 
   // Seguir al botón si la página (o un diálogo) se desplaza o cambia de tamaño.
@@ -270,7 +362,7 @@ export function Select({
       (buscado.length > 1 ? undefined : orden.find((o) => !o.disabled && plano(o.label).startsWith(buscado[0]!)));
     if (!hallada) return;
     if (abierto) setActiva(opciones.indexOf(hallada));
-    else if (hallada.value !== actual) onValueChange(hallada.value);
+    else if (!multiple && hallada.value !== actual) onValueChange(hallada.value);
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
@@ -358,9 +450,23 @@ export function Select({
         )}
       >
         {elegida && iconoDe?.(elegida.value)}
-        <span className={cn("min-w-0 flex-1 truncate", !elegida && "text-text-3")}>
-          {elegida?.label || placeholder}
-        </span>
+        {multiple ? (
+          elegidas.length ? (
+            <span className="flex min-w-0 flex-1 flex-wrap gap-1">
+              {elegidas.map((o) => (
+                <span key={o.value} className="rounded-full bg-subtle px-2 py-px text-[12.5px] text-foreground">
+                  {o.label}
+                </span>
+              ))}
+            </span>
+          ) : (
+            <span className="min-w-0 flex-1 truncate text-text-3">{placeholder}</span>
+          )
+        ) : (
+          <span className={cn("min-w-0 flex-1 truncate", !elegida && "text-text-3")}>
+            {elegida?.label || placeholder}
+          </span>
+        )}
         <ChevronDown
           aria-hidden
           className={cn(
@@ -413,6 +519,7 @@ export function Select({
               ref={listaRef}
               id={listaId}
               role="listbox"
+              aria-multiselectable={multiple || undefined}
               data-desplegable
               aria-label={ariaLabel}
               aria-labelledby={ariaLabel ? undefined : (ariaLabelledby ?? id)}
@@ -425,7 +532,7 @@ export function Select({
               )}
               {visibles.map((o, i) => {
                 const nuevoGrupo = o.grupo && o.grupo !== visibles[i - 1]?.grupo;
-                const sel = o.value === actual;
+                const sel = esElegida(o.value);
                 return (
                   <Fragment key={`${o.grupo ?? ""}::${o.value}::${i}`}>
                     {nuevoGrupo && (
@@ -453,9 +560,20 @@ export function Select({
                         o.disabled && "cursor-not-allowed opacity-50"
                       )}
                     >
+                      {multiple && (
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "grid size-4 shrink-0 place-items-center rounded-[4px]",
+                            sel ? "bg-brand text-brand-fg" : "border-[1.5px] border-border-strong"
+                          )}
+                        >
+                          {sel && <Check className="size-3" strokeWidth={3} />}
+                        </span>
+                      )}
                       {iconoDe?.(o.value)}
                       <span className="min-w-0 flex-1 truncate">{o.label || " "}</span>
-                      {sel && <Check aria-hidden className="size-4 shrink-0 text-brand-ink" />}
+                      {!multiple && sel && <Check aria-hidden className="size-4 shrink-0 text-brand-ink" />}
                     </li>
                   </Fragment>
                 );

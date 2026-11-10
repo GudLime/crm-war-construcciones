@@ -8,20 +8,27 @@ import {
   ArrowRight,
   Building2,
   CalendarClock,
+  CalendarPlus,
   Check,
+  ChevronDown,
+  CircleDollarSign,
   CircleDot,
   ClipboardList,
+  DoorOpen,
   FileText,
   Flag,
   History,
+  LayoutGrid,
   Mail,
-  MessageCircle,
+  Megaphone,
   Pencil,
   Phone,
   Plus,
   RotateCcw,
   Sparkles,
   StickyNote,
+  Tag,
+  Timer,
   Trash2,
   UserRound,
   X,
@@ -29,9 +36,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { EstadoPill, aLocal, plata, useMoneda } from "@/components/ventas/ui";
+import { aLocal, plata, useMoneda } from "@/components/ventas/ui";
+import { WhatsAppLogo } from "@/components/whatsapp-logo";
 import type { NotaDto } from "@/lib/notas";
-import type { IconoTimeline, ItemTimeline, MensajeCorto, TareaCorta } from "@/lib/oportunidad-detalle";
+import type {
+  IconoTimeline,
+  ItemTimeline,
+  MensajeCorto,
+  ProximoPaso,
+  TareaCorta,
+} from "@/lib/oportunidad-detalle";
+import type { OrigenDto } from "@/lib/origenes";
 import { formatearTelefono } from "@/lib/telefono-formato";
 import { cn } from "@/lib/utils";
 import {
@@ -44,21 +59,29 @@ import {
   TIPOS_TAREA,
   etiqueta,
   type EstadoOportunidad,
+  type Tipologia,
 } from "@/lib/ventas";
 import type { OportunidadDetalleDto } from "@/server/oportunidad-detalle";
-import { ObjetosDeOportunidad } from "@/components/motor/oportunidad-objetos";
+import {
+  AvisosDeReglas,
+  VinculoEnLinea,
+  useObjetosDeOportunidad,
+} from "@/components/motor/oportunidad-objetos";
+import { OrigenIcono } from "./origen-icono";
 
 /**
  * La página de una oportunidad (ver GUDLIME.md → «Página de la oportunidad»).
  *
- * Encabezado con el avance, y debajo dos columnas: a la izquierda las
- * pestañas (Timeline, Reuniones, Notas, Últimos mensajes) y a la derecha las
- * tarjetas del contacto, los próximos pasos y los datos de la oportunidad.
+ * Encabezado: nombre (con lápiz al pasar el mouse), los datos en dos
+ * columnas y la barra de avance en flechas. Debajo, dos columnas: a la
+ * izquierda las pestañas (el Timeline arranca con los próximos pasos, un
+ * divisor «Hoy» y el historial) y a la derecha el contacto, plegable.
  */
 
 type Pestana = "timeline" | "reuniones" | "notas" | "mensajes";
 
 const TARJETA = "rounded-tarjeta border border-border bg-card shadow-tarjeta";
+const ZONA = "America/Argentina/Buenos_Aires";
 
 function fecha(iso: string | null, conHora = true): string {
   if (!iso) return "—";
@@ -66,19 +89,73 @@ function fecha(iso: string | null, conHora = true): string {
     day: "numeric",
     month: "short",
     year: "numeric",
+    timeZone: ZONA,
     ...(conHora ? { hour: "2-digit", minute: "2-digit" } : {}),
   }).format(new Date(iso));
 }
 
-function haceCuanto(iso: string, ahora = Date.now()): string {
+/** «jue 6 nov · 14:10» (con el año si no es el actual). */
+export function fechaExacta(iso: string, ahora = new Date()): string {
+  const d = new Date(iso);
+  const partes = new Intl.DateTimeFormat("es-AR", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: ZONA,
+  }).formatToParts(d);
+  const de = (t: Intl.DateTimeFormatPartTypes) =>
+    (partes.find((p) => p.type === t)?.value ?? "").replace(/\.$/, "");
+  const anio = de("year");
+  const esteAnio = new Intl.DateTimeFormat("es-AR", { year: "numeric", timeZone: ZONA }).format(ahora);
+  return `${de("weekday")} ${de("day")} ${de("month")}${anio !== esteAnio ? ` ${anio}` : ""} · ${de("hour")}:${de("minute")}`;
+}
+
+/** «Hoy · lun 9 nov». */
+function hoyLargo(ahora = new Date()): string {
+  return fechaExacta(ahora.toISOString(), ahora).split(" · ")[0]!;
+}
+
+function diaLocal(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: ZONA }).format(d);
+}
+
+/** Días de calendario (en la zona del negocio) entre hoy y esa fecha. */
+function diasHasta(iso: string, ahora = new Date()): number {
+  const a = new Date(`${diaLocal(ahora)}T00:00:00Z`).getTime();
+  const b = new Date(`${diaLocal(new Date(iso))}T00:00:00Z`).getTime();
+  return Math.round((b - a) / 86_400_000);
+}
+
+export function haceCuanto(iso: string, ahora = Date.now()): string {
   const min = Math.max(0, Math.round((ahora - new Date(iso).getTime()) / 60_000));
   if (min < 1) return "recién";
   if (min < 60) return `hace ${min} min`;
   const h = Math.round(min / 60);
   if (h < 24) return `hace ${h} h`;
-  const d = Math.round(h / 24);
-  if (d === 1) return "ayer";
+  const d = diasHasta(new Date(ahora).toISOString(), new Date(iso));
+  if (d <= 1) return "ayer";
   if (d < 30) return `hace ${d} días`;
+  return fecha(iso, false);
+}
+
+/** «hoy 15:00», «mañana», «en 3 días». */
+export function cuandoFalta(iso: string, ahora = new Date()): string {
+  const d = diasHasta(iso, ahora);
+  if (d <= 0) {
+    const hora = new Intl.DateTimeFormat("es-AR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: ZONA,
+    }).format(new Date(iso));
+    return `hoy ${hora}`;
+  }
+  if (d === 1) return "mañana";
+  if (d < 30) return `en ${d} días`;
   return fecha(iso, false);
 }
 
@@ -92,13 +169,17 @@ async function mensajeError(res: Response | null): Promise<string> {
   return d?.error?.message ?? "No se pudo guardar. Revisá la conexión.";
 }
 
+type IconoDeOrigen = Map<string, { icono: string; imagen: string | null }>;
+
 export function OportunidadDetalleClient() {
   const { id } = useParams<{ id: string }>();
   const [datos, setDatos] = useState<OportunidadDetalleDto | null>(null);
   const [noExiste, setNoExiste] = useState(false);
   const [pestana, setPestana] = useState<Pestana>("timeline");
   const [error, setError] = useState<string | null>(null);
+  const [origenes, setOrigenes] = useState<IconoDeOrigen>(new Map());
   const moneda = useMoneda();
+  const objetos = useObjetosDeOportunidad(id, datos?.oportunidad.estado ?? "");
 
   const cargar = useCallback(async () => {
     const res = await fetch(`/api/oportunidades/${id}/detalle`).catch(() => null);
@@ -112,6 +193,12 @@ export function OportunidadDetalleClient() {
 
   useEffect(() => {
     void cargar();
+    void (async () => {
+      const r = await fetch("/api/origenes").catch(() => null);
+      if (!r?.ok) return;
+      const { origenes } = (await r.json()) as { origenes: OrigenDto[] };
+      setOrigenes(new Map(origenes.map((o) => [o.nombre, { icono: o.icono, imagen: o.imagen }])));
+    })();
   }, [cargar]);
 
   async function cambiarEstado(estado: EstadoOportunidad, motivoCierre?: string | null) {
@@ -120,6 +207,21 @@ export function OportunidadDetalleClient() {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ estado, ...(motivoCierre !== undefined ? { motivoCierre } : {}) }),
+    }).catch(() => null);
+    if (!res?.ok) {
+      setError(await mensajeError(res));
+      return;
+    }
+    await cargar();
+  }
+
+  async function cambiarTipologias(tipologias: Tipologia[]) {
+    if (!datos?.contacto) return;
+    setError(null);
+    const res = await fetch(`/api/contacts/${datos.contacto.id}/oportunidad`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ oportunidadId: id, tipologias }),
     }).catch(() => null);
     if (!res?.ok) {
       setError(await mensajeError(res));
@@ -142,6 +244,13 @@ export function OportunidadDetalleClient() {
 
   const { oportunidad: op, contacto, conversacion } = datos;
   const enChat = contacto ? `/inbox?contact=${contacto.id}` : null;
+  const edificios = op.edificios.length
+    ? op.edificios
+    : op.edificioId && op.edificioNombre
+      ? [{ id: op.edificioId, nombre: op.edificioNombre }]
+      : [];
+  const otrosVinculos = objetos.vinculos.filter((v) => !v.esInteres);
+  const origen = op.origen ? origenes.get(op.origen) : undefined;
 
   return (
     <div className="h-full overflow-y-auto bg-subtle">
@@ -160,54 +269,139 @@ export function OportunidadDetalleClient() {
               {iniciales(op.nombre)}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="truncate text-[22px] font-bold tracking-tight">{op.nombre}</h1>
-                <EstadoPill opciones={ESTADOS_OPORTUNIDAD} value={op.estado} />
-                {op.sinRespuesta && (
-                  <span className="rounded-full bg-warning-tint px-2.5 py-0.5 text-[12px] font-medium text-warning-text">
-                    {op.sinRespuesta}
+              <div className="group flex flex-wrap items-center gap-2">
+                <h1 className="min-w-0 truncate text-[22px] font-bold tracking-tight">{op.nombre}</h1>
+                <Link
+                  href={`/oportunidades?editar=${op.id}`}
+                  aria-label="Editar oportunidad"
+                  title="Editar"
+                  className="grid size-[30px] place-items-center rounded-md text-text-3 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+                >
+                  <Pencil className="size-4" />
+                </Link>
+                {op.paraCerrar ? (
+                  <span className="rounded-full bg-danger-tint px-2.5 py-0.5 text-[12px] font-medium text-danger-text">
+                    Para cerrar
                   </span>
+                ) : (
+                  op.sinRespuesta && (
+                    <span className="rounded-full bg-warning-tint px-2.5 py-0.5 text-[12px] font-medium text-warning-text">
+                      {op.sinRespuesta}
+                    </span>
+                  )
                 )}
               </div>
-              <p className="mt-1 text-[13.5px] text-text-2">
-                {[
-                  op.edificios.map((e) => e.nombre).join(", ") || op.edificioNombre,
-                  op.unidad,
-                  op.origen,
-                  `Creada el ${fecha(op.createdAt, false)}`,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </p>
+
+              <div className="mt-3 flex flex-wrap gap-x-10 gap-y-0.5 text-[13.5px]">
+                <dl className="flex min-w-0 flex-[1_1_300px] flex-col gap-0.5">
+                  <Fila icono={Megaphone} titulo="Origen">
+                    {op.origen ? (
+                      <span className="flex items-center gap-2">
+                        <span className="grid size-[22px] place-items-center rounded-md bg-subtle">
+                          <OrigenIcono icono={origen?.icono ?? null} imagen={origen?.imagen} />
+                        </span>
+                        {op.origen}
+                        {op.formularios > 1 && (
+                          <span className="font-normal text-text-3">· {op.formularios} formularios</span>
+                        )}
+                      </span>
+                    ) : (
+                      <SinDato />
+                    )}
+                  </Fila>
+                  <Fila icono={Building2} titulo="Interés">
+                    {edificios.length ? (
+                      edificios.map((e) => (
+                        <Link
+                          key={e.id}
+                          href={`/edificios/${e.id}`}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-subtle px-2.5 py-0.5 text-[12.5px] font-semibold hover:bg-accent"
+                        >
+                          <span aria-hidden className="size-[7px] rounded-full bg-text-3" />
+                          {e.nombre}
+                        </Link>
+                      ))
+                    ) : (
+                      <SinDato />
+                    )}
+                  </Fila>
+                  <Fila icono={LayoutGrid} titulo="Tipologías">
+                    {contacto ? (
+                      <Select
+                        multiple
+                        values={op.tipologias}
+                        onValuesChange={(v) => void cambiarTipologias(v as Tipologia[])}
+                        placeholder="Elegir…"
+                        aria-label="Tipologías"
+                        className="h-auto min-h-7 w-auto max-w-full rounded-full px-2 py-0.5 text-[13px]"
+                      >
+                        {TIPOLOGIAS.map((t) => (
+                          <option key={t.value} value={t.value}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </Select>
+                    ) : op.tipologias.length ? (
+                      op.tipologias.map((t) => etiqueta(TIPOLOGIAS, t)).join(", ")
+                    ) : (
+                      <SinDato />
+                    )}
+                  </Fila>
+                  {otrosVinculos.map((v) => (
+                    <Fila key={v.relacion} icono={DoorOpen} titulo={v.nombre}>
+                      <VinculoEnLinea vinculo={v} onGuardar={(ids) => objetos.guardarVinculo(v.relacion, ids)} />
+                    </Fila>
+                  ))}
+                  {!otrosVinculos.length && op.unidad && (
+                    <Fila icono={DoorOpen} titulo="Departamento">
+                      <span className="inline-block rounded-full border border-border px-2.5 py-0.5 text-[12.5px]">
+                        {op.unidad}
+                      </span>
+                    </Fila>
+                  )}
+                  <Fila icono={CircleDollarSign} titulo="Valor">
+                    {op.valorCents == null ? <SinDato texto="Sin cargar" /> : plata(op.valorCents, op.moneda, moneda)}
+                  </Fila>
+                </dl>
+                <dl className="flex min-w-0 flex-[0_1_340px] flex-col gap-0.5">
+                  <Fila icono={CalendarPlus} titulo="Creada">
+                    {fecha(op.createdAt, false)}
+                  </Fila>
+                  <Fila icono={Timer} titulo="En este estado">
+                    desde {fechaExacta(op.estadoDesde)}
+                  </Fila>
+                  <Fila icono={Tag} titulo="Tipo">
+                    {op.tipo ? etiqueta(TIPOS_OPORTUNIDAD, op.tipo) : <SinDato />}
+                  </Fila>
+                  {op.cerradaAt && (
+                    <Fila icono={Flag} titulo="Cerrada">
+                      {fecha(op.cerradaAt, false)}
+                    </Fila>
+                  )}
+                </dl>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            {enChat && (
               <Link
-                href={`/oportunidades?editar=${op.id}`}
-                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border px-4 text-sm font-medium hover:bg-accent"
+                href={enChat}
+                className="inline-flex h-9 items-center gap-1.5 rounded-full bg-brand px-4 text-sm font-semibold text-brand-fg hover:bg-brand-hover"
               >
-                <Pencil className="size-3.5" /> Editar
+                <WhatsAppLogo /> Ir al chat
               </Link>
-              {enChat && (
-                <Link
-                  href={enChat}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-full bg-brand px-4 text-sm font-semibold text-brand-fg hover:bg-brand-hover"
-                >
-                  <MessageCircle className="size-4" /> Ir al chat
-                </Link>
-              )}
-            </div>
+            )}
           </div>
 
+          <BarraDeAvance estado={op.estado} motivo={op.motivoCierre} onCambiar={cambiarEstado} />
+          <AvisosDeReglas objetos={objetos} />
+
           {op.paraCerrar && (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-warning-tint px-4 py-3 text-[13.5px] text-warning-text">
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-danger-tint px-4 py-3 text-[13.5px] text-danger-text">
               <span>Cumple el umbral de «no responde» de Configuración → Ventas.</span>
               <Button size="sm" variant="outline" onClick={() => void cambiarEstado("perdido", "No responde")}>
                 Cerrar como «No responde»
               </Button>
             </div>
           )}
-
-          <BarraDeAvance estado={op.estado} motivo={op.motivoCierre} onCambiar={cambiarEstado} />
           {error && <p className="mt-2 text-sm text-danger-text">{error}</p>}
         </section>
 
@@ -216,14 +410,22 @@ export function OportunidadDetalleClient() {
             <CircleDot className="size-4" />
             <span>También tiene abierta:</span>
             {datos.paralelas.map((p) => (
-              <Link key={p.id} href={`/oportunidades/${p.id}`} className="font-medium underline-offset-2 hover:underline">
-                {p.edificioNombre ?? p.nombre} ({etiqueta(ESTADOS_OPORTUNIDAD, p.estado)})
+              <Link
+                key={p.id}
+                href={`/oportunidades/${p.id}`}
+                className="inline-flex items-center gap-2 underline-offset-2 hover:underline"
+              >
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-card px-2.5 py-0.5 text-[12.5px] font-semibold text-foreground">
+                  <span aria-hidden className="size-[7px] rounded-full bg-text-3" />
+                  {p.edificioNombre ?? p.nombre}
+                </span>
+                {etiqueta(ESTADOS_OPORTUNIDAD, p.estado)}
               </Link>
             ))}
           </div>
         )}
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
           {/* Pestañas */}
           <section className={cn(TARJETA, "min-w-0 p-3 sm:p-5")}>
             <div role="tablist" aria-label="Secciones" className="mb-4 flex flex-wrap gap-1 rounded-full bg-subtle p-1">
@@ -252,7 +454,17 @@ export function OportunidadDetalleClient() {
               ))}
             </div>
 
-            {pestana === "timeline" && <Timeline items={datos.timeline} anterior={datos.anterior} />}
+            {pestana === "timeline" && (
+              <Timeline
+                items={datos.timeline}
+                anterior={datos.anterior}
+                proximos={datos.proximos}
+                origenes={origenes}
+                oportunidadId={op.id}
+                contactId={contacto?.id ?? null}
+                onCambio={cargar}
+              />
+            )}
             {pestana === "reuniones" && <Reuniones reuniones={datos.reuniones} />}
             {pestana === "notas" && <Notas oportunidadId={op.id} notas={datos.notas} onCambio={cargar} />}
             {pestana === "mensajes" && (
@@ -262,45 +474,7 @@ export function OportunidadDetalleClient() {
 
           {/* Tarjetas */}
           <aside className="space-y-4">
-            <TarjetaContacto contacto={contacto} enChat={enChat} />
-            <ProximosPasos
-              tareas={datos.tareasPendientes}
-              oportunidadId={op.id}
-              contactId={contacto?.id ?? null}
-              onCambio={cargar}
-            />
-            {/* 070 — Los objetos del cliente vinculados y las reglas de etapa. */}
-            <ObjetosDeOportunidad oportunidadId={op.id} estado={op.estado} />
-            <section className={cn(TARJETA, "p-5")}>
-              <h2 className="mb-3 text-[15px] font-semibold">Datos de la oportunidad</h2>
-              <dl className="space-y-2.5 text-[13.5px]">
-                <Dato titulo="Tipo">{op.tipo ? etiqueta(TIPOS_OPORTUNIDAD, op.tipo) : "—"}</Dato>
-                <Dato titulo="Valor">{op.valorCents == null ? "—" : plata(op.valorCents, op.moneda, moneda)}</Dato>
-                <Dato titulo="Origen">{op.origen ?? "—"}</Dato>
-                <Dato titulo="Tipologías">
-                  {op.tipologias.length ? op.tipologias.map((t) => etiqueta(TIPOLOGIAS, t)).join(", ") : "—"}
-                </Dato>
-                <Dato titulo="En este estado">desde {fecha(op.estadoDesde)}</Dato>
-                {op.cerradaAt && <Dato titulo="Cerrada">{fecha(op.cerradaAt)}{op.motivoCierre ? ` · ${op.motivoCierre}` : ""}</Dato>}
-              </dl>
-              {datos.formularios.length > 0 && (
-                <div className="mt-4 border-t border-border pt-3">
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-3">
-                    Formularios recibidos
-                  </p>
-                  <ul className="space-y-2">
-                    {datos.formularios.map((f) => (
-                      <li key={f.leadId} className="rounded-xl bg-subtle px-3 py-2 text-[12.5px]">
-                        <p className="font-medium">{f.formName ?? f.origen}</p>
-                        <p className="text-text-3">
-                          {[f.campaignName, f.adName, fecha(f.recibidoAt)].filter(Boolean).join(" · ")}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </section>
+            <TarjetaContacto contacto={contacto} />
           </aside>
         </div>
       </div>
@@ -308,16 +482,37 @@ export function OportunidadDetalleClient() {
   );
 }
 
-function Dato({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+function SinDato({ texto = "—" }: { texto?: string }) {
+  return <span className="font-normal text-text-3">{texto}</span>;
+}
+
+/** Una fila del encabezado: ícono gris + etiqueta + valor. */
+function Fila({
+  icono: Icono,
+  titulo,
+  children,
+}: {
+  icono: typeof Phone;
+  titulo: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="flex justify-between gap-3">
-      <dt className="shrink-0 text-text-3">{titulo}</dt>
-      <dd className="min-w-0 text-right font-medium">{children}</dd>
+    <div className="flex min-h-[30px] min-w-0 items-center gap-2.5">
+      <dt className="flex w-[112px] shrink-0 items-center gap-2 text-text-3">
+        <Icono className="size-4 shrink-0" strokeWidth={1.8} />
+        <span className="truncate">{titulo}</span>
+      </dt>
+      <dd className="flex min-w-0 flex-wrap items-center gap-2 font-medium">{children}</dd>
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
+
+/** La forma de cada flecha: muesca de 14 px; la primera arranca recta y la última termina recta. */
+const FLECHA = "[clip-path:polygon(0_0,calc(100%-14px)_0,100%_50%,calc(100%-14px)_100%,0_100%,14px_50%)] pl-6 pr-[18px]";
+const PRIMERA = "[clip-path:polygon(0_0,calc(100%-14px)_0,100%_50%,calc(100%-14px)_100%,0_100%)] pl-3 pr-5";
+const ULTIMA = "[clip-path:polygon(0_0,100%_0,100%_100%,0_100%,14px_50%)] pl-[22px] pr-3";
 
 function BarraDeAvance({
   estado,
@@ -335,22 +530,24 @@ function BarraDeAvance({
 
   return (
     <div className="mt-5">
-      <ol className="flex flex-wrap gap-1.5 sm:flex-nowrap">
+      {/* En pantallas angostas no se parte: se desplaza. */}
+      <ol className="flex gap-1 overflow-x-auto pb-0.5" aria-label="Avance">
         {CAMINO_OPORTUNIDAD.map((paso, i) => {
           const hecho = !perdida && indice >= 0 && i < indice;
           const actual = paso === estado;
           return (
-            <li key={paso} className="min-w-[96px] flex-1">
+            <li key={paso} className="min-w-[118px] flex-1">
               <button
                 type="button"
                 onClick={() => void onCambiar(paso)}
                 disabled={actual}
                 aria-current={actual ? "step" : undefined}
                 className={cn(
-                  "flex h-10 w-full items-center justify-center gap-1.5 rounded-full px-3 text-[13px] font-medium transition-colors",
-                  actual && "bg-brand text-brand-fg",
+                  "flex h-10 w-full items-center justify-center gap-1.5 rounded-[10px] text-[13.5px] font-medium transition-colors",
+                  i === 0 ? PRIMERA : FLECHA,
+                  actual && "bg-brand font-semibold text-brand-fg",
                   hecho && "bg-brand-tint text-brand-ink hover:bg-brand-soft",
-                  !actual && !hecho && "bg-subtle text-text-3 hover:bg-accent hover:text-foreground"
+                  !actual && !hecho && "bg-muted text-text-2 hover:bg-accent hover:text-foreground"
                 )}
               >
                 {(hecho || actual) && <Check className="size-3.5 shrink-0" />}
@@ -359,17 +556,20 @@ function BarraDeAvance({
             </li>
           );
         })}
-        <li className="min-w-[96px] flex-1">
+        <li className="min-w-[118px] flex-1">
           <button
             type="button"
             onClick={() => setCerrando((v) => !v)}
             aria-expanded={cerrando}
             className={cn(
-              "flex h-10 w-full items-center justify-center gap-1.5 rounded-full px-3 text-[13px] font-medium transition-colors",
-              perdida ? "bg-danger-tint text-danger-text" : "bg-subtle text-text-3 hover:bg-accent hover:text-foreground"
+              "flex h-10 w-full items-center justify-center gap-1.5 rounded-[10px] text-[13.5px] font-medium transition-colors",
+              ULTIMA,
+              perdida
+                ? "bg-danger-tint font-semibold text-danger-text"
+                : "bg-muted text-text-2 hover:bg-accent hover:text-foreground"
             )}
           >
-            {perdida ? <X className="size-3.5" /> : <Flag className="size-3.5" />}
+            {perdida ? <X className="size-3.5 shrink-0" /> : <Flag className="size-3.5 shrink-0" />}
             <span className="truncate">{perdida ? etiqueta(ESTADOS_OPORTUNIDAD, estado) : "Perdida"}</span>
           </button>
         </li>
@@ -416,7 +616,7 @@ const ICONOS: Record<IconoTimeline, typeof Check> = {
   cerrada: Flag,
   reabierta: RotateCcw,
   formulario: FileText,
-  whatsapp: MessageCircle,
+  whatsapp: FileText, // se dibuja con el logo de WhatsApp
   reunion: CalendarClock,
   tarea: ClipboardList,
   nota: StickyNote,
@@ -424,61 +624,357 @@ const ICONOS: Record<IconoTimeline, typeof Check> = {
   anterior: History,
 };
 
-function Timeline({ items, anterior }: { items: ItemTimeline[]; anterior: OportunidadDetalleDto["anterior"] }) {
-  if (!items.length && !anterior) {
-    return <p className="py-8 text-center text-sm text-text-3">Todavía no hay nada para mostrar.</p>;
-  }
+const ICONO_TAREA: Record<string, typeof Check> = {
+  llamada: Phone,
+  visita: CalendarClock,
+  reunion: CalendarClock,
+  correo: Mail,
+};
+
+function TituloDeBloque({
+  abierto,
+  onToggle,
+  titulo,
+  n,
+  children,
+}: {
+  abierto: boolean;
+  onToggle: () => void;
+  titulo: string;
+  n: number;
+  children?: React.ReactNode;
+}) {
   return (
-    <ol className="space-y-1">
-      {items.map((it) => {
-        const Icono = ICONOS[it.icono];
-        return (
-          <li key={it.id} className="flex gap-3 border-b border-border py-3 last:border-0">
-            <span
-              className={cn(
-                "grid size-9 shrink-0 place-items-center rounded-full",
-                it.tono === "ok" && "bg-success-tint text-success-text",
-                it.tono === "malo" && "bg-danger-tint text-danger-text",
-                (!it.tono || it.tono === "neutro") && it.icono === "whatsapp" && "bg-brand-tint text-brand-ink",
-                (!it.tono || it.tono === "neutro") && it.icono !== "whatsapp" && "bg-subtle text-text-2"
-              )}
-            >
-              <Icono className="size-4" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                <p className="text-[14px] font-semibold">{it.titulo}</p>
-                <time className="shrink-0 text-[12px] text-text-3" title={fecha(it.at)}>
-                  {haceCuanto(it.at)}
-                </time>
-              </div>
-              {it.detalle && (
-                <p className="mt-0.5 whitespace-pre-wrap break-words text-[13.5px] text-text-2">{it.detalle}</p>
-              )}
-              {it.quien && <p className="mt-0.5 text-[12px] text-text-3">{it.quien}</p>}
-            </div>
-          </li>
-        );
-      })}
-      {anterior && (
-        <li className="mt-2 flex gap-3 rounded-2xl bg-subtle p-3">
-          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-card text-text-2">
-            <History className="size-4" />
-          </span>
-          <div className="min-w-0 flex-1 text-[13.5px]">
-            <p className="font-semibold">Oportunidad anterior: {anterior.edificioNombre ?? anterior.nombre}</p>
-            <p className="text-text-2">
-              {etiqueta(ESTADOS_OPORTUNIDAD, anterior.estado)}
-              {anterior.cerradaAt ? ` el ${fecha(anterior.cerradaAt, false)}` : ""}
-              {anterior.motivoCierre ? ` · motivo: ${anterior.motivoCierre}` : ""}
-            </p>
-            <Link href={`/oportunidades/${anterior.id}`} className="text-[12.5px] font-medium text-brand-ink hover:underline">
-              Ver esa oportunidad →
-            </Link>
-          </div>
-        </li>
+    <div className="flex items-center justify-between gap-2 pb-1.5 pt-0.5">
+      <button
+        type="button"
+        aria-expanded={abierto}
+        onClick={onToggle}
+        className="-ml-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-text-3 hover:bg-accent hover:text-foreground"
+      >
+        <ChevronDown className={cn("size-3.5 transition-transform", !abierto && "-rotate-90")} />
+        {titulo}
+        <span className="rounded-full bg-subtle px-[7px] py-px text-[11px] normal-case tracking-normal text-text-2">
+          {n}
+        </span>
+      </button>
+      {children}
+    </div>
+  );
+}
+
+function Cuando({ iso }: { iso: string }) {
+  return (
+    <time dateTime={iso} className="flex shrink-0 flex-col items-end leading-tight">
+      <span className="whitespace-nowrap text-[12.5px] font-medium text-text-2">{fechaExacta(iso)}</span>
+      <span className="text-[11.5px] text-text-3">{haceCuanto(iso)}</span>
+    </time>
+  );
+}
+
+function Timeline({
+  items,
+  anterior,
+  proximos,
+  origenes,
+  oportunidadId,
+  contactId,
+  onCambio,
+}: {
+  items: ItemTimeline[];
+  anterior: OportunidadDetalleDto["anterior"];
+  proximos: ProximoPaso[];
+  origenes: IconoDeOrigen;
+  oportunidadId: string;
+  contactId: string | null;
+  onCambio: () => Promise<void>;
+}) {
+  const [verProximos, setVerProximos] = useState(true);
+  const [verHistorial, setVerHistorial] = useState(true);
+  const [agregando, setAgregando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function marcar(t: TareaCorta, estado: "listo" | "no_responde") {
+    setError(null);
+    const res = await fetch(`/api/tareas/${t.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        titulo: t.titulo,
+        tipo: t.tipo,
+        estado,
+        fecha: t.fecha ? aLocal(t.fecha) : null,
+        comentarios: t.comentarios,
+        contactId: t.contactId,
+        oportunidadId: t.oportunidadId ?? oportunidadId,
+      }),
+    }).catch(() => null);
+    if (!res?.ok) {
+      setError(await mensajeError(res));
+      return;
+    }
+    await onCambio();
+  }
+
+  return (
+    <div className="flex flex-col">
+      <TituloDeBloque abierto={verProximos} onToggle={() => setVerProximos((v) => !v)} titulo="Próximos pasos" n={proximos.length}>
+        <button
+          type="button"
+          onClick={() => {
+            setVerProximos(true);
+            setAgregando((v) => !v);
+          }}
+          className="inline-flex h-7 items-center gap-1 rounded-full border border-border bg-card px-3 text-[12.5px] font-medium hover:bg-accent"
+        >
+          <Plus className="size-3.5" /> Agregar tarea
+        </button>
+      </TituloDeBloque>
+      {verProximos && (
+        <>
+          {agregando && (
+            <AgregarTarea
+              oportunidadId={oportunidadId}
+              contactId={contactId}
+              onListo={async () => {
+                setAgregando(false);
+                await onCambio();
+              }}
+              onCancelar={() => setAgregando(false)}
+            />
+          )}
+          {error && <p className="mb-2 text-sm text-danger-text">{error}</p>}
+          {proximos.length === 0 && !agregando ? (
+            <p className="py-2 text-[13px] text-text-3">No hay nada por hacer. Agregá una tarea para el próximo paso.</p>
+          ) : (
+            <ol className="space-y-1">
+              {proximos.map((p) => (
+                <ProximoFila key={p.id} paso={p} onMarcar={marcar} />
+              ))}
+            </ol>
+          )}
+        </>
       )}
-    </ol>
+
+      <div role="separator" aria-label="Hoy" className="flex items-center gap-2.5 py-2.5">
+        <span className="h-px flex-1 bg-border-strong" />
+        <span className="rounded-full bg-foreground px-3 py-[3px] text-[12px] font-semibold text-background">
+          Hoy · {hoyLargo()}
+        </span>
+        <span className="h-px flex-1 bg-border-strong" />
+      </div>
+
+      <TituloDeBloque
+        abierto={verHistorial}
+        onToggle={() => setVerHistorial((v) => !v)}
+        titulo="Historial"
+        n={items.length}
+      />
+      {verHistorial &&
+        (!items.length && !anterior ? (
+          <p className="py-6 text-center text-sm text-text-3">Todavía no hay nada para mostrar.</p>
+        ) : (
+          <ol className="space-y-1">
+            {items.map((it) => (
+              <HistorialFila key={it.id} item={it} origenes={origenes} />
+            ))}
+            {anterior && (
+              <li className="mt-2 flex gap-3 rounded-2xl bg-subtle p-3">
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-card text-text-2">
+                  <History className="size-4" />
+                </span>
+                <div className="min-w-0 flex-1 text-[13.5px]">
+                  <p className="font-semibold">Oportunidad anterior: {anterior.edificioNombre ?? anterior.nombre}</p>
+                  <p className="text-text-2">
+                    {etiqueta(ESTADOS_OPORTUNIDAD, anterior.estado)}
+                    {anterior.cerradaAt ? ` el ${fecha(anterior.cerradaAt, false)}` : ""}
+                    {anterior.motivoCierre ? ` · motivo: ${anterior.motivoCierre}` : ""}
+                  </p>
+                  <Link
+                    href={`/oportunidades/${anterior.id}`}
+                    className="text-[12.5px] font-medium text-brand-ink hover:underline"
+                  >
+                    Ver esa oportunidad →
+                  </Link>
+                </div>
+              </li>
+            )}
+          </ol>
+        ))}
+    </div>
+  );
+}
+
+function ProximoFila({
+  paso,
+  onMarcar,
+}: {
+  paso: ProximoPaso;
+  onMarcar: (t: TareaCorta, estado: "listo" | "no_responde") => Promise<void>;
+}) {
+  const esTarea = paso.clase === "tarea";
+  const Icono = esTarea ? ICONO_TAREA[paso.tarea.tipo] : CalendarClock;
+  const titulo = esTarea ? paso.tarea.titulo : "Reunión";
+  const detalle = esTarea
+    ? [etiqueta(TIPOS_TAREA, paso.tarea.tipo), paso.at ? fecha(paso.at) : "sin fecha"].join(" · ")
+    : [
+        `${paso.reunion.durationMinutes} min`,
+        paso.reunion.source === "ai" ? "la agendó el agente" : null,
+        fecha(paso.reunion.scheduledAt),
+      ]
+        .filter(Boolean)
+        .join(" · ");
+  return (
+    <li className="flex gap-3 border-b border-border py-3 last:border-0">
+      <span className="grid size-9 shrink-0 place-items-center rounded-full border-[1.5px] border-dashed border-brand bg-card text-brand-ink">
+        {esTarea && paso.tarea.tipo === "mensaje" ? (
+          <WhatsAppLogo />
+        ) : Icono ? (
+          <Icono className="size-4" />
+        ) : (
+          <ClipboardList className="size-4" />
+        )}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+          <p className="text-[14px] font-semibold">{titulo}</p>
+          {paso.at && (
+            <time dateTime={paso.at} className="text-[12px] font-semibold text-brand-ink">
+              {cuandoFalta(paso.at)}
+            </time>
+          )}
+        </div>
+        <p className="mt-0.5 text-[12px] text-text-3">{detalle}</p>
+        {esTarea && (
+          <div className="mt-1.5 flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => void onMarcar(paso.tarea, "listo")}
+              className="inline-flex h-[26px] items-center gap-1 rounded-full border border-border bg-card px-2.5 text-[12px] font-medium text-text-2 hover:bg-accent hover:text-foreground"
+            >
+              <Check className="size-3.5" /> Hecha
+            </button>
+            <button
+              type="button"
+              onClick={() => void onMarcar(paso.tarea, "no_responde")}
+              title="La hice y no respondió (cuenta como intento)"
+              className="h-[26px] rounded-full px-2.5 text-[12px] text-text-3 hover:bg-accent hover:text-foreground"
+            >
+              No respondió
+            </button>
+          </div>
+        )}
+      </div>
+    </li>
+  );
+}
+
+function HistorialFila({ item: it, origenes }: { item: ItemTimeline; origenes: IconoDeOrigen }) {
+  const Icono = ICONOS[it.icono];
+  const deOrigen = it.icono === "formulario" && it.origen ? origenes.get(it.origen) : undefined;
+  return (
+    <li className="flex gap-3 border-b border-border py-3 last:border-0">
+      <span
+        className={cn(
+          "grid size-9 shrink-0 place-items-center rounded-full",
+          it.tono === "ok" && "bg-success-tint text-success-text",
+          it.tono === "malo" && "bg-danger-tint text-danger-text",
+          (!it.tono || it.tono === "neutro") && it.icono === "whatsapp" && "bg-brand-tint text-brand-ink",
+          (!it.tono || it.tono === "neutro") && it.icono !== "whatsapp" && "bg-subtle text-text-2"
+        )}
+      >
+        {it.icono === "whatsapp" ? (
+          <WhatsAppLogo />
+        ) : deOrigen ? (
+          <OrigenIcono icono={deOrigen.icono} imagen={deOrigen.imagen} />
+        ) : (
+          <Icono className="size-4" />
+        )}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+          <p className="min-w-0 text-[14px] font-semibold">{it.titulo}</p>
+          <Cuando iso={it.at} />
+        </div>
+        {it.detalle && (
+          <p className="mt-0.5 whitespace-pre-wrap break-words text-[13.5px] text-text-2">{it.detalle}</p>
+        )}
+        {it.quien && <p className="mt-0.5 text-[12px] text-text-3">{it.quien}</p>}
+      </div>
+    </li>
+  );
+}
+
+function AgregarTarea({
+  oportunidadId,
+  contactId,
+  onListo,
+  onCancelar,
+}: {
+  oportunidadId: string;
+  contactId: string | null;
+  onListo: () => Promise<void>;
+  onCancelar: () => void;
+}) {
+  const [titulo, setTitulo] = useState("");
+  const [tipo, setTipo] = useState<string>("llamada");
+  const [fechaNueva, setFechaNueva] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  async function agregar() {
+    if (!titulo.trim()) return;
+    setError(null);
+    const res = await fetch("/api/tareas", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ titulo, tipo, fecha: fechaNueva || null, oportunidadId, contactId }),
+    }).catch(() => null);
+    if (!res?.ok) {
+      setError(await mensajeError(res));
+      return;
+    }
+    await onListo();
+  }
+
+  return (
+    <div className="mb-2 space-y-2 rounded-2xl bg-subtle p-3">
+      <input
+        autoFocus
+        value={titulo}
+        onChange={(e) => setTitulo(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") void agregar();
+        }}
+        placeholder="Qué hay que hacer"
+        aria-label="Título de la tarea"
+        className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+      />
+      <div className="flex flex-wrap gap-2">
+        <Select value={tipo} onValueChange={setTipo} aria-label="Tipo" className="w-36">
+          {TIPOS_TAREA.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </Select>
+        <input
+          type="datetime-local"
+          value={fechaNueva}
+          onChange={(e) => setFechaNueva(e.target.value)}
+          aria-label="Fecha"
+          className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm"
+        />
+      </div>
+      {error && <p className="text-sm text-danger-text">{error}</p>}
+      <div className="flex gap-2">
+        <Button size="sm" onClick={() => void agregar()} disabled={!titulo.trim()}>
+          Agregar tarea
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onCancelar}>
+          Cancelar
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -508,7 +1004,7 @@ function Reuniones({ reuniones }: { reuniones: OportunidadDetalleDto["reuniones"
       <div className="min-w-0 flex-1">
         <p className="text-[14px] font-semibold">{fecha(r.scheduledAt)}</p>
         <p className="text-[12.5px] text-text-3">
-          {r.durationMinutes} min{r.source === "ai" ? " · la agendó Mateo" : ""}
+          {r.durationMinutes} min{r.source === "ai" ? " · la agendó el agente" : ""}
           {r.meetingLink && (
             <>
               {" · "}
@@ -687,7 +1183,7 @@ function UltimosMensajes({
             href={enChat}
             className="inline-flex h-9 items-center gap-1.5 rounded-full bg-brand px-4 text-sm font-semibold text-brand-fg hover:bg-brand-hover"
           >
-            <MessageCircle className="size-4" /> Ir al chat
+            <WhatsAppLogo /> Ir al chat
           </Link>
         )}
       </div>
@@ -697,32 +1193,43 @@ function UltimosMensajes({
 
 /* ------------------------------------------------------------------ */
 
-function TarjetaContacto({
-  contacto,
-  enChat,
-}: {
-  contacto: OportunidadDetalleDto["contacto"];
-  enChat: string | null;
-}) {
-  return (
-    <section className={cn(TARJETA, "p-5")}>
-      <h2 className="mb-3 text-[15px] font-semibold">Contacto</h2>
-      {!contacto ? (
+/* ------------------------------------------------------------------ */
+
+/** El contacto, plegado: avatar, nombre, tipo y desde cuándo. Abierto suma teléfono, correo y anuncio. */
+function TarjetaContacto({ contacto }: { contacto: OportunidadDetalleDto["contacto"] }) {
+  const [abierto, setAbierto] = useState(false);
+  if (!contacto) {
+    return (
+      <section className={cn(TARJETA, "p-5")}>
+        <h2 className="mb-1 text-[15px] font-semibold">Contacto</h2>
         <p className="text-sm text-text-3">Sin contacto asociado.</p>
-      ) : (
-        <div className="space-y-3 text-[13.5px]">
-          <div className="flex items-center gap-3">
-            <div className="grid size-10 place-items-center rounded-full bg-subtle text-text-2">
-              <UserRound className="size-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate font-semibold">{contacto.nombre}</p>
-              <p className="text-[12px] text-text-3">
-                {contacto.tipoContacto ? etiqueta(TIPOS_CONTACTO, contacto.tipoContacto) : "Sin clasificar"}
-                {` · desde ${fecha(contacto.creadoAt, false)}`}
-              </p>
-            </div>
-          </div>
+      </section>
+    );
+  }
+  return (
+    <section className={cn(TARJETA, "p-2")}>
+      <h2 className="text-[15px] font-semibold">
+        <button
+          type="button"
+          aria-expanded={abierto}
+          onClick={() => setAbierto((v) => !v)}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13.5px] hover:bg-accent"
+        >
+          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-subtle text-text-2">
+            <UserRound className="size-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-semibold">{contacto.nombre}</span>
+            <span className="block text-[12px] font-normal text-text-3">
+              {contacto.tipoContacto ? etiqueta(TIPOS_CONTACTO, contacto.tipoContacto) : "Sin clasificar"}
+              {` · desde ${fecha(contacto.creadoAt, false)}`}
+            </span>
+          </span>
+          <ChevronDown className={cn("size-4 shrink-0 text-text-3 transition-transform", abierto && "rotate-180")} />
+        </button>
+      </h2>
+      {abierto && (
+        <div className="mt-1 space-y-3 border-t border-border px-3 pb-3 pt-2 text-[13.5px]">
           <Campo icono={Phone} titulo="Teléfono">
             {contacto.telefono ? formatearTelefono(contacto.telefono) : "—"}
           </Campo>
@@ -730,7 +1237,7 @@ function TarjetaContacto({
             {contacto.email ?? "—"}
           </Campo>
           {contacto.anuncio && (
-            <Campo icono={Building2} titulo="Anuncio">
+            <Campo icono={Megaphone} titulo="Anuncio">
               {contacto.anuncio.url ? (
                 <a href={contacto.anuncio.url} target="_blank" rel="noreferrer" className="text-brand-ink hover:underline">
                   {contacto.anuncio.titulo ?? "Ver anuncio"}
@@ -740,14 +1247,12 @@ function TarjetaContacto({
               )}
             </Campo>
           )}
-          {enChat && (
-            <Link
-              href={enChat}
-              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-full border border-border text-[12.5px] font-medium hover:bg-accent"
-            >
-              <MessageCircle className="size-3.5" /> Abrir el chat
-            </Link>
-          )}
+          <Link
+            href={`/contacts/${contacto.id}`}
+            className="flex h-8 w-full items-center justify-center gap-1.5 rounded-full border border-border text-[12.5px] font-medium hover:bg-accent"
+          >
+            <UserRound className="size-3.5" /> Ver contacto completo
+          </Link>
         </div>
       )}
     </section>
@@ -770,150 +1275,5 @@ function Campo({
       </p>
       <p className="mt-0.5 break-words">{children}</p>
     </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-
-function ProximosPasos({
-  tareas,
-  oportunidadId,
-  contactId,
-  onCambio,
-}: {
-  tareas: TareaCorta[];
-  oportunidadId: string;
-  contactId: string | null;
-  onCambio: () => Promise<void>;
-}) {
-  const [agregando, setAgregando] = useState(false);
-  const [titulo, setTitulo] = useState("");
-  const [tipo, setTipo] = useState<string>("llamada");
-  const [fechaNueva, setFechaNueva] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  async function marcar(t: TareaCorta, estado: "listo" | "no_responde") {
-    setError(null);
-    const res = await fetch(`/api/tareas/${t.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        titulo: t.titulo,
-        tipo: t.tipo,
-        estado,
-        fecha: t.fecha ? aLocal(t.fecha) : null,
-        comentarios: t.comentarios,
-        contactId: t.contactId,
-        oportunidadId: t.oportunidadId ?? oportunidadId,
-      }),
-    }).catch(() => null);
-    if (!res?.ok) {
-      setError(await mensajeError(res));
-      return;
-    }
-    await onCambio();
-  }
-
-  async function agregar() {
-    if (!titulo.trim()) return;
-    setError(null);
-    const res = await fetch("/api/tareas", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        titulo,
-        tipo,
-        fecha: fechaNueva || null,
-        oportunidadId,
-        contactId,
-      }),
-    }).catch(() => null);
-    if (!res?.ok) {
-      setError(await mensajeError(res));
-      return;
-    }
-    setTitulo("");
-    setFechaNueva("");
-    setAgregando(false);
-    await onCambio();
-  }
-
-  return (
-    <section className={cn(TARJETA, "p-5")}>
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-[15px] font-semibold">Próximos pasos</h2>
-        <button
-          type="button"
-          onClick={() => setAgregando((v) => !v)}
-          className="inline-flex items-center gap-1 text-[13px] font-medium text-brand-ink hover:underline"
-        >
-          <Plus className="size-3.5" /> Agregar
-        </button>
-      </div>
-      {agregando && (
-        <div className="mb-3 space-y-2 rounded-2xl bg-subtle p-3">
-          <input
-            value={titulo}
-            onChange={(e) => setTitulo(e.target.value)}
-            placeholder="Qué hay que hacer"
-            aria-label="Título de la tarea"
-            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-          />
-          <div className="flex gap-2">
-            <Select value={tipo} onValueChange={setTipo} aria-label="Tipo" className="w-36">
-              {TIPOS_TAREA.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </Select>
-            <input
-              type="datetime-local"
-              value={fechaNueva}
-              onChange={(e) => setFechaNueva(e.target.value)}
-              aria-label="Fecha"
-              className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm"
-            />
-          </div>
-          <Button size="sm" onClick={() => void agregar()} disabled={!titulo.trim()}>
-            Agregar tarea
-          </Button>
-        </div>
-      )}
-      {error && <p className="mb-2 text-sm text-danger-text">{error}</p>}
-      {tareas.length === 0 ? (
-        <p className="text-sm text-text-3">No hay tareas pendientes.</p>
-      ) : (
-        <ul className="space-y-1.5">
-          {tareas.map((t) => (
-            <li key={t.id} className="group flex items-start gap-2.5 rounded-xl px-1 py-1.5">
-              <button
-                type="button"
-                onClick={() => void marcar(t, "listo")}
-                aria-label={`Marcar hecha: ${t.titulo}`}
-                className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border-2 border-border-strong text-transparent hover:border-brand hover:text-brand"
-              >
-                <Check className="size-3" />
-              </button>
-              <div className="min-w-0 flex-1">
-                <p className="text-[13.5px] font-medium">{t.titulo}</p>
-                <p className="text-[12px] text-text-3">
-                  {etiqueta(TIPOS_TAREA, t.tipo)}
-                  {t.fecha ? ` · ${fecha(t.fecha)}` : ""}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => void marcar(t, "no_responde")}
-                title="La hice y no respondió (cuenta como intento)"
-                className="shrink-0 rounded-full px-2 py-0.5 text-[11.5px] text-text-3 opacity-0 hover:bg-accent hover:text-foreground focus:opacity-100 group-hover:opacity-100"
-              >
-                No respondió
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
   );
 }

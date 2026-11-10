@@ -45,6 +45,11 @@ export type VinculoDto = {
   nombre: string;
   objeto: ObjetoDto;
   registros: RegistroDto[];
+  /**
+   * La relación adopta los edificios de interés del núcleo
+   * (`oportunidad_edificio`): la página ya los muestra como «Interés».
+   */
+  esInteres: boolean;
 };
 
 /** Lo que una oportunidad tiene vinculado, por relación. Sin configuración: nada. */
@@ -59,7 +64,13 @@ export async function vinculosDeOportunidad(organizationId: string, oportunidadI
       const reg = await obtenerRegistro(organizationId, r.hacia, rid).catch(() => null);
       if (reg) registros.push(aDto(reg));
     }
-    out.push({ relacion: r.clave, nombre: r.nombreDesde, objeto: describirObjeto(motor, objeto), registros });
+    out.push({
+      relacion: r.clave,
+      nombre: r.nombreDesde,
+      objeto: describirObjeto(motor, objeto),
+      registros,
+      esInteres: r.tabla === "oportunidad_edificio",
+    });
   }
   return out;
 }
