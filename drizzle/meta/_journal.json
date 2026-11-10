@@ -386,6 +386,13 @@
       "when": 1793876400000,
       "tag": "0047_ambientes_tipologias",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793887200000,
+      "tag": "0048_tarea_responsable",
+      "breakpoints": true
     }
   ]
 }
