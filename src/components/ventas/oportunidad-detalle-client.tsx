@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
+  BedDouble,
   Building2,
   CalendarClock,
   CalendarPlus,
@@ -50,15 +51,16 @@ import type { OrigenDto } from "@/lib/origenes";
 import { formatearTelefono } from "@/lib/telefono-formato";
 import { cn } from "@/lib/utils";
 import {
+  AMBIENTES,
   CAMINO_OPORTUNIDAD,
   ESTADOS_OPORTUNIDAD,
-  TIPOLOGIAS,
   TIPOS_CONTACTO,
   TIPOS_OPORTUNIDAD,
   TIPOS_TAREA,
   etiqueta,
+  etiquetaAmbientes,
+  ordenarTipologiasUnidad,
   type EstadoOportunidad,
-  type Tipologia,
 } from "@/lib/ventas";
 import type { OportunidadDetalleDto } from "@/server/oportunidad-detalle";
 import {
@@ -183,6 +185,26 @@ export function OportunidadDetalleClient() {
   const [origenes, setOrigenes] = useState<IconoDeOrigen>(new Map());
   const moneda = useMoneda();
   const objetos = useObjetosDeOportunidad(id, datos?.oportunidad.estado ?? "");
+  /** Las unidades tipo de los edificios de interés: las opciones de Tipologías. */
+  const [tipologiasDeEdificios, setTipologiasDeEdificios] = useState<string[]>([]);
+  const claveEdificios = (datos?.oportunidad.edificios ?? []).map((e) => e.id).join(",");
+  useEffect(() => {
+    const ids = claveEdificios ? claveEdificios.split(",") : [];
+    let vigente = true;
+    void Promise.all(
+      ids.map(async (e) => {
+        const r = await fetch(`/api/edificios/${e}`).catch(() => null);
+        if (!r?.ok) return [];
+        const d = (await r.json()) as { departamentos: { tipologiaUnidad: string | null }[] };
+        return d.departamentos.map((u) => u.tipologiaUnidad ?? "").filter(Boolean);
+      })
+    ).then((ls) => {
+      if (vigente) setTipologiasDeEdificios(ordenarTipologiasUnidad(ls.flat()));
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [claveEdificios]);
 
   const cargar = useCallback(async () => {
     const res = await fetch(`/api/oportunidades/${id}/detalle`).catch(() => null);
@@ -218,13 +240,13 @@ export function OportunidadDetalleClient() {
     await cargar();
   }
 
-  async function cambiarTipologias(tipologias: Tipologia[]) {
+  async function cambiarInteres(cambios: { ambientes?: number[]; tipologiasUnidad?: string[] }) {
     if (!datos?.contacto) return;
     setError(null);
     const res = await fetch(`/api/contacts/${datos.contacto.id}/oportunidad`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ oportunidadId: id, tipologias }),
+      body: JSON.stringify({ oportunidadId: id, ...cambios }),
     }).catch(() => null);
     if (!res?.ok) {
       setError(await mensajeError(res));
@@ -253,6 +275,7 @@ export function OportunidadDetalleClient() {
       ? [{ id: op.edificioId, nombre: op.edificioNombre, color: null }]
       : [];
   const otrosVinculos = objetos.vinculos.filter((v) => !v.esInteres);
+  const tipologiasDisponibles = ordenarTipologiasUnidad([...tipologiasDeEdificios, ...op.tipologiasUnidad]);
   const origen = op.origen ? origenes.get(op.origen) : undefined;
 
   return (
@@ -321,26 +344,48 @@ export function OportunidadDetalleClient() {
                       <SinDato />
                     )}
                   </Fila>
-                  <Fila icono={LayoutGrid} titulo="Tipologías">
+                  <Fila icono={BedDouble} titulo="Ambientes">
                     {contacto ? (
                       <Select
                         multiple
-                        values={op.tipologias}
-                        onValuesChange={(v) => void cambiarTipologias(v as Tipologia[])}
+                        values={op.ambientes.map(String)}
+                        onValuesChange={(v) => void cambiarInteres({ ambientes: v.map(Number) })}
+                        placeholder="Elegir…"
+                        aria-label="Ambientes"
+                        className="h-auto min-h-7 w-auto max-w-full rounded-full px-2 py-0.5 text-[13px]"
+                      >
+                        {AMBIENTES.map((n) => (
+                          <option key={n} value={String(n)}>
+                            {etiquetaAmbientes(n)}
+                          </option>
+                        ))}
+                      </Select>
+                    ) : op.ambientes.length ? (
+                      op.ambientes.map(etiquetaAmbientes).join(", ")
+                    ) : (
+                      <SinDato />
+                    )}
+                  </Fila>
+                  <Fila icono={LayoutGrid} titulo="Tipologías">
+                    {contacto && tipologiasDisponibles.length ? (
+                      <Select
+                        multiple
+                        values={op.tipologiasUnidad}
+                        onValuesChange={(v) => void cambiarInteres({ tipologiasUnidad: v })}
                         placeholder="Elegir…"
                         aria-label="Tipologías"
                         className="h-auto min-h-7 w-auto max-w-full rounded-full px-2 py-0.5 text-[13px]"
                       >
-                        {TIPOLOGIAS.map((t) => (
-                          <option key={t.value} value={t.value}>
-                            {t.label}
+                        {tipologiasDisponibles.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
                           </option>
                         ))}
                       </Select>
-                    ) : op.tipologias.length ? (
-                      op.tipologias.map((t) => etiqueta(TIPOLOGIAS, t)).join(", ")
+                    ) : op.tipologiasUnidad.length ? (
+                      op.tipologiasUnidad.join(", ")
                     ) : (
-                      <SinDato />
+                      <SinDato texto={edificios.length ? "Sus unidades no tienen tipología" : "—"} />
                     )}
                   </Fila>
                   {otrosVinculos.map((v) => (

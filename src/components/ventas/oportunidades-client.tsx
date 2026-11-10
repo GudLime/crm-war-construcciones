@@ -10,8 +10,10 @@ import { Input } from "@/components/ui/input";
 import { parseMoneyToCents } from "@/lib/money";
 import {
   ESTADOS_OPORTUNIDAD,
-  TIPOLOGIAS,
+  AMBIENTES,
   TIPOS_OPORTUNIDAD,
+  etiquetaAmbientes,
+  ordenarTipologiasUnidad,
 } from "@/lib/ventas";
 import { Chips } from "./oportunidad-panel";
 import { OrigenIcono } from "./origen-icono";
@@ -39,7 +41,9 @@ type Formulario = {
   contactId: string;
   /** 068 — Varios edificios y tipologías de interés. */
   edificioIds: string[];
-  tipologias: string[];
+  /** 0047 — Ambientes («2», «3») y tipologías («1A») de interés. */
+  ambientes: string[];
+  tipologiasUnidad: string[];
   departamentoId: string;
   estado: string;
   tipo: string;
@@ -52,7 +56,8 @@ const vacio: Formulario = {
   origen: "",
   contactId: "",
   edificioIds: [],
-  tipologias: [],
+  ambientes: [],
+  tipologiasUnidad: [],
   departamentoId: "",
   estado: "recibido",
   tipo: "venta",
@@ -70,7 +75,8 @@ function desde(o: OportunidadDto): Formulario {
       : o.edificioId
         ? [o.edificioId]
         : [],
-    tipologias: o.tipologias,
+    ambientes: o.ambientes.map(String),
+    tipologiasUnidad: o.tipologiasUnidad,
     departamentoId: o.departamentoId ?? "",
     estado: o.estado,
     tipo: o.tipo ?? "",
@@ -211,7 +217,8 @@ export function OportunidadesClient() {
         origen: form.origen || null,
         contactId: form.contactId || null,
         edificioIds: form.edificioIds,
-        tipologias: form.tipologias,
+        ambientes: form.ambientes.map(Number),
+        tipologiasUnidad: form.tipologiasUnidad,
         departamentoId: form.departamentoId || null,
         estado: form.estado,
         tipo: form.tipo || null,
@@ -336,11 +343,27 @@ export function OportunidadesClient() {
               />
             </div>
             <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2 lg:col-span-3">
+              <span className="text-xs font-medium text-text-2">Interés · ambientes</span>
+              <Chips
+                opciones={AMBIENTES.map((n) => ({ value: String(n), label: etiquetaAmbientes(n) }))}
+                elegidos={form.ambientes}
+                onCambio={(ambientes) => setForm({ ...form, ambientes })}
+              />
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2 lg:col-span-3">
               <span className="text-xs font-medium text-text-2">Interés · tipologías</span>
               <Chips
-                opciones={TIPOLOGIAS.map((t) => ({ value: t.value, label: t.label }))}
-                elegidos={form.tipologias}
-                onCambio={(tipologias) => setForm({ ...form, tipologias })}
+                opciones={ordenarTipologiasUnidad([
+                  ...unidades.map((u) => u.tipologiaUnidad ?? "").filter(Boolean),
+                  ...form.tipologiasUnidad,
+                ]).map((t) => ({ value: t, label: t }))}
+                elegidos={form.tipologiasUnidad}
+                vacio={
+                  form.edificioIds.length
+                    ? "Las unidades de estos edificios no tienen tipología cargada."
+                    : "Elegí un edificio para ver sus tipologías."
+                }
+                onCambio={(tipologiasUnidad) => setForm({ ...form, tipologiasUnidad })}
               />
             </div>
             <Campo label="Departamento puntual">
@@ -429,6 +452,10 @@ export function OportunidadesClient() {
             opciones={{
               edificios: edificios.map((e) => ({ value: e.id, label: e.nombre })),
               origenes: origenes.map((o) => ({ value: o.nombre, label: o.nombre })),
+              tipologias: ordenarTipologiasUnidad(filas.flatMap((o) => o.tipologiasUnidad)).map((t) => ({
+                value: t,
+                label: t,
+              })),
             }}
             derecha={pref.forma === "lista" ? <SelectorDeColumnas pref={pref} setPref={setPref} /> : undefined}
           />

@@ -135,3 +135,14 @@ describe("instrucciones fijas para el agente", () => {
     expect(conInstruccionesOportunidades("   ")).toBe(INSTRUCCIONES_OPORTUNIDADES);
   });
 });
+
+describe("ambientes y tipologías de interés (0047)", () => {
+  it("«N ambientes» → N y triplex cuenta como 4", async () => {
+    const { ambientesDeTipologia } = await import("@/lib/ventas");
+    expect(["1_ambiente", "2_ambientes", "4_ambientes", "triplex", "otra"].map(ambientesDeTipologia)).toEqual([1, 2, 4, 4, null]);
+  });
+  it("las unidades tipo van en orden natural y sin repetir", async () => {
+    const { ordenarTipologiasUnidad } = await import("@/lib/ventas");
+    expect(ordenarTipologiasUnidad(["10A", "2B", "1A", "2B", "2a"])).toEqual(["1A", "2a", "2B", "10A"]);
+  });
+});

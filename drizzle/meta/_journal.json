@@ -379,6 +379,13 @@
       "when": 1793865660000,
       "tag": "war_0007_vista_mis_oportunidades",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1793876400000,
+      "tag": "0047_ambientes_tipologias",
+      "breakpoints": true
     }
   ]
 }

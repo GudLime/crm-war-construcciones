@@ -4,6 +4,7 @@ import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
 import { soloDigitos } from "@/lib/datos-contacto";
+import { ambientesDeTipologia } from "@/lib/ventas";
 import { normalizarTelefono } from "@/lib/telefono";
 import { listarResponsables, responsableDeTexto, type ResponsableDto } from "@/server/responsables";
 
@@ -437,10 +438,14 @@ class Contexto {
         .values(edificioIds.map((edificioId) => ({ organizationId: this.org, oportunidadId: id, edificioId })))
         .onConflictDoNothing();
     }
-    if (o.tipologias.length) {
+    // 0047 — Las «tipologías» de Notion son ambientes (triplex cuenta como 4).
+    const ambientes = [
+      ...new Set(o.tipologias.map(ambientesDeTipologia).filter((n): n is number => n !== null)),
+    ];
+    if (ambientes.length) {
       await this.tx
-        .insert(schema.oportunidadTipologia)
-        .values(o.tipologias.map((tipologia) => ({ organizationId: this.org, oportunidadId: id, tipologia })))
+        .insert(schema.oportunidadAmbiente)
+        .values(ambientes.map((n) => ({ organizationId: this.org, oportunidadId: id, ambientes: n })))
         .onConflictDoNothing();
     }
     if (o.leadId) {

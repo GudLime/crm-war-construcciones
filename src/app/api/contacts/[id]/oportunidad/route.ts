@@ -2,10 +2,9 @@ import { z } from "zod";
 import { apiError, parseBody, withAuth } from "@/lib/api";
 import { motivoDesconocido, motivoValido } from "@/server/motivos-cierre";
 import {
+  MAX_AMBIENTES,
   VALORES_ESTADO_OPORTUNIDAD,
-  VALORES_TIPOLOGIA,
   type EstadoOportunidad,
-  type Tipologia,
 } from "@/lib/ventas";
 import {
   abrirOportunidad,
@@ -54,10 +53,10 @@ const patchSchema = z.object({
   // War — configurables: se valida contra Ajustes → Motivos de cierre.
   motivoCierre: z.string().trim().min(1).max(80).nullable().optional(),
   edificioIds: z.array(z.string().min(1)).max(50).optional(),
-  tipologias: z
-    .array(z.enum(VALORES_TIPOLOGIA as [Tipologia, ...Tipologia[]]))
-    .max(5)
-    .optional(),
+  /** 0047 — Ambientes de interés (números). */
+  ambientes: z.array(z.number().int().min(1).max(MAX_AMBIENTES)).max(MAX_AMBIENTES).optional(),
+  /** 0047 — Tipologías de interés (unidades tipo «1A»). */
+  tipologiasUnidad: z.array(z.string().trim().min(1).max(30)).max(30).optional(),
 });
 
 /** Lo que una persona cambia desde el chat: etapa, cierre e interés. */

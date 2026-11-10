@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { anchoArrastrado, columnasPipeline, COLUMNAS, ordenar, type FilaOrdenable } from "@/lib/oportunidades-lista";
-import { CAMINO_OPORTUNIDAD, type EstadoOportunidad, type Tipologia } from "@/lib/ventas";
+import { CAMINO_OPORTUNIDAD, type EstadoOportunidad } from "@/lib/ventas";
 
 /** Rediseño — la lista de oportunidades: orden, anchos y pipeline (lo puro). */
 
@@ -13,7 +13,8 @@ const f = (
   origen: null,
   edificios: [],
   edificioNombre: null,
-  tipologias: [] as Tipologia[],
+  ambientes: [],
+  tipologiasUnidad: [],
   unidad: null,
   estado: "recibido" as EstadoOportunidad,
   ultimaInteraccion: "2026-11-01T10:00:00.000Z",
@@ -23,8 +24,8 @@ const f = (
 
 describe("ordenar", () => {
   const filas = [
-    f("Bruno", { estado: "visito", valorCents: 500, tipologias: ["3_ambientes"], ultimaInteraccion: "2026-11-05T10:00:00.000Z" }),
-    f("ana", { estado: "perdido", valorCents: null, tipologias: ["1_ambiente", "4_ambientes"] }),
+    f("Bruno", { estado: "visito", valorCents: 500, ambientes: [3], tipologiasUnidad: ["2B", "10A"], ultimaInteraccion: "2026-11-05T10:00:00.000Z" }),
+    f("ana", { estado: "perdido", valorCents: null, ambientes: [4, 1], tipologiasUnidad: ["1A"] }),
     f("Carla", { estado: "recibido", valorCents: 100, ultimaInteraccion: "2026-11-09T10:00:00.000Z" }),
   ];
 
@@ -38,8 +39,9 @@ describe("ordenar", () => {
     expect(ordenar(filas, { columna: "valor", dir: "asc" }).map((x) => x.id)).toEqual(["Carla", "Bruno", "ana"]);
     expect(ordenar(filas, { columna: "valor", dir: "desc" }).map((x) => x.id)).toEqual(["Bruno", "Carla", "ana"]);
   });
-  it("tipología por la menor; última interacción por fecha", () => {
-    expect(ordenar(filas, { columna: "tipologia", dir: "asc" }).map((x) => x.id)).toEqual(["ana", "Bruno", "Carla"]);
+  it("ambientes por el menor, tipología 1A → 4B; última interacción por fecha", () => {
+    expect(ordenar(filas, { columna: "ambientes", dir: "asc" }).map((x) => x.id)).toEqual(["ana", "Bruno", "Carla"]);
+    expect(ordenar(filas, { columna: "tipologia", dir: "desc" }).map((x) => x.id)).toEqual(["Bruno", "ana", "Carla"]);
     expect(ordenar(filas, { columna: "ultima", dir: "desc" }).map((x) => x.id)).toEqual(["Carla", "Bruno", "ana"]);
   });
   it("sin orden, como vino; nunca toca el original", () => {
