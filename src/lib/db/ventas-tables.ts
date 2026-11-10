@@ -240,6 +240,8 @@ export const tareaVenta = pgTable(
     oportunidadId: text("oportunidad_id").references(() => oportunidad.id, {
       onDelete: "set null",
     }),
+    /** 0048 — Quién la tiene que hacer (null = sin asignar). */
+    responsableUserId: text("responsable_user_id").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

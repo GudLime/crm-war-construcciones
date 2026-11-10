@@ -147,6 +147,8 @@ export const tareaSchema = z.object({
   comentarios: texto(4000),
   contactId: idOpcional,
   oportunidadId: idOpcional,
+  /** 0048 — Quién la hace. Si no viene: al crear, quien la crea; al editar, no se cambia. */
+  responsableId: idOpcional,
 });
 
 export type EdificioDto = {
@@ -236,6 +238,9 @@ export type TareaDto = {
   oportunidadNombre: string | null;
   /** El edificio principal de la oportunidad, para su píldora. */
   edificio: EdificioCorto | null;
+  /** 0048 — Quién la hace. */
+  responsableId: string | null;
+  responsableNombre: string | null;
 };
 
 function oNulo(v: string | null | undefined): string | null {
@@ -926,6 +931,7 @@ function aTarea(
     edificioId: string | null;
     edificioNombre: string | null;
     edificioColor: string | null;
+    responsableNombre: string | null;
   }
 ): TareaDto {
   return {
@@ -943,6 +949,8 @@ function aTarea(
       extra.edificioId && extra.edificioNombre
         ? { id: extra.edificioId, nombre: extra.edificioNombre, color: extra.edificioColor }
         : null,
+    responsableId: fila.responsableUserId,
+    responsableNombre: fila.responsableUserId ? extra.responsableNombre : null,
   };
 }
 
@@ -958,11 +966,13 @@ export async function listarTareas(
       edificioId: schema.edificio.id,
       edificioNombre: schema.edificio.nombre,
       edificioColor: schema.edificio.color,
+      responsableNombre: schema.user.name,
     })
     .from(schema.tareaVenta)
     .leftJoin(schema.contact, eq(schema.contact.id, schema.tareaVenta.contactId))
     .leftJoin(schema.oportunidad, eq(schema.oportunidad.id, schema.tareaVenta.oportunidadId))
     .leftJoin(schema.edificio, eq(schema.edificio.id, schema.oportunidad.edificioId))
+    .leftJoin(schema.user, eq(schema.user.id, schema.tareaVenta.responsableUserId))
     .where(
       scoped(
         schema.tareaVenta.organizationId,
@@ -1004,11 +1014,13 @@ async function tareaConNombres(organizationId: string, id: string): Promise<Tare
       edificioId: schema.edificio.id,
       edificioNombre: schema.edificio.nombre,
       edificioColor: schema.edificio.color,
+      responsableNombre: schema.user.name,
     })
     .from(schema.tareaVenta)
     .leftJoin(schema.contact, eq(schema.contact.id, schema.tareaVenta.contactId))
     .leftJoin(schema.oportunidad, eq(schema.oportunidad.id, schema.tareaVenta.oportunidadId))
     .leftJoin(schema.edificio, eq(schema.edificio.id, schema.oportunidad.edificioId))
+    .leftJoin(schema.user, eq(schema.user.id, schema.tareaVenta.responsableUserId))
     .where(scoped(schema.tareaVenta.organizationId, organizationId, eq(schema.tareaVenta.id, id)))
     .limit(1);
   if (!fila) throw new VentasError(404, "not_found", "Esa tarea no existe");
@@ -1052,9 +1064,11 @@ export async function crearTarea(
   userId: string | null = null
 ): Promise<TareaDto> {
   const valores = await valoresTarea(organizationId, datos);
+  const responsableUserId = datos.responsableId !== undefined ? datos.responsableId : userId;
+  await exigirMiembro(organizationId, responsableUserId);
   const [fila] = await getDb()
     .insert(schema.tareaVenta)
-    .values({ id: newId("tareaVenta"), organizationId, ...valores })
+    .values({ id: newId("tareaVenta"), organizationId, ...valores, responsableUserId })
     .returning({ id: schema.tareaVenta.id });
   if (valores.estado === "no_responde") await intentoDeTarea(organizationId, valores, userId);
   return tareaConNombres(organizationId, fila!.id);
@@ -1072,9 +1086,14 @@ export async function editarTarea(
     .from(schema.tareaVenta)
     .where(scoped(schema.tareaVenta.organizationId, organizationId, eq(schema.tareaVenta.id, id)))
     .limit(1);
+  if (datos.responsableId !== undefined) await exigirMiembro(organizationId, datos.responsableId);
   const [fila] = await getDb()
     .update(schema.tareaVenta)
-    .set({ ...valores, updatedAt: new Date() })
+    .set({
+      ...valores,
+      ...(datos.responsableId !== undefined ? { responsableUserId: datos.responsableId } : {}),
+      updatedAt: new Date(),
+    })
     .where(scoped(schema.tareaVenta.organizationId, organizationId, eq(schema.tareaVenta.id, id)))
     .returning({ id: schema.tareaVenta.id });
   if (!fila) throw new VentasError(404, "not_found", "Esa tarea no existe");
@@ -1082,6 +1101,27 @@ export async function editarTarea(
     await intentoDeTarea(organizationId, valores, userId);
   }
   return tareaConNombres(organizationId, id);
+}
+
+/** 0048 — El responsable tiene que ser del equipo de la organización. */
+async function exigirMiembro(organizationId: string, userId: string | null | undefined): Promise<void> {
+  if (!userId) return;
+  const [m] = await getDb()
+    .select({ id: schema.member.id })
+    .from(schema.member)
+    .where(scoped(schema.member.organizationId, organizationId, eq(schema.member.userId, userId)))
+    .limit(1);
+  if (!m) throw new VentasError(422, "invalid_body", "Esa persona no es del equipo");
+}
+
+/** El equipo de la organización: para elegir responsables. */
+export async function listarEquipo(organizationId: string): Promise<{ userId: string; nombre: string }[]> {
+  const filas = await getDb()
+    .select({ userId: schema.user.id, nombre: schema.user.name })
+    .from(schema.member)
+    .innerJoin(schema.user, eq(schema.member.userId, schema.user.id))
+    .where(scoped(schema.member.organizationId, organizationId));
+  return filas.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
 
 export async function borrarTarea(organizationId: string, id: string): Promise<void> {
