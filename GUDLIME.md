@@ -237,3 +237,17 @@ una oportunidad, 200 si se sumó a una o si el `leadId` ya había entrado.
   convierte a ambientes.
 - En la lista: columnas Ambientes y Tipología; el filtro «Tipología» usa las
   unidades tipo.
+
+## Tareas: formas de ver, agrupación y responsable (0048)
+
+- `/tareas` (`components/ventas/tareas-client.tsx`, lo puro en `lib/tareas-grupos.ts`):
+  Lista / Mosaico / Pipeline; estados Realizar (por defecto) · No responde ·
+  Todas · Listo; agrupación «Por fecha» (Sin fecha arriba, Vencidas, Hoy,
+  Mañana, Esta semana hasta el domingo, Más adelante, Anteriores plegado) o
+  «Sin agrupar», con «+» en cada grupo para crear una tarea ya fechada. Lista:
+  Tipo (ícono en un cuadradito) · Tarea · Estado · Fecha · Contacto ·
+  Oportunidad · Edificio (sale de la oportunidad) · Responsable.
+- Pipeline de tareas y de oportunidades: se arrastra la tarjeta a otra columna
+  para cambiar el estado (las oportunidades pasan por el historial).
+- `tarea_venta.responsable_user_id` (0048): al crear, quien la crea si no se
+  elige; filtro por avatares. `/api/equipo` lista el equipo.

@@ -335,6 +335,7 @@ export function VistaOportunidades({
   setPref,
   iconoDe,
   moneda,
+  onMover,
 }: {
   filas: OportunidadDto[];
   forma: FormaDeVer;
@@ -342,6 +343,8 @@ export function VistaOportunidades({
   setPref: (p: Preferencias) => void;
   iconoDe: IconoDe;
   moneda: string;
+  /** Pipeline: arrastrar una tarjeta a otra etapa. */
+  onMover?: (id: string, estado: OportunidadDto["estado"]) => void;
 }) {
   const [panel, setPanel] = useState<string | null>(null);
   const ordenadas = useMemo(() => ordenar(filas, pref.orden), [filas, pref.orden]);
@@ -359,7 +362,9 @@ export function VistaOportunidades({
           ))}
         </div>
       )}
-      {forma === "pipeline" && <Pipeline filas={ordenadas} iconoDe={iconoDe} moneda={moneda} onElegir={setPanel} />}
+      {forma === "pipeline" && (
+        <Pipeline filas={ordenadas} iconoDe={iconoDe} moneda={moneda} onElegir={setPanel} onMover={onMover} />
+      )}
       {abierta && <PanelOportunidad o={abierta} iconoDe={iconoDe} moneda={moneda} onCerrar={() => setPanel(null)} />}
     </>
   );
@@ -544,11 +549,13 @@ function Tarjeta({
   iconoDe,
   onElegir,
   compacta,
+  onArrastrar,
 }: {
   o: OportunidadDto;
   iconoDe: IconoDe;
   onElegir: (id: string) => void;
   compacta?: boolean;
+  onArrastrar?: (id: string) => void;
 }) {
   const eds = edificiosDe(o);
   const detalle = [
@@ -562,6 +569,11 @@ function Tarjeta({
     <div
       role="button"
       tabIndex={0}
+      draggable={!!onArrastrar}
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        onArrastrar?.(o.id);
+      }}
       onClick={() => onElegir(o.id)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -614,19 +626,39 @@ function Pipeline({
   iconoDe,
   moneda,
   onElegir,
+  onMover,
 }: {
   filas: OportunidadDto[];
   iconoDe: IconoDe;
   moneda: string;
   onElegir: (id: string) => void;
+  onMover?: (id: string, estado: OportunidadDto["estado"]) => void;
 }) {
   const columnas = columnasPipeline(filas, CAMINO_OPORTUNIDAD);
+  const [arrastrando, setArrastrando] = useState<string | null>(null);
+  const [sobre, setSobre] = useState<string | null>(null);
   return (
     <div className="flex gap-3 overflow-x-auto pb-2">
       {columnas.map((c) => (
         <section
           key={c.estado}
-          className="flex w-64 shrink-0 flex-col gap-2 rounded-[10px] border border-border bg-subtle p-2.5"
+          onDragOver={(e) => {
+            if (!arrastrando || !onMover) return;
+            e.preventDefault();
+            setSobre(c.estado);
+          }}
+          onDragLeave={() => setSobre((s) => (s === c.estado ? null : s))}
+          onDrop={(e) => {
+            e.preventDefault();
+            const o = filas.find((f) => f.id === arrastrando);
+            setArrastrando(null);
+            setSobre(null);
+            if (o && o.estado !== c.estado) onMover?.(o.id, c.estado);
+          }}
+          className={cn(
+            "flex w-64 shrink-0 flex-col gap-2 rounded-[10px] border border-border bg-subtle p-2.5 transition-colors",
+            sobre === c.estado && "border-brand bg-brand-tint"
+          )}
         >
           <header className="flex items-center justify-between gap-2 px-1 pb-1">
             <span className="inline-flex items-center gap-2">
@@ -641,7 +673,14 @@ function Pipeline({
             )}
           </header>
           {c.items.map((o) => (
-            <Tarjeta key={o.id} o={o} iconoDe={iconoDe} onElegir={onElegir} compacta />
+            <Tarjeta
+              key={o.id}
+              o={o}
+              iconoDe={iconoDe}
+              onElegir={onElegir}
+              compacta
+              onArrastrar={onMover ? setArrastrando : undefined}
+            />
           ))}
           {c.items.length === 0 && <p className="px-1 py-3 text-center text-[12px] text-text-3">Nada acá</p>}
         </section>
