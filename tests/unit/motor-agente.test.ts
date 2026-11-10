@@ -198,7 +198,7 @@ describe("fotos y video", () => {
     const t = renderObjetosParaAgente({
       objetos: [conFotos],
       moneda: "USD",
-      registros: new Map([
+      registros: new Map<string, RegistroParaAgente[]>([
         [
           "edificio",
           [
