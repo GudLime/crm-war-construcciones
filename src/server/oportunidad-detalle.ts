@@ -42,6 +42,7 @@ export type OportunidadVecina = {
   nombre: string;
   estado: EstadoOportunidad;
   edificioNombre: string | null;
+  edificioColor: string | null;
   cerradaAt: string | null;
   motivoCierre: string | null;
 };
@@ -114,7 +115,7 @@ export async function obtenerDetalleOportunidad(
   let paralelas: OportunidadVecina[] = [];
   if (op.contactId) {
     const vecinas = await db
-      .select({ op: schema.oportunidad, edificioNombre: schema.edificio.nombre })
+      .select({ op: schema.oportunidad, edificioNombre: schema.edificio.nombre, edificioColor: schema.edificio.color })
       .from(schema.oportunidad)
       .leftJoin(schema.edificio, eq(schema.edificio.id, schema.oportunidad.edificioId))
       .where(
@@ -131,6 +132,7 @@ export async function obtenerDetalleOportunidad(
       nombre: v.op.nombre,
       estado: v.op.estado,
       edificioNombre: v.edificioNombre,
+      edificioColor: v.edificioColor,
       cerradaAt: iso(v.op.cerradaAt),
       motivoCierre: v.op.motivoCierre,
     });

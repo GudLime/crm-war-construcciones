@@ -68,6 +68,7 @@ import {
   useObjetosDeOportunidad,
 } from "@/components/motor/oportunidad-objetos";
 import { OrigenIcono } from "./origen-icono";
+import { PildoraEdificio } from "./pildora-edificio";
 
 /**
  * La página de una oportunidad (ver GUDLIME.md → «Página de la oportunidad»).
@@ -247,7 +248,7 @@ export function OportunidadDetalleClient() {
   const edificios = op.edificios.length
     ? op.edificios
     : op.edificioId && op.edificioNombre
-      ? [{ id: op.edificioId, nombre: op.edificioNombre }]
+      ? [{ id: op.edificioId, nombre: op.edificioNombre, color: null }]
       : [];
   const otrosVinculos = objetos.vinculos.filter((v) => !v.esInteres);
   const origen = op.origen ? origenes.get(op.origen) : undefined;
@@ -312,14 +313,7 @@ export function OportunidadDetalleClient() {
                   <Fila icono={Building2} titulo="Interés">
                     {edificios.length ? (
                       edificios.map((e) => (
-                        <Link
-                          key={e.id}
-                          href={`/edificios/${e.id}`}
-                          className="inline-flex items-center gap-1.5 rounded-full bg-subtle px-2.5 py-0.5 text-[12.5px] font-semibold hover:bg-accent"
-                        >
-                          <span aria-hidden className="size-[7px] rounded-full bg-text-3" />
-                          {e.nombre}
-                        </Link>
+                        <PildoraEdificio key={e.id} nombre={e.nombre} color={e.color} href={`/edificios/${e.id}`} />
                       ))
                     ) : (
                       <SinDato />
@@ -415,10 +409,7 @@ export function OportunidadDetalleClient() {
                 href={`/oportunidades/${p.id}`}
                 className="inline-flex items-center gap-2 underline-offset-2 hover:underline"
               >
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-card px-2.5 py-0.5 text-[12.5px] font-semibold text-foreground">
-                  <span aria-hidden className="size-[7px] rounded-full bg-text-3" />
-                  {p.edificioNombre ?? p.nombre}
-                </span>
+                <PildoraEdificio nombre={p.edificioNombre ?? p.nombre} color={p.edificioColor} />
                 {etiqueta(ESTADOS_OPORTUNIDAD, p.estado)}
               </Link>
             ))}

@@ -39,6 +39,8 @@ export const edificio = pgTable(
     memoriaAgente: boolean("memoria_agente").notNull().default(false),
     /** 0032 — Lo que el agente tiene que saber de este edificio (visitas, entrega, amenities…). */
     notasAgente: text("notas_agente"),
+    /** 0045 — Clave de la paleta de `lib/colores-edificio.ts` (sus píldoras). */
+    color: text("color"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

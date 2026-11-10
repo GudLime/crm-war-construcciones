@@ -523,3 +523,15 @@
     height: calc(100dvh / var(--escala));
   }
 }
+
+/* Rediseño (D1) — Píldora de edificio: punto, fondo y texto de su color
+   (`lib/colores-edificio.ts`, por variables). En oscuro, el fondo y el texto
+   salen del punto para no quedar como manchas claras. */
+.pildora-edificio {
+  background: var(--pe-fondo);
+  color: var(--pe-texto);
+}
+:root[data-theme="dark"] .pildora-edificio {
+  background: color-mix(in srgb, var(--pe-punto) 24%, transparent);
+  color: color-mix(in srgb, var(--pe-punto) 40%, #ffffff);
+}
