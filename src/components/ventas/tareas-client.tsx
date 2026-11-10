@@ -24,6 +24,7 @@ import {
   mensajeDe,
 } from "./ui";
 import { Select } from "@/components/ui/select";
+import { PildoraEdificio } from "./pildora-edificio";
 
 type Contacto = { id: string; name: string | null; phone: string | null };
 
@@ -309,7 +310,12 @@ export function TareasClient() {
                 </Td>
                 <Td>{fechaVisible(t.fecha)}</Td>
                 <Td>{t.contactoNombre || "—"}</Td>
-                <Td>{t.oportunidadNombre || "—"}</Td>
+                <Td>
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    {t.oportunidadNombre || "—"}
+                    {t.edificio && <PildoraEdificio nombre={t.edificio.nombre} color={t.edificio.color} />}
+                  </span>
+                </Td>
               </tr>
             ))}
           </tbody>
