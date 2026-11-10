@@ -43,7 +43,8 @@ export type LecturaCsv = {
 };
 
 function camposImportables(objeto: ObjetoDto): CampoDto[] {
-  return objeto.campos.filter((c) => c.editable);
+  // Las fotos, el video y el PDF no viajan en un CSV.
+  return objeto.campos.filter((c) => c.editable && c.tipo !== "galeria" && c.tipo !== "video" && c.tipo !== "documento");
 }
 
 /** Qué columna es qué campo o padre, por el encabezado. */

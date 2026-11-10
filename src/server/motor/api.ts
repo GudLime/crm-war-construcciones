@@ -26,6 +26,7 @@ export function describirObjeto(motor: Motor, objeto: ObjetoMeta): ObjetoDto {
       opciones: c.opciones,
       visibleLista: c.visibleLista,
       visibleAgente: c.visibleAgente,
+      limites: c.limites ?? null,
     })),
     padres: unoAMuchos
       .filter((r) => r.hacia === objeto.clave && motor.objetos.has(r.desde))

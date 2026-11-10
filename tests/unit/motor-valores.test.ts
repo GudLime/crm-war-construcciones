@@ -140,3 +140,20 @@ describe("mismoValor (historial)", () => {
     expect(mismoValor("B", "C")).toBe(false);
   });
 });
+
+describe("convertir: archivos", () => {
+  const fotos = campo({ tipo: "galeria", nombre: "Fotos", limites: { maxArchivos: 2 } });
+  it("galería: lista de ids sin repetidos, con tope", () => {
+    expect(convertir(fotos, ["arc_aaaaaaaa", "arc_aaaaaaaa", "arc_bbbbbbbb"])).toEqual({
+      ok: true,
+      valor: ["arc_aaaaaaaa", "arc_bbbbbbbb"],
+    });
+    expect(convertir(fotos, ["arc_aaaaaaaa", "arc_bbbbbbbb", "arc_cccccccc"]).ok).toBe(false);
+    expect(convertir(fotos, ["../etc/passwd"]).ok).toBe(false);
+    expect(convertir(fotos, [])).toEqual({ ok: true, valor: null });
+  });
+  it("video y documento: un id", () => {
+    expect(convertir(campo({ tipo: "video" }), "arc_aaaaaaaa")).toEqual({ ok: true, valor: "arc_aaaaaaaa" });
+    expect(convertir(campo({ tipo: "documento" }), "x").ok).toBe(false);
+  });
+});

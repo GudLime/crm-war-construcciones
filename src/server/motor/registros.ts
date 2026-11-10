@@ -12,6 +12,7 @@ import {
   type Valor,
 } from "@/lib/motor/valores";
 import { cargarMotor, tablaNucleo, type Motor, type ObjetoMeta, type RelacionMeta } from "./metadatos";
+import { borrarArchivos, idsDeArchivos, verificarArchivos } from "./archivos";
 
 /**
  * Motor — lectura y escritura de registros de cualquier objeto (paso 2).
@@ -109,6 +110,7 @@ function desdeBase(campo: CampoMeta, v: unknown): Valor {
     case "fecha":
       return v instanceof Date ? v : new Date(String(v));
     case "seleccion_multiple":
+    case "galeria":
       return Array.isArray(v) ? v.map(String) : null;
     default:
       return String(v);
@@ -118,7 +120,7 @@ function desdeBase(campo: CampoMeta, v: unknown): Valor {
 /** Valor del motor → parámetro SQL. */
 function aBase(campo: CampoMeta, v: Valor): SQL {
   if (v === null) return sql`NULL`;
-  if (campo.tipo === "seleccion_multiple") return sql`${JSON.stringify(v)}::jsonb`;
+  if (campo.tipo === "seleccion_multiple" || campo.tipo === "galeria") return sql`${JSON.stringify(v)}::jsonb`;
   return sql`${v}`;
 }
 
@@ -569,6 +571,7 @@ export async function crearRegistro(
   const motor = await cargarMotor(organizationId);
   const objeto = objetoDe(motor, objetoClave);
   const { valores, padres } = prepararEntrada(motor, objeto, entrada, true);
+  await exigirArchivos(organizationId, objeto, valores);
 
   return db.transaction(async (tx) => {
     await verificarPadres(tx, organizationId, motor, objeto, padres);
@@ -618,10 +621,13 @@ export async function actualizarRegistro(
   const motor = await cargarMotor(organizationId);
   const objeto = objetoDe(motor, objetoClave);
   const cambio = prepararEntrada(motor, objeto, entrada, false);
+  await exigirArchivos(organizationId, objeto, cambio.valores);
+  let antes = null as Registro | null;
 
-  return db.transaction(async (tx) => {
+  const resultado = await db.transaction(async (tx) => {
     const actual = await leerUno(tx, organizationId, motor, objeto, registroId);
     if (!actual) throw new MotorError("no_encontrado", `No existe ese registro de «${objeto.nombre}»`);
+    antes = actual;
 
     const sets: SQL[] = [];
     const anotaciones: { accion: "actualizado"; campo: string; antes: unknown; despues: unknown }[] = [];
@@ -687,6 +693,27 @@ export async function actualizarRegistro(
     if (!leido) throw new MotorError("no_encontrado", "El registro desapareció");
     return leido;
   });
+  // Los archivos que se sacaron del registro ya no los usa nadie: se borran.
+  if (antes) {
+    const ya = new Set(idsDeArchivos(objeto.campos, (resultado as Registro).valores).flatMap((p) => p.ids));
+    const sacados = idsDeArchivos(objeto.campos, (antes as Registro).valores)
+      .flatMap((p) => p.ids)
+      .filter((x) => !ya.has(x));
+    await borrarArchivos(organizationId, sacados);
+  }
+  return resultado;
+}
+
+/** Que los archivos de los campos galería, video y documento existan y sean de esta organización. */
+async function exigirArchivos(organizationId: string, objeto: ObjetoMeta, valores: Record<string, Valor>) {
+  const porCampo = idsDeArchivos(objeto.campos, valores);
+  if (!porCampo.length) return;
+  const error = await verificarArchivos(
+    organizationId,
+    porCampo,
+    (clave) => objeto.campos.find((c) => c.clave === clave)?.nombre ?? clave
+  );
+  if (error) throw new MotorError("invalido", error);
 }
 
 export type ModoBorrado = "cascada" | "soltar";
@@ -699,11 +726,14 @@ async function borrarEn(
   registroId: string,
   modo: ModoBorrado,
   actor: Actor,
-  profundidad: number
+  profundidad: number,
+  /** Los archivos de los registros borrados: se borran del disco al terminar. */
+  sueltos: string[]
 ): Promise<number> {
   if (profundidad > 10) throw new MotorError("invalido", "Demasiados niveles de registros asociados");
   const actual = await leerUno(tx, organizationId, motor, objeto, registroId);
   if (!actual) throw new MotorError("no_encontrado", `No existe ese registro de «${objeto.nombre}»`);
+  sueltos.push(...idsDeArchivos(objeto.campos, actual.valores).flatMap((p) => p.ids));
   let borrados = 0;
 
   // Hijos: objetos del cliente (el núcleo nunca es hijo en uno a muchos).
@@ -716,7 +746,7 @@ async function borrarEn(
         sql`SELECT id FROM ${id(hijo.tabla)} WHERE organization_id = ${organizationId} AND ${fk} = ${registroId}`
       )) as unknown as { id: string }[];
       for (const h of hijos) {
-        borrados += await borrarEn(tx, organizationId, motor, hijo, String(h.id), modo, actor, profundidad + 1);
+        borrados += await borrarEn(tx, organizationId, motor, hijo, String(h.id), modo, actor, profundidad + 1, sueltos);
       }
     } else {
       await tx.execute(
@@ -750,7 +780,10 @@ export async function borrarRegistro(
 ): Promise<number> {
   const motor = await cargarMotor(organizationId);
   const objeto = objetoDe(motor, objetoClave);
-  return getDb().transaction((tx) => borrarEn(tx, organizationId, motor, objeto, registroId, modo, actor, 0));
+  const sueltos: string[] = [];
+  const n = await getDb().transaction((tx) => borrarEn(tx, organizationId, motor, objeto, registroId, modo, actor, 0, sueltos));
+  await borrarArchivos(organizationId, sueltos);
+  return n;
 }
 
 /** Errores de Postgres que el usuario puede entender. */

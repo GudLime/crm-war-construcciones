@@ -28,6 +28,7 @@ describe.skipIf(!URL)("motor: registros en Postgres", () => {
     process.env.ENCRYPTION_KEY ??= Buffer.alloc(32, 7).toString("base64");
     process.env.META_WEBHOOK_VERIFY_TOKEN ??= "verifica123";
     process.env.CLIENTE_CONFIG = "clientes/ejemplo.json";
+    process.env.MEDIA_DIR = `${(await import("node:os")).tmpdir()}/motor-media-${Date.now()}`;
 
     db = await import("@/lib/db");
     sincronizar = await import("@/server/motor/sincronizar");
@@ -491,6 +492,72 @@ describe.skipIf(!URL)("motor: registros en Postgres", () => {
       await d.execute(sql`DROP TABLE IF EXISTS prueba_depto`);
       await d.execute(sql`DROP TABLE IF EXISTS prueba_edif`);
     }
+  });
+
+  it("paso 9: fotos, video y PDF — se suben, se vinculan, el agente ve el código y se borran al sacarlos", async () => {
+    const archivos = await import("@/server/motor/archivos");
+    const agente = await import("@/server/motor/agente");
+    const { existsSync } = await import("node:fs");
+    const { rutaEnDisco } = await import("@/lib/storage/medios");
+
+    const jpg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(200, 1)]);
+    const mp4 = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from("ftypmp42"), Buffer.alloc(200, 2)]);
+    const pdf = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(200, 3)]);
+
+    // El contenido manda, no el nombre: un PDF no entra como foto.
+    await expect(archivos.subirArchivo(org, { datos: pdf, nombre: "foto.jpg", esperado: "imagen" })).rejects.toMatchObject({
+      code: "tipo_no_admitido",
+    });
+    const f1 = await archivos.subirArchivo(org, { datos: jpg, nombre: "living.jpg", esperado: "imagen" });
+    const f2 = await archivos.subirArchivo(org, { datos: jpg, nombre: "cocina.jpg", esperado: "imagen" });
+    const v = await archivos.subirArchivo(org, { datos: mp4, nombre: "recorrido.mp4", esperado: "video" });
+    const doc = await archivos.subirArchivo(org, { datos: pdf, nombre: "folleto.pdf", esperado: "documento" });
+    expect(f1).toMatchObject({ tipo: "imagen", mime: "image/jpeg" });
+
+    // Un video en la galería no vale.
+    await expect(
+      m.crearRegistro(org, "sede", { valores: { nombre: "Sede Fotos", fotos: [f1.id, v.id] } }, actor)
+    ).rejects.toMatchObject({ codigo: "invalido" });
+    // Un archivo de otra organización tampoco.
+    const ajeno = await archivos.subirArchivo(otraOrg, { datos: jpg, nombre: "x.jpg", esperado: "imagen" });
+    await expect(
+      m.crearRegistro(org, "sede", { valores: { nombre: "Sede Fotos", fotos: [ajeno.id] } }, actor)
+    ).rejects.toMatchObject({ codigo: "invalido" });
+
+    const sede = await m.crearRegistro(
+      org,
+      "sede",
+      { valores: { nombre: "Sede Fotos", fotos: [f1.id, f2.id], video: v.id, folleto: doc.id } },
+      actor
+    );
+    const leida = await m.obtenerRegistro(org, "sede", sede.id);
+    expect(leida.valores.fotos).toEqual([f1.id, f2.id]);
+    expect(leida.valores.video).toBe(v.id);
+
+    const t = await agente.textoDeObjetosParaAgente(org);
+    expect(t).toContain(`[fotos:${sede.id}]`);
+    expect(t).toContain("el sistema lo saca del texto");
+
+    const { mediosDeRegistro, notaDeMedios } = await import("@/server/motor/medios-agente");
+    const medios = await mediosDeRegistro(org, sede.id);
+    // El folleto no es visible para el agente: no sale.
+    expect(medios).toMatchObject({ titulo: "Sede Fotos", fotos: [f1.id, f2.id], videos: [v.id] });
+    expect(notaDeMedios([medios!])).toBe("[Se envían 2 fotos y un video de Sede Fotos]");
+    expect(await mediosDeRegistro(otraOrg, sede.id)).toBeNull();
+    expect(await mediosDeRegistro(org, "reg_no_existe")).toBeNull();
+
+    // Sacar una foto la borra del disco y de la tabla; la otra queda.
+    const ruta = (id: string, ext: string) => rutaEnDisco(org, `${id}.${ext}`);
+    expect(existsSync(ruta(f1.id, "jpg"))).toBe(true);
+    await m.actualizarRegistro(org, "sede", sede.id, { valores: { fotos: [f2.id] } }, actor);
+    expect(existsSync(ruta(f1.id, "jpg"))).toBe(false);
+    expect((await archivos.metaDeArchivos(org, [f1.id, f2.id])).size).toBe(1);
+
+    // Borrar el registro se lleva todo lo suyo.
+    await m.borrarRegistro(org, "sede", sede.id, "soltar", actor);
+    expect(existsSync(ruta(f2.id, "jpg"))).toBe(false);
+    expect(existsSync(ruta(v.id, "mp4"))).toBe(false);
+    expect(existsSync(ruta(doc.id, "pdf"))).toBe(false);
   });
 });
 

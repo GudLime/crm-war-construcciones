@@ -259,6 +259,7 @@ export function ObjetoListaClient({ clave }: { clave: string }) {
                     campo={c}
                     valor={form[c.clave]}
                     onChange={(v) => setForm({ ...form, [c.clave]: v })}
+                    objeto={objeto.clave}
                   />
                 </Campo>
               ))}
