@@ -112,4 +112,27 @@ describe("el botón", () => {
   it("si el valor no es ninguna opción, muestra el texto de ayuda", () => {
     expect(dibujar("zzz", "Elegí un edificio")).toContain(">Elegí un edificio<");
   });
+
+  it("varias: muestra las elegidas como etiquetas, o el texto de ayuda", () => {
+    const multiple = (values: string[]) =>
+      renderToStaticMarkup(
+        h(Select, {
+          multiple: true,
+          values,
+          onValuesChange: () => undefined,
+          placeholder: "Elegir…",
+          "aria-label": "Tipologías",
+          children: [
+            h("option", { key: "a", value: "a" }, "Alfa"),
+            h("option", { key: "b", value: "b" }, "Beta"),
+            h("option", { key: "c", value: "c" }, "Gama"),
+          ],
+        })
+      );
+    const html = multiple(["a", "c"]);
+    expect(html).toContain(">Alfa<");
+    expect(html).toContain(">Gama<");
+    expect(html).not.toContain(">Beta<");
+    expect(multiple([])).toContain(">Elegir…<");
+  });
 });

@@ -3,8 +3,10 @@ import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import type { NotaDto } from "@/lib/notas";
 import {
+  armarProximos,
   armarTimeline,
   ultimosMensajes,
+  type ProximoPaso,
   type EventoCorto,
   type ItemTimeline,
   type MensajeCorto,
@@ -60,6 +62,8 @@ export type OportunidadDetalleDto = {
   mensajes: MensajeCorto[];
   reuniones: ReunionCorta[];
   tareasPendientes: TareaCorta[];
+  /** Tareas por hacer y reuniones futuras, para arriba del timeline. */
+  proximos: ProximoPaso[];
   formularios: FormularioRecibido[];
   notas: NotaDto[];
   timeline: ItemTimeline[];
@@ -337,6 +341,7 @@ export async function obtenerDetalleOportunidad(
     mensajes: ultimosMensajes(mensajes, 4),
     reuniones,
     tareasPendientes: tareas.filter((t) => t.estado === "realizar"),
+    proximos: armarProximos({ tareas, reuniones }),
     formularios,
     notas,
     timeline,

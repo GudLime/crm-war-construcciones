@@ -12,12 +12,18 @@ import type { ObjetoDto, RegistroDto } from "@/lib/motor/dto";
 /**
  * 070 — En la página de la oportunidad: los objetos del cliente vinculados
  * (unidades, tratamientos…) y las reglas de etapa que necesitan que alguien
- * elija. Sin configuración del cliente no se dibuja nada.
+ * elija. Sin configuración del cliente no se dibuja nada. Van en el
+ * encabezado (una fila por relación) y en un aviso bajo la barra de avance.
  */
 
-const TARJETA = "rounded-tarjeta border border-border bg-card shadow-tarjeta";
-
-type Vinculo = { relacion: string; nombre: string; objeto: ObjetoDto; registros: RegistroDto[] };
+export type Vinculo = {
+  relacion: string;
+  nombre: string;
+  objeto: ObjetoDto;
+  registros: RegistroDto[];
+  /** Adopta los edificios de interés del núcleo: la página ya los muestra. */
+  esInteres?: boolean;
+};
 type Pendiente = { regla: string; relacion: string; descripcion: string; candidatos: { id: string; titulo: string }[] };
 
 function Selector({
@@ -132,10 +138,15 @@ function ReglaPendiente({
   );
 }
 
-export function ObjetosDeOportunidad({ oportunidadId, estado }: { oportunidadId: string; estado: string }) {
+/**
+ * Los vínculos y las reglas pendientes de una oportunidad. La página los
+ * dibuja en el encabezado (una fila por relación) y como aviso debajo de la
+ * barra de avance. Cada vez que cambia la etapa se pregunta si alguna regla
+ * necesita que alguien elija.
+ */
+export function useObjetosDeOportunidad(oportunidadId: string, estado: string) {
   const [vinculos, setVinculos] = useState<Vinculo[]>([]);
   const [pendientes, setPendientes] = useState<Pendiente[]>([]);
-  const [editando, setEditando] = useState<string | null>(null);
   const avisar = useAvisoGuardado();
   const base = `/api/oportunidades/${encodeURIComponent(oportunidadId)}`;
 
@@ -149,8 +160,8 @@ export function ObjetosDeOportunidad({ oportunidadId, estado }: { oportunidadId:
     void cargar();
   }, [cargar]);
 
-  // Cada vez que cambia la etapa: ¿hay alguna regla que necesite elegir?
   useEffect(() => {
+    if (!estado) return;
     void (async () => {
       const res = await fetch(`${base}/reglas?etapa=${encodeURIComponent(estado)}`).catch(() => null);
       if (!res?.ok) return;
@@ -159,82 +170,102 @@ export function ObjetosDeOportunidad({ oportunidadId, estado }: { oportunidadId:
     })();
   }, [base, estado, cargar]);
 
-  if (!vinculos.length) return null;
+  async function guardarVinculo(relacion: string, ids: string[]): Promise<string | null> {
+    const res = await fetch(`${base}/objetos`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ relacion, registros: ids }),
+    }).catch(() => null);
+    if (!res?.ok) return res ? await mensajeDe(res) : "No se pudo guardar";
+    setVinculos(((await res.json()) as { vinculos: Vinculo[] }).vinculos);
+    avisar();
+    return null;
+  }
 
-  return (
-    <section className={`${TARJETA} p-5`}>
-      <h2 className="mb-3 text-[15px] font-semibold">Interés</h2>
-      <div className="space-y-4">
-        {pendientes.map((p) => (
-          <ReglaPendiente
-            key={p.regla}
-            pendiente={p}
-            onOmitir={() => setPendientes(pendientes.filter((x) => x.regla !== p.regla))}
-            onAplicar={async (ids) => {
-              const res = await fetch(`${base}/reglas`, {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ regla: p.regla, registros: ids }),
-              }).catch(() => null);
-              if (!res?.ok) return res ? await mensajeDe(res) : "No se pudo aplicar";
-              setPendientes(pendientes.filter((x) => x.regla !== p.regla));
-              avisar();
-              void cargar();
-              return null;
-            }}
-          />
-        ))}
-        {vinculos.map((v) => (
-          <div key={v.relacion}>
-            <div className="mb-1.5 flex items-center justify-between gap-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-text-3">{v.nombre}</p>
-              {editando !== v.relacion && (
-                <button
-                  type="button"
-                  onClick={() => setEditando(v.relacion)}
-                  className="text-text-3 hover:text-text"
-                  aria-label={`Editar ${v.nombre}`}
-                >
-                  <Pencil className="size-3.5" />
-                </button>
-              )}
-            </div>
-            {editando === v.relacion ? (
-              <Selector
-                vinculo={v}
-                onCancelar={() => setEditando(null)}
-                onGuardar={async (ids) => {
-                  const res = await fetch(`${base}/objetos`, {
-                    method: "PUT",
-                    headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ relacion: v.relacion, registros: ids }),
-                  }).catch(() => null);
-                  if (!res?.ok) return res ? await mensajeDe(res) : "No se pudo guardar";
-                  setVinculos(((await res.json()) as { vinculos: Vinculo[] }).vinculos);
-                  setEditando(null);
-                  avisar();
-                  return null;
-                }}
-              />
-            ) : v.registros.length === 0 ? (
-              <p className="text-[13px] text-text-3">Ninguno todavía.</p>
-            ) : (
-              <ul className="flex flex-wrap gap-1.5">
-                {v.registros.map((r) => (
-                  <li key={r.id}>
-                    <Link
-                      href={`/objetos/${v.objeto.clave}/${r.id}`}
-                      className="inline-block rounded-full border px-2.5 py-0.5 text-[12.5px] hover:bg-accent"
-                    >
-                      {r.titulo}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ))}
+  async function aplicarRegla(regla: string, ids: string[]): Promise<string | null> {
+    const res = await fetch(`${base}/reglas`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ regla, registros: ids }),
+    }).catch(() => null);
+    if (!res?.ok) return res ? await mensajeDe(res) : "No se pudo aplicar";
+    setPendientes((p) => p.filter((x) => x.regla !== regla));
+    avisar();
+    void cargar();
+    return null;
+  }
+
+  function omitirRegla(regla: string) {
+    setPendientes((p) => p.filter((x) => x.regla !== regla));
+  }
+
+  return { vinculos, pendientes, guardarVinculo, aplicarRegla, omitirRegla };
+}
+
+export type ObjetosDeOportunidad = ReturnType<typeof useObjetosDeOportunidad>;
+
+/** Una relación en el encabezado: etiquetas con link a cada registro y un lápiz para elegir. */
+export function VinculoEnLinea({
+  vinculo,
+  onGuardar,
+}: {
+  vinculo: Vinculo;
+  onGuardar: (ids: string[]) => Promise<string | null>;
+}) {
+  const [editando, setEditando] = useState(false);
+  if (editando) {
+    return (
+      <div className="w-full max-w-sm rounded-xl border border-border bg-card p-3 shadow-pop">
+        <Selector
+          vinculo={vinculo}
+          onCancelar={() => setEditando(false)}
+          onGuardar={async (ids) => {
+            const error = await onGuardar(ids);
+            if (!error) setEditando(false);
+            return error;
+          }}
+        />
       </div>
-    </section>
+    );
+  }
+  return (
+    <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+      {vinculo.registros.length === 0 && <span className="font-normal text-text-3">Ninguno</span>}
+      {vinculo.registros.map((r) => (
+        <Link
+          key={r.id}
+          href={`/objetos/${vinculo.objeto.clave}/${r.id}`}
+          className="inline-block rounded-full border border-border px-2.5 py-0.5 text-[12.5px] font-medium hover:bg-accent"
+        >
+          {r.titulo}
+        </Link>
+      ))}
+      <button
+        type="button"
+        onClick={() => setEditando(true)}
+        aria-label={`Elegir ${vinculo.nombre.toLowerCase()}`}
+        title={`Elegir ${vinculo.nombre.toLowerCase()}`}
+        className="grid size-7 place-items-center rounded-md text-text-3 hover:bg-accent hover:text-foreground"
+      >
+        <Pencil className="size-3.5" />
+      </button>
+    </span>
+  );
+}
+
+/** Las reglas de etapa que necesitan que alguien elija, como aviso. */
+export function AvisosDeReglas({ objetos }: { objetos: ObjetosDeOportunidad }) {
+  if (!objetos.pendientes.length) return null;
+  return (
+    <div className="mt-3 space-y-2">
+      {objetos.pendientes.map((p) => (
+        <ReglaPendiente
+          key={p.regla}
+          pendiente={p}
+          onOmitir={() => objetos.omitirRegla(p.regla)}
+          onAplicar={(ids) => objetos.aplicarRegla(p.regla, ids)}
+        />
+      ))}
+    </div>
   );
 }
