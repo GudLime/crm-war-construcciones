@@ -209,3 +209,18 @@ una oportunidad, 200 si se sumó a una o si el `leadId` ya había entrado.
   ícono de dos flechas (al pasar el mouse) abre la página.
 - Forma, columnas, orden y anchos se recuerdan en el navegador (localStorage)
   hasta que existan las vistas guardadas.
+
+## Vistas guardadas y filtros (0046)
+
+- `vista_guardada`: pestañas de una página (hoy Oportunidades) con filtros,
+  orden, columnas ocultas y anchos. `user_id` null = del equipo (la ven y
+  editan todos); con usuario = solo suya. «Todas» y «Para cerrar» vienen de
+  fábrica. `vista_ultima` recuerda la última que usó cada persona.
+  API `/api/vistas` (GET ?pagina=, POST), `/api/vistas/[id]` (PATCH, DELETE),
+  `/api/vistas/ultima` (PUT). Lo puro en `lib/vistas.ts`.
+- Barra de filtros (`components/ventas/filtros-oportunidades.tsx`): Responsable
+  con avatares (solo si la instancia expone `/api/oportunidades/responsables`;
+  «yo» = quien mira, «sin» = sin asignar), «+ Filtro» (Edificio, Origen,
+  Estado, Tipología, Para cerrar) con pastillas «Propiedad: valor», Limpiar y
+  «Cambios sin guardar · Descartar · Guardar vista». La forma de ver no se
+  guarda en la vista: queda en el navegador.
