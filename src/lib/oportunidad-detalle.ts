@@ -87,7 +87,42 @@ export type ItemTimeline = {
   quien: string | null;
   /** Para los cierres y los avisos: el tono del ícono. */
   tono?: "ok" | "malo" | "neutro";
+  /** Formularios: el origen (Configuración → Orígenes), para su ícono o logo. */
+  origen?: string | null;
 };
+
+/** Un próximo paso: una tarea por hacer o una reunión que todavía no pasó. */
+export type ProximoPaso =
+  | { clase: "tarea"; id: string; at: string | null; tarea: TareaCorta }
+  | { clase: "reunion"; id: string; at: string; reunion: ReunionCorta };
+
+/**
+ * Lo que viene: tareas en «realizar» con fecha futura o sin fecha, y
+ * reuniones agendadas que no pasaron. De la más lejana a la más cercana, para
+ * seguir el orden del timeline (lo más nuevo arriba); las sin fecha, arriba
+ * de todo.
+ */
+export function armarProximos(input: {
+  tareas: readonly TareaCorta[];
+  reuniones: readonly ReunionCorta[];
+  ahora?: Date;
+}): ProximoPaso[] {
+  const ahora = (input.ahora ?? new Date()).getTime();
+  const out: ProximoPaso[] = [];
+  for (const t of input.tareas) {
+    if (t.estado !== "realizar") continue;
+    if (t.fecha && new Date(t.fecha).getTime() < ahora) continue;
+    out.push({ clase: "tarea", id: `ta-${t.id}`, at: t.fecha, tarea: t });
+  }
+  for (const r of input.reuniones) {
+    if (r.status !== "agendada" || new Date(r.scheduledAt).getTime() < ahora) continue;
+    out.push({ clase: "reunion", id: `re-${r.id}`, at: r.scheduledAt, reunion: r });
+  }
+  return out.sort((a, b) => {
+    if (!a.at || !b.at) return a.at ? 1 : b.at ? -1 : 0;
+    return b.at.localeCompare(a.at);
+  });
+}
 
 /** Mensajes más separados que esto arman otra ráfaga. */
 export const HUECO_RAFAGA_MS = 30 * 60 * 1000;
@@ -190,11 +225,13 @@ function deEvento(e: EventoCorto): ItemTimeline | null {
     case "formulario": {
       const d = e.datos ?? {};
       const partes = [d.formName, d.campaignName].filter((x): x is string => typeof x === "string" && !!x);
+      const origen = typeof d.origen === "string" && d.origen ? d.origen : null;
       return {
         ...base,
         icono: "formulario",
-        titulo: `Completó un formulario${typeof d.origen === "string" ? ` · ${d.origen}` : ""}`,
+        titulo: origen ? `Llenó un formulario de ${origen}` : "Llenó un formulario",
         detalle: partes.length ? partes.join(" · ") : null,
+        origen,
       };
     }
     case "primer_contacto":

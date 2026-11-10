@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   agruparRafagas,
+  armarProximos,
   armarTimeline,
   ultimosMensajes,
   type MensajeCorto,
@@ -112,5 +113,75 @@ describe("el timeline junta todo, lo más nuevo arriba", () => {
     ]);
     expect(t[0]!.detalle).toBe("Motivo: No responde");
     expect(t[0]!.tono).toBe("malo");
+  });
+});
+
+describe("próximos pasos, arriba del timeline", () => {
+  const ahora = new Date("2026-11-10T12:00:00.000Z");
+  const tarea = (id: string, fecha: string | null, estado = "realizar") => ({
+    id,
+    titulo: id,
+    tipo: "llamada",
+    estado,
+    fecha,
+    comentarios: null,
+    contactId: "ct_1",
+    oportunidadId: "op_1",
+    createdAt: "2026-11-01T10:00:00.000Z",
+    updatedAt: "2026-11-01T10:00:00.000Z",
+  });
+  const reunion = (id: string, scheduledAt: string, status: "agendada" | "realizada" = "agendada") => ({
+    id,
+    scheduledAt,
+    durationMinutes: 45,
+    status,
+    source: "ai" as const,
+    meetingLink: null,
+    createdAt: "2026-11-01T10:00:00.000Z",
+  });
+
+  it("tareas por hacer (futuras o sin fecha) y reuniones que no pasaron, de la más lejana a la más cercana", () => {
+    const p = armarProximos({
+      ahora,
+      tareas: [
+        tarea("manana", "2026-11-11T13:00:00.000Z"),
+        tarea("vencida", "2026-11-09T13:00:00.000Z"),
+        tarea("sin-fecha", null),
+        tarea("hecha", "2026-11-12T13:00:00.000Z", "listo"),
+        tarea("en-tres", "2026-11-13T13:00:00.000Z"),
+      ],
+      reuniones: [reunion("visita", "2026-11-14T14:00:00.000Z"), reunion("pasada", "2026-11-08T14:00:00.000Z", "realizada")],
+    });
+    expect(p.map((x) => x.id)).toEqual(["ta-sin-fecha", "re-visita", "ta-en-tres", "ta-manana"]);
+  });
+});
+
+describe("el formulario dice de qué origen vino", () => {
+  it("«Llenó un formulario de Meta Ads», con el origen para su ícono", () => {
+    const [f] = armarTimeline({
+      eventos: [
+        {
+          id: "f1",
+          tipo: "formulario",
+          estadoDesde: null,
+          estadoHasta: null,
+          motivo: null,
+          fuente: "make",
+          actorNombre: null,
+          datos: { origen: "Meta Ads", formName: "Lavalle 2 amb" },
+          occurredAt: "2026-11-01T10:00:00.000Z",
+        },
+      ],
+      mensajes: [],
+      reuniones: [],
+      tareas: [],
+      notas: [],
+    });
+    expect(f).toMatchObject({
+      titulo: "Llenó un formulario de Meta Ads",
+      origen: "Meta Ads",
+      detalle: "Lavalle 2 amb",
+      quien: "Make",
+    });
   });
 });
