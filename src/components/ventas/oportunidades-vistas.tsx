@@ -28,7 +28,7 @@ import {
 } from "@/lib/oportunidades-lista";
 import type { OrigenDto } from "@/lib/origenes";
 import { cn } from "@/lib/utils";
-import { CAMINO_OPORTUNIDAD, ESTADOS_OPORTUNIDAD, TIPOLOGIAS, etiqueta } from "@/lib/ventas";
+import { CAMINO_OPORTUNIDAD, ESTADOS_OPORTUNIDAD, etiqueta, etiquetaAmbientes } from "@/lib/ventas";
 import type { OportunidadDto } from "@/server/ventas";
 import { OrigenIcono } from "./origen-icono";
 import { PildoraEdificio, estiloDeEdificio } from "./pildora-edificio";
@@ -192,8 +192,10 @@ function celda(c: ClaveColumna, o: OportunidadDto, iconoDe: IconoDe, moneda: str
         <span className="text-text-3">—</span>
       );
     }
+    case "ambientes":
+      return <Etiquetas valores={o.ambientes.map(String)} />;
     case "tipologia":
-      return <Etiquetas valores={o.tipologias.map((t) => etiqueta(TIPOLOGIAS, t))} />;
+      return <Etiquetas valores={o.tipologiasUnidad} />;
     case "departamento":
       return o.unidad ? (
         <span className="inline-block rounded-full border border-border px-2 py-px text-[12px]">{o.unidad}</span>
@@ -549,7 +551,11 @@ function Tarjeta({
   compacta?: boolean;
 }) {
   const eds = edificiosDe(o);
-  const detalle = [o.unidad ? `U. ${o.unidad}` : "", o.tipologias.map((t) => etiqueta(TIPOLOGIAS, t)).join(", ")]
+  const detalle = [
+    o.unidad ? `U. ${o.unidad}` : "",
+    o.tipologiasUnidad.join(", "),
+    o.ambientes.length ? `${o.ambientes.join(", ")} amb.` : "",
+  ]
     .filter(Boolean)
     .join(" · ");
   return (
@@ -672,7 +678,8 @@ function PanelOportunidad({
         "—"
       ),
     ],
-    ["Tipología", <Etiquetas key="t" valores={o.tipologias.map((t) => etiqueta(TIPOLOGIAS, t))} />],
+    ["Ambientes", o.ambientes.length ? o.ambientes.map(etiquetaAmbientes).join(", ") : "—"],
+    ["Tipología", <Etiquetas key="t" valores={o.tipologiasUnidad} />],
     ["Departamento", o.unidad ?? "—"],
     ["Valor", plata(o.valorCents, o.moneda, moneda)],
     ["Última interacción", haceCuanto(o.ultimaInteraccion)],

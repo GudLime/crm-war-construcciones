@@ -5,15 +5,15 @@ import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
+  AMBIENTES,
   CAMINO_OPORTUNIDAD,
   ESTADOS_OPORTUNIDAD,
   MOTIVOS_CIERRE,
-  TIPOLOGIAS,
   TIPOS_CONTACTO,
   etiqueta,
+  etiquetaAmbientes,
   type EstadoOportunidad,
   type TipoContacto,
-  type Tipologia,
 } from "@/lib/ventas";
 import type { EstadoComercialDto } from "@/server/oportunidades";
 import { Select } from "@/components/ui/select";
@@ -94,7 +94,7 @@ export function OportunidadPanel({
     estado?: EstadoOportunidad;
     motivoCierre?: string | null;
     edificioIds?: string[];
-    tipologias?: Tipologia[];
+    ambientes?: number[];
   }) {
     if (!datos?.abierta) return;
     void pedir(`/api/contacts/${contactId}/oportunidad`, {
@@ -258,14 +258,12 @@ export function OportunidadPanel({
                 onCambio={(edificioIds) => cambiarOportunidad({ edificioIds })}
               />
 
-              <p className="mb-1.5 mt-3 text-[11px] font-medium text-text-2">Tipologías de interés</p>
+              <p className="mb-1.5 mt-3 text-[11px] font-medium text-text-2">Ambientes de interés</p>
               <Chips
-                opciones={TIPOLOGIAS.map((t) => ({ value: t.value, label: t.label }))}
-                elegidos={abierta.tipologias}
+                opciones={AMBIENTES.map((n) => ({ value: String(n), label: etiquetaAmbientes(n) }))}
+                elegidos={abierta.ambientes.map(String)}
                 disabled={guardando}
-                onCambio={(tipologias) =>
-                  cambiarOportunidad({ tipologias: tipologias as Tipologia[] })
-                }
+                onCambio={(valores) => cambiarOportunidad({ ambientes: valores.map(Number) })}
               />
             </>
           )}

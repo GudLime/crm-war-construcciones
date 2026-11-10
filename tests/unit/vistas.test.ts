@@ -8,7 +8,7 @@ const fila = (extra: Partial<FilaFiltrable> = {}): FilaFiltrable => ({
   origen: "Meta Ads",
   edificioId: "ed_1",
   edificios: [{ id: "ed_1" }, { id: "ed_2" }],
-  tipologias: ["2_ambientes"],
+  tipologiasUnidad: ["2B"],
   paraCerrar: false,
   responsableId: "u_seba",
   ...extra,
@@ -27,7 +27,8 @@ describe("cumpleFiltros", () => {
   it("origen, estado, tipología y para cerrar", () => {
     expect(cumpleFiltros(fila(), { origenes: ["Zonaprop"] }, null)).toBe(false);
     expect(cumpleFiltros(fila(), { estados: ["en_charlas", "visito"] }, null)).toBe(true);
-    expect(cumpleFiltros(fila(), { tipologias: ["3_ambientes"] }, null)).toBe(false);
+    expect(cumpleFiltros(fila(), { tipologias: ["3A"] }, null)).toBe(false);
+    expect(cumpleFiltros(fila(), { tipologias: ["2B", "3A"] }, null)).toBe(true);
     expect(cumpleFiltros(fila(), { paraCerrar: true }, null)).toBe(false);
     expect(cumpleFiltros(fila({ paraCerrar: true }), { paraCerrar: true }, null)).toBe(true);
   });
