@@ -535,3 +535,14 @@
   background: color-mix(in srgb, var(--pe-punto) 24%, transparent);
   color: color-mix(in srgb, var(--pe-punto) 40%, #ffffff);
 }
+
+@keyframes panel-entrada {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}

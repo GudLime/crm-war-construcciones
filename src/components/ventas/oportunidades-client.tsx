@@ -12,26 +12,20 @@ import {
   ESTADOS_OPORTUNIDAD,
   TIPOLOGIAS,
   TIPOS_OPORTUNIDAD,
-  etiqueta,
 } from "@/lib/ventas";
 import { Chips } from "./oportunidad-panel";
 import { OrigenIcono } from "./origen-icono";
 import { useMotivosCierre } from "./use-motivos-cierre";
-import { PildoraEdificio } from "./pildora-edificio";
+import { SelectorDeColumnas, SelectorDeForma, VistaOportunidades, usePreferenciasDeLista } from "./oportunidades-vistas";
 import type { OrigenDto } from "@/lib/origenes";
 import type { DepartamentoDto, EdificioDto, OportunidadDto } from "@/server/ventas";
 import {
   Acciones,
   Campo,
-  EstadoPill,
   Ficha,
   Pagina,
-  Tabla,
-  Td,
-  Th,
   grilla,
   mensajeDe,
-  plata,
   useMoneda,
 } from "./ui";
 import { Select } from "@/components/ui/select";
@@ -87,39 +81,6 @@ function desde(o: OportunidadDto): Formulario {
   };
 }
 
-/** War — "hace 5 min", "hace 3 h", "ayer", o la fecha corta. */
-function haceCuanto(iso: string, ahora: number = Date.now()): string {
-  const min = Math.max(0, Math.round((ahora - new Date(iso).getTime()) / 60_000));
-  if (min < 1) return "recién";
-  if (min < 60) return `hace ${min} min`;
-  const h = Math.round(min / 60);
-  if (h < 24) return `hace ${h} h`;
-  const d = Math.round(h / 24);
-  if (d === 1) return "ayer";
-  if (d < 7) return `hace ${d} días`;
-  return new Date(iso).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "2-digit" });
-}
-
-function Interes({ o }: { o: OportunidadDto }) {
-  const edificios = o.edificios.length
-    ? o.edificios
-    : o.edificioId && o.edificioNombre
-      ? [{ id: o.edificioId, nombre: o.edificioNombre, color: null }]
-      : [];
-  const resto = [o.unidad ? `U. ${o.unidad}` : "", o.tipologias.map((t) => etiqueta(TIPOLOGIAS, t)).join(", ")]
-    .filter(Boolean)
-    .join(" · ");
-  if (!edificios.length && !resto) return <>—</>;
-  return (
-    <span className="flex flex-wrap items-center gap-1.5">
-      {edificios.map((e) => (
-        <PildoraEdificio key={e.id} nombre={e.nombre} color={e.color} />
-      ))}
-      {resto && <span className="text-xs text-text-3">{resto}</span>}
-    </span>
-  );
-}
-
 export function OportunidadesClient() {
   const moneda = useMoneda();
   const motivosCierre = useMotivosCierre();
@@ -141,6 +102,7 @@ export function OportunidadesClient() {
   const [soloParaCerrar, setSoloParaCerrar] = useState(false);
   /** Nombre del origen → su ícono o imagen (Configuración → Orígenes). */
   const iconoDe = useMemo(() => new Map(origenes.map((o) => [o.nombre, o])), [origenes]);
+  const [pref, setPref] = usePreferenciasDeLista();
 
   const cargar = useCallback(async () => {
     const res = await fetch("/api/oportunidades").catch(() => null);
@@ -289,6 +251,7 @@ export function OportunidadesClient() {
       detalle="De dónde llegó, a quién pertenece y qué edificio o departamento está mirando."
       accion={
         <div className="flex flex-wrap items-center gap-2">
+          <SelectorDeForma forma={pref.forma} onCambio={(forma) => setPref({ ...pref, forma })} />
           {(nParaCerrar > 0 || soloParaCerrar) && (
             <Button
               size="sm"
@@ -462,68 +425,21 @@ export function OportunidadesClient() {
           }
         />
       ) : filas.length > 0 ? (
-        <Tabla>
-          <thead className="border-b bg-secondary/40">
-            <tr>
-              <Th>Oportunidad</Th>
-              <Th>Origen</Th>
-              <Th>Contacto</Th>
-              <Th>Interés</Th>
-              <Th>Estado</Th>
-              <Th>Última interacción</Th>
-              <Th className="text-right">Valor</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {visibles.map((o) => (
-              <tr
-                key={o.id}
-                className="cursor-pointer border-b last:border-0 hover:bg-accent/40"
-                onClick={() => router.push(`/oportunidades/${o.id}`)}
-              >
-                <Td className="font-medium">{o.nombre}</Td>
-                <Td>
-                  {o.origen ? (
-                    <span className="inline-flex items-center gap-1.5">
-                      <OrigenIcono
-                        icono={iconoDe.get(o.origen)?.icono}
-                        imagen={iconoDe.get(o.origen)?.imagen}
-                      />
-                      {o.origen}
-                    </span>
-                  ) : (
-                    "—"
-                  )}
-                  {o.formularios > 1 && (
-                    <span className="ml-1.5 text-xs text-text-3">· {o.formularios} formularios</span>
-                  )}
-                </Td>
-                <Td>{o.contactoNombre || "—"}</Td>
-                <Td>
-                  <Interes o={o} />
-                </Td>
-                <Td>
-                  <div className="flex flex-col items-start gap-1">
-                    <EstadoPill opciones={ESTADOS_OPORTUNIDAD} value={o.estado} />
-                    {o.paraCerrar ? (
-                      <span className="rounded-full bg-danger-tint px-2 py-px text-[11px] font-medium text-danger-text">
-                        Para cerrar · no responde
-                      </span>
-                    ) : o.sinRespuesta ? (
-                      <span className="text-[11px] text-warning-text">{o.sinRespuesta}</span>
-                    ) : null}
-                  </div>
-                </Td>
-                <Td className="whitespace-nowrap text-text-2">
-                  <span title={new Date(o.ultimaInteraccion).toLocaleString("es-AR")}>
-                    {haceCuanto(o.ultimaInteraccion)}
-                  </span>
-                </Td>
-                <Td className="text-right tabular-nums">{plata(o.valorCents, o.moneda, moneda)}</Td>
-              </tr>
-            ))}
-          </tbody>
-        </Tabla>
+        <div className="space-y-3">
+          {pref.forma === "lista" && (
+            <div className="flex justify-end">
+              <SelectorDeColumnas pref={pref} setPref={setPref} />
+            </div>
+          )}
+          <VistaOportunidades
+            filas={visibles}
+            forma={pref.forma}
+            pref={pref}
+            setPref={setPref}
+            iconoDe={iconoDe}
+            moneda={moneda}
+          />
+        </div>
       ) : null}
     </Pagina>
   );
