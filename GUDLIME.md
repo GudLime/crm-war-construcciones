@@ -152,9 +152,15 @@ una oportunidad, 200 si se sumó a una o si el `leadId` ya había entrado.
 
 - **Página** `/oportunidades/[id]` (`components/ventas/oportunidad-detalle-client.tsx`,
   datos en `server/oportunidad-detalle.ts` → `GET /api/oportunidades/[id]/detalle`):
-  encabezado con barra de avance, pestañas Timeline / Reuniones / Notas / Últimos
-  mensajes (los últimos 4, con «Ir al chat») y tarjetas de Contacto, Próximos pasos
-  y Datos. Muestra la oportunidad anterior del contacto y las abiertas en paralelo.
+  encabezado con el nombre (lápiz al pasar el mouse), los datos en dos columnas
+  (origen, interés, tipologías —editables—, las relaciones del motor con su
+  selector, valor · creada, en este estado, tipo) y la barra de avance en flechas;
+  las reglas de etapa que piden elegir salen como aviso debajo. Pestañas Timeline
+  (arriba los próximos pasos —tareas por hacer y reuniones futuras, de la más
+  lejana a la más cercana—, un divisor «Hoy» y el historial, con fecha exacta y
+  relativa) / Reuniones / Notas / Últimos mensajes. A la derecha, el Contacto
+  plegable con «Ver contacto completo» (`/contacts/[id]`). Muestra la oportunidad
+  anterior del contacto y las abiertas en paralelo.
   Lo del contacto (mensajes, reuniones, tareas sueltas) se toma desde el cierre de
   la oportunidad anterior: las compras no se mezclan. WhatsApp va por ráfagas.
 - **Historial** `oportunidad_evento` (`server/oportunidad-historial.ts`): solo se
