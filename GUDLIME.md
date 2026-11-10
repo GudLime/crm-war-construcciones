@@ -196,3 +196,16 @@ una oportunidad, 200 si se sumó a una o si el `leadId` ya había entrado.
   tinte y texto oscuro del mismo tono; en tema oscuro el tinte sale del punto.
   Se usa en la oportunidad (interés y oportunidad paralela), la lista de
   oportunidades y las tareas (el edificio principal de su oportunidad).
+
+## Lista de oportunidades: Lista, Mosaico y Pipeline
+
+- `components/ventas/oportunidades-vistas.tsx` (lo puro en `lib/oportunidades-lista.ts`):
+  selector de forma de ver; en la Lista, menú por columna (ascendente /
+  descendente con su criterio, quitar orden, ocultar), «Columnas N/M» y ancho
+  ajustable (arrastrar el borde, mínimo 70 px; doble clic restablece). Estado
+  en el orden del embudo; los vacíos van al final. Mosaico: tarjetas. Pipeline:
+  una columna por etapa del camino con contador y suma de valores.
+- Un clic en la fila o la tarjeta abre un panel lateral con lo esencial; el
+  ícono de dos flechas (al pasar el mouse) abre la página.
+- Forma, columnas, orden y anchos se recuerdan en el navegador (localStorage)
+  hasta que existan las vistas guardadas.
