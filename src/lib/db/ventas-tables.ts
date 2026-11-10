@@ -85,6 +85,8 @@ export const departamento = pgTable(
       enum: ["1_ambiente", "2_ambientes", "3_ambientes", "4_ambientes", "triplex"],
     }),
     piso: integer("piso"),
+    /** 0047 — La unidad tipo («1A», «2B»): de acá salen las tipologías de interés. */
+    tipologiaUnidad: text("tipologia_unidad"),
     /** 0031 — Ambientes de la unidad, como vienen en la lista de precios. */
     dormitorios: integer("dormitorios"),
     banos: integer("banos"),
@@ -285,6 +287,38 @@ export const oportunidadTipologia = pgTable(
     tipologia: text("tipologia", {
       enum: ["1_ambiente", "2_ambientes", "3_ambientes", "4_ambientes", "triplex"],
     }).notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.oportunidadId, t.tipologia] })]
+);
+
+/** 0047 — Ambientes de interés de una oportunidad (D2): números, varios. */
+export const oportunidadAmbiente = pgTable(
+  "oportunidad_ambiente",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    oportunidadId: text("oportunidad_id")
+      .notNull()
+      .references(() => oportunidad.id, { onDelete: "cascade" }),
+    ambientes: integer("ambientes").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.oportunidadId, t.ambientes] })]
+);
+
+/** 0047 — Tipologías de interés (D3): unidades tipo («1A», «2B») de los edificios de interés. */
+export const oportunidadTipologiaUnidad = pgTable(
+  "oportunidad_tipologia_unidad",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    oportunidadId: text("oportunidad_id")
+      .notNull()
+      .references(() => oportunidad.id, { onDelete: "cascade" }),
+    tipologia: text("tipologia").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.oportunidadId, t.tipologia] })]

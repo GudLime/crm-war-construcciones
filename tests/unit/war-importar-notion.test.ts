@@ -151,7 +151,7 @@ describe.skipIf(!URL_DB)("War: importar Notion en Postgres", () => {
     expect(await cuenta("contact")).toBe(2);
     expect(await cuenta("oportunidad")).toBe(2);
     expect(await cuenta("oportunidad_edificio")).toBe(2);
-    expect(await cuenta("oportunidad_tipologia")).toBe(1);
+    expect(await cuenta("oportunidad_ambiente")).toBe(1);
     expect(await cuenta("oportunidad_lead")).toBe(1);
     expect(await cuenta("conversation_note")).toBe(1);
     expect(await cuenta("tarea_venta")).toBe(2);

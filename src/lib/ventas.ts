@@ -29,6 +29,31 @@ export const TIPOLOGIAS = [
 ] as const;
 
 /**
+ * Rediseño (D2) — Ambientes de interés de una oportunidad: números (varios).
+ * Reemplazan a «1–4 ambientes / triplex» de `TIPOLOGIAS` en la oportunidad
+ * (la unidad sigue usando `TIPOLOGIAS`). Triplex cuenta como 4.
+ */
+export const AMBIENTES = [1, 2, 3, 4, 5] as const;
+export const MAX_AMBIENTES = 10;
+
+export function etiquetaAmbientes(n: number): string {
+  return n === 1 ? "1 ambiente" : `${n} ambientes`;
+}
+
+/** Unidades tipo en orden natural: 1A, 1B, 2A, 10A. */
+export function ordenarTipologiasUnidad(ts: readonly string[]): string[] {
+  const cmp = new Intl.Collator("es", { numeric: true, sensitivity: "base" }).compare;
+  return [...new Set(ts)].sort(cmp);
+}
+
+/** «2_ambientes» → 2; «triplex» → 4. */
+export function ambientesDeTipologia(t: string): number | null {
+  if (t === "triplex") return 4;
+  const n = Number.parseInt(t, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
  * El origen de la oportunidad ya no es una lista fija: se configura en
  * Ajustes → Orígenes (nombre e ícono). Ver `src/lib/origenes.ts`.
  */

@@ -73,7 +73,8 @@ export type FilaFiltrable = {
   origen: string | null;
   edificioId: string | null;
   edificios: { id: string }[];
-  tipologias: readonly string[];
+  /** 0047 — Unidades tipo de interés («1A»). */
+  tipologiasUnidad: readonly string[];
   paraCerrar: boolean;
   responsableId?: string | null;
 };
@@ -88,7 +89,7 @@ export function cumpleFiltros(f: FilaFiltrable, filtros: Filtros, yo: string | n
     const ids = f.edificios.length ? f.edificios.map((e) => e.id) : f.edificioId ? [f.edificioId] : [];
     if (!ids.some((id) => filtros.edificios!.includes(id))) return false;
   }
-  if (!vacio(filtros.tipologias) && !f.tipologias.some((t) => filtros.tipologias!.includes(t))) return false;
+  if (!vacio(filtros.tipologias) && !f.tipologiasUnidad.some((t) => filtros.tipologias!.includes(t))) return false;
   if (!vacio(filtros.responsables)) {
     const quien = f.responsableId ?? null;
     const ok = filtros.responsables!.some((r) =>

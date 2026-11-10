@@ -263,3 +263,16 @@ cambios de GudLime, si `_journal.json` choca, se ordenan las entradas por
   Estado, Tipología, Para cerrar) con pastillas «Propiedad: valor», Limpiar y
   «Cambios sin guardar · Descartar · Guardar vista». La forma de ver no se
   guarda en la vista: queda en el navegador.
+
+## Ambientes y tipologías de interés (0047)
+
+- La oportunidad guarda **ambientes** (números, varios: `oportunidad_ambiente`)
+  y **tipologías** (unidades tipo «1A», «2B», varias:
+  `oportunidad_tipologia_unidad`). Las opciones de tipologías salen de las
+  unidades de los edificios de interés (`departamento.tipologia_unidad`, que se
+  carga en la unidad). La migración pasó `oportunidad_tipologia` a ambientes
+  («N ambientes» → N, «triplex» → 4); esa tabla queda sin uso y no se borró.
+- El cerebro sigue mandando `tipologias_interes` en la ficha («2 ambientes»): se
+  convierte a ambientes.
+- En la lista: columnas Ambientes y Tipología; el filtro «Tipología» usa las
+  unidades tipo.

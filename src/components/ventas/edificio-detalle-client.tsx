@@ -45,6 +45,8 @@ type UnidadForm = {
   valor: string;
   estado: string;
   tipologia: string;
+  /** 0047 — La unidad tipo («2B»). */
+  tipologiaUnidad: string;
   piso: string;
   dormitorios: string;
   banos: string;
@@ -63,6 +65,7 @@ const unidadVacia: UnidadForm = {
   valor: "",
   estado: "disponible",
   tipologia: "",
+  tipologiaUnidad: "",
   piso: "",
   dormitorios: "",
   banos: "",
@@ -89,6 +92,7 @@ function desdeUnidad(u: DepartamentoDto): UnidadForm {
         : (u.valorCents / 100).toLocaleString("es-AR", { maximumFractionDigits: 2 }),
     estado: u.estado,
     tipologia: u.tipologia ?? "",
+    tipologiaUnidad: u.tipologiaUnidad ?? "",
     piso: u.piso == null ? "" : String(u.piso),
     dormitorios: u.dormitorios == null ? "" : String(u.dormitorios),
     banos: u.banos == null ? "" : String(u.banos),
@@ -282,6 +286,7 @@ export function EdificioDetalleClient() {
       moneda: valorCents == null ? null : moneda,
       estado: unidad.estado,
       tipologia: unidad.tipologia || null,
+      tipologiaUnidad: unidad.tipologiaUnidad.trim() || null,
       piso,
     };
   }
@@ -349,11 +354,19 @@ export function EdificioDetalleClient() {
           />
         </Campo>
         <Campo label="Tipología">
+          <Input
+            value={unidad.tipologiaUnidad}
+            onChange={(e) => setUnidad({ ...unidad, tipologiaUnidad: e.target.value })}
+            maxLength={30}
+            placeholder="2B"
+          />
+        </Campo>
+        <Campo label="Ambientes">
           <Select
             value={unidad.tipologia}
             onValueChange={(tipologia) => setUnidad({ ...unidad, tipologia })}
           >
-            <option value="">Sin tipología</option>
+            <option value="">Sin dato</option>
             {TIPOLOGIAS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -717,7 +730,10 @@ export function EdificioDetalleClient() {
                       </span>
                     )}
                   </Td>
-                  <Td>{etiqueta(TIPOLOGIAS, u.tipologia)}</Td>
+                  <Td>
+                    {u.tipologiaUnidad || "—"}
+                    {u.tipologia && <span className="ml-1.5 text-xs text-text-3">{etiqueta(TIPOLOGIAS, u.tipologia)}</span>}
+                  </Td>
                   <Td>{u.orientacionEdificio || "—"}</Td>
                   <Td>{u.orientacionGeo || "—"}</Td>
                   <Td className="text-right tabular-nums">{metrosTexto(u.metrosCubiertos)}</Td>

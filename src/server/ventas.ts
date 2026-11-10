@@ -6,8 +6,10 @@ import { motivoDesconocido, motivoValido } from "@/server/motivos-cierre";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
 import {
+  MAX_AMBIENTES,
   estaAbierta,
   metrosTotales,
+  ordenarTipologiasUnidad,
   resolverInteres,
   VALORES_ESTADO_EDIFICIO,
   VALORES_ESTADO_OPORTUNIDAD,
@@ -107,6 +109,8 @@ export const departamentoSchema = z.object({
   moneda: z.string().trim().length(3).nullable().optional(),
   estado: estadoUnidad.optional(),
   tipologia: tipologia.nullable().optional(),
+  /** 0047 — La unidad tipo («1A»). Si no viene, no se cambia. */
+  tipologiaUnidad: texto(30),
   piso: z.number().int().min(-5).max(200).nullable().optional(),
   dormitorios: cantidad,
   banos: cantidad,
@@ -123,8 +127,10 @@ export const oportunidadSchema = z.object({
   departamentoId: idOpcional,
   /** 068 — Varios edificios de interés. Si viene, reemplaza los que había. */
   edificioIds: z.array(z.string().min(1)).max(50).optional(),
-  /** 068 — Varias tipologías de interés. Si viene, reemplaza las que había. */
-  tipologias: z.array(tipologia).max(5).optional(),
+  /** 0047 — Ambientes de interés. Si viene, reemplaza los que había. */
+  ambientes: z.array(z.number().int().min(1).max(MAX_AMBIENTES)).max(MAX_AMBIENTES).optional(),
+  /** 0047 — Tipologías de interés (unidades tipo). Si viene, reemplaza las que había. */
+  tipologiasUnidad: z.array(z.string().trim().min(1).max(30)).max(30).optional(),
   estado: estadoOportunidad.optional(),
   tipo: tipoOportunidad.nullable().optional(),
   motivoCierre: motivo.nullable().optional(),
@@ -173,6 +179,8 @@ export type DepartamentoDto = {
   moneda: string | null;
   estado: EstadoUnidad;
   tipologia: Tipologia | null;
+  /** 0047 — La unidad tipo («1A», «2B»). */
+  tipologiaUnidad: string | null;
   piso: number | null;
   dormitorios: number | null;
   banos: number | null;
@@ -200,8 +208,10 @@ export type OportunidadDto = {
   moneda: string | null;
   /** 068 — Todos los edificios de interés (el `edificioId` de arriba es el principal). */
   edificios: EdificioCorto[];
-  /** 068 — Tipologías de interés. */
-  tipologias: Tipologia[];
+  /** 0047 — Ambientes de interés (números). */
+  ambientes: number[];
+  /** 0047 — Tipologías de interés (unidades tipo «1A»). */
+  tipologiasUnidad: string[];
   /** War — último formulario o mensaje del interesado (ISO). Ordena la lista. */
   ultimaInteraccion: string;
   /** War — cuántos formularios de anuncio o portal sumó esta oportunidad. */
@@ -282,6 +292,7 @@ function aDepartamento(fila: typeof schema.departamento.$inferSelect): Departame
     moneda: fila.moneda,
     estado: fila.estado,
     tipologia: fila.tipologia,
+    tipologiaUnidad: fila.tipologiaUnidad,
     piso: fila.piso,
     dormitorios: fila.dormitorios,
     banos: fila.banos,
@@ -304,6 +315,7 @@ function valoresDepartamento(datos: z.infer<typeof departamentoSchema>) {
     moneda: valorCents == null ? null : oNulo(datos.moneda),
     estado: datos.estado ?? "disponible",
     tipologia: datos.tipologia ?? null,
+    ...(datos.tipologiaUnidad !== undefined ? { tipologiaUnidad: oNulo(datos.tipologiaUnidad) } : {}),
     piso: datos.piso ?? null,
     dormitorios: datos.dormitorios ?? null,
     banos: datos.banos ?? null,
@@ -559,7 +571,7 @@ async function interesDe(
   return resuelto;
 }
 
-type InteresOportunidad = { edificios: EdificioCorto[]; tipologias: Tipologia[] };
+type InteresOportunidad = { edificios: EdificioCorto[]; ambientes: number[]; tipologiasUnidad: string[] };
 
 /** 068 — El interés (edificios y tipologías) de varias oportunidades en dos consultas. */
 async function interesDeOportunidades(
@@ -567,10 +579,10 @@ async function interesDeOportunidades(
   ids: readonly string[]
 ): Promise<Map<string, InteresOportunidad>> {
   const mapa = new Map<string, InteresOportunidad>();
-  for (const id of ids) mapa.set(id, { edificios: [], tipologias: [] });
+  for (const id of ids) mapa.set(id, { edificios: [], ambientes: [], tipologiasUnidad: [] });
   if (ids.length === 0) return mapa;
   const db = getDb();
-  const [edificios, tipologias] = await Promise.all([
+  const [edificios, ambientes, tipologias] = await Promise.all([
     db
       .select({
         oportunidadId: schema.oportunidadEdificio.oportunidadId,
@@ -590,25 +602,39 @@ async function interesDeOportunidades(
       .orderBy(asc(schema.edificio.nombre)),
     db
       .select({
-        oportunidadId: schema.oportunidadTipologia.oportunidadId,
-        tipologia: schema.oportunidadTipologia.tipologia,
+        oportunidadId: schema.oportunidadAmbiente.oportunidadId,
+        ambientes: schema.oportunidadAmbiente.ambientes,
       })
-      .from(schema.oportunidadTipologia)
+      .from(schema.oportunidadAmbiente)
       .where(
         scoped(
-          schema.oportunidadTipologia.organizationId,
+          schema.oportunidadAmbiente.organizationId,
           organizationId,
-          inArray(schema.oportunidadTipologia.oportunidadId, [...ids])
+          inArray(schema.oportunidadAmbiente.oportunidadId, [...ids])
+        )
+      ),
+    db
+      .select({
+        oportunidadId: schema.oportunidadTipologiaUnidad.oportunidadId,
+        tipologia: schema.oportunidadTipologiaUnidad.tipologia,
+      })
+      .from(schema.oportunidadTipologiaUnidad)
+      .where(
+        scoped(
+          schema.oportunidadTipologiaUnidad.organizationId,
+          organizationId,
+          inArray(schema.oportunidadTipologiaUnidad.oportunidadId, [...ids])
         )
       ),
   ]);
   for (const e of edificios) {
     mapa.get(e.oportunidadId)?.edificios.push({ id: e.id, nombre: e.nombre, color: e.color });
   }
-  for (const t of tipologias) mapa.get(t.oportunidadId)?.tipologias.push(t.tipologia);
+  for (const a of ambientes) mapa.get(a.oportunidadId)?.ambientes.push(a.ambientes);
+  for (const t of tipologias) mapa.get(t.oportunidadId)?.tipologiasUnidad.push(t.tipologia);
   for (const v of mapa.values()) {
-    const set = new Set(v.tipologias);
-    v.tipologias = (VALORES_TIPOLOGIA as Tipologia[]).filter((t) => set.has(t));
+    v.ambientes.sort((a, b) => a - b);
+    v.tipologiasUnidad = ordenarTipologiasUnidad(v.tipologiasUnidad);
   }
   return mapa;
 }
@@ -616,7 +642,7 @@ async function interesDeOportunidades(
 function aOportunidad(
   fila: typeof schema.oportunidad.$inferSelect,
   extra: { contactoNombre: string | null; edificioNombre: string | null; unidad: string | null },
-  interes: InteresOportunidad = { edificios: [], tipologias: [] },
+  interes: InteresOportunidad = { edificios: [], ambientes: [], tipologiasUnidad: [] },
   formularios = 0,
   ajustes: AjustesVentas | null = null
 ): OportunidadDto {
@@ -638,7 +664,8 @@ function aOportunidad(
     valorCents: fila.valorCents,
     moneda: fila.moneda,
     edificios: interes.edificios,
-    tipologias: interes.tipologias,
+    ambientes: interes.ambientes,
+    tipologiasUnidad: interes.tipologiasUnidad,
     ultimaInteraccion: fila.ultimaInteraccion.toISOString(),
     formularios,
     sinRespuesta: abierta ? textoSinRespuesta(fila) : null,
@@ -810,7 +837,7 @@ function interesPedido(datos: z.infer<typeof oportunidadSchema>, principal: stri
     edificioIds && principal && !edificioIds.includes(principal)
       ? [principal, ...edificioIds]
       : edificioIds;
-  return { edificioIds: conPrincipal, tipologias: datos.tipologias };
+  return { edificioIds: conPrincipal, ambientes: datos.ambientes, tipologiasUnidad: datos.tipologiasUnidad };
 }
 
 export async function crearOportunidad(
