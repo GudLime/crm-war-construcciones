@@ -501,3 +501,46 @@ export const importacionExterna = pgTable(
   },
   (t) => [primaryKey({ columns: [t.organizationId, t.fuente, t.clave] })]
 );
+
+/**
+ * 0046 — Vistas guardadas de una página (Oportunidades, más adelante Tareas):
+ * filtros, orden, columnas ocultas y anchos con un nombre, como pestañas.
+ * `user_id` null = del equipo (la ven todos); con usuario = solo suya.
+ */
+export const vistaGuardada = pgTable(
+  "vista_guardada",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+    pagina: text("pagina").notNull(),
+    nombre: text("nombre").notNull(),
+    filtros: jsonb("filtros").$type<Record<string, unknown>>().notNull().default({}),
+    orden: jsonb("orden").$type<Record<string, unknown> | null>(),
+    columnas: jsonb("columnas").$type<string[] | null>(),
+    anchos: jsonb("anchos").$type<Record<string, number> | null>(),
+    posicion: integer("posicion").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("vista_guardada_org_pagina_idx").on(t.organizationId, t.pagina)]
+);
+
+/** 0046 — La última vista que usó cada persona en cada página (null = «Todas»). */
+export const vistaUltima = pgTable(
+  "vista_ultima",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    pagina: text("pagina").notNull(),
+    vistaId: text("vista_id"),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.organizationId, t.userId, t.pagina] })]
+);

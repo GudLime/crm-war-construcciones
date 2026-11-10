@@ -66,6 +66,8 @@ const prefixes = {
   lote: "lot",
   motorRegla: "mrg",
   motorArchivo: "arc",
+  /** 0046 — Una vista guardada (pestaña con filtros). */
+  vistaGuardada: "vis",
 } as const;
 
 export type IdKind = keyof typeof prefixes;

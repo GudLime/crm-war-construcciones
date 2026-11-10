@@ -17,6 +17,7 @@ import { Chips } from "./oportunidad-panel";
 import { OrigenIcono } from "./origen-icono";
 import { useMotivosCierre } from "./use-motivos-cierre";
 import { SelectorDeColumnas, SelectorDeForma, VistaOportunidades, usePreferenciasDeLista } from "./oportunidades-vistas";
+import { BarraDeFiltros, PestanasDeVistas, useVistas, type Miembro } from "./filtros-oportunidades";
 import type { OrigenDto } from "@/lib/origenes";
 import type { DepartamentoDto, EdificioDto, OportunidadDto } from "@/server/ventas";
 import {
@@ -98,11 +99,18 @@ export function OportunidadesClient() {
   const router = useRouter();
   /** War — Se vino a editar desde la página de la oportunidad: al terminar, se vuelve ahí. */
   const volverA = useRef<string | null>(null);
-  /** War — Solo las que cumplen el umbral de «no responde» (modo sugerir). */
-  const [soloParaCerrar, setSoloParaCerrar] = useState(false);
   /** Nombre del origen → su ícono o imagen (Configuración → Orígenes). */
   const iconoDe = useMemo(() => new Map(origenes.map((o) => [o.nombre, o])), [origenes]);
   const [pref, setPref] = usePreferenciasDeLista();
+  const vistas = useVistas({ filas, pref, setPref });
+  /** El equipo, para filtrar por responsable (si la instancia tiene responsables). */
+  const [equipo, setEquipo] = useState<Miembro[]>([]);
+  useEffect(() => {
+    void fetch("/api/oportunidades/responsables")
+      .then((r) => (r.ok ? r.json() : { responsables: [] }))
+      .then((d: { responsables: Miembro[] }) => setEquipo(d.responsables ?? []))
+      .catch(() => undefined);
+  }, []);
 
   const cargar = useCallback(async () => {
     const res = await fetch("/api/oportunidades").catch(() => null);
@@ -242,8 +250,6 @@ export function OportunidadesClient() {
   }
 
   const contacto = contactos.find((c) => c.id === form.contactId);
-  const nParaCerrar = filas.filter((o) => o.paraCerrar).length;
-  const visibles = soloParaCerrar ? filas.filter((o) => o.paraCerrar) : filas;
 
   return (
     <Pagina
@@ -252,16 +258,6 @@ export function OportunidadesClient() {
       accion={
         <div className="flex flex-wrap items-center gap-2">
           <SelectorDeForma forma={pref.forma} onCambio={(forma) => setPref({ ...pref, forma })} />
-          {(nParaCerrar > 0 || soloParaCerrar) && (
-            <Button
-              size="sm"
-              variant={soloParaCerrar ? "secondary" : "outline"}
-              onClick={() => setSoloParaCerrar((v) => !v)}
-              title="Las que cumplen el umbral de «no responde» de Configuración → Ventas"
-            >
-              {soloParaCerrar ? "Ver todas" : `Para cerrar (${nParaCerrar})`}
-            </Button>
-          )}
         <Button size="sm" onClick={abrirNueva}>
           <Plus className="h-4 w-4" strokeWidth={1.8} />
           Nueva oportunidad
@@ -426,13 +422,18 @@ export function OportunidadesClient() {
         />
       ) : filas.length > 0 ? (
         <div className="space-y-3">
-          {pref.forma === "lista" && (
-            <div className="flex justify-end">
-              <SelectorDeColumnas pref={pref} setPref={setPref} />
-            </div>
-          )}
+          <PestanasDeVistas v={vistas} />
+          <BarraDeFiltros
+            v={vistas}
+            equipo={equipo}
+            opciones={{
+              edificios: edificios.map((e) => ({ value: e.id, label: e.nombre })),
+              origenes: origenes.map((o) => ({ value: o.nombre, label: o.nombre })),
+            }}
+            derecha={pref.forma === "lista" ? <SelectorDeColumnas pref={pref} setPref={setPref} /> : undefined}
+          />
           <VistaOportunidades
-            filas={visibles}
+            filas={vistas.visibles}
             forma={pref.forma}
             pref={pref}
             setPref={setPref}
