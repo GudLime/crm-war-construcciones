@@ -9,6 +9,13 @@ import { apiError, parseBody } from "@/lib/api";
 import { requireBotKey, resolveInstanceOrg } from "@/server/bot/auth";
 import { SendError, sendText } from "@/server/inbox/send";
 import { guardarRespuestaDePrueba } from "@/server/lab/sandbox";
+import { extraerMarcasFotos } from "@/lib/motor/agente";
+import {
+  enviarMediosDeRegistros,
+  mediosDeRegistro,
+  notaDeMedios,
+  type MediosDeRegistro,
+} from "@/server/motor/medios-agente";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +39,10 @@ const bodySchema = z.object({
  * 409 tipados: ai_paused (un humano tomó la conversación) · window_closed ·
  * sandbox_violation · message_limit (022: el canal no admite más mensajes
  * hasta que el cliente escriba; hoy, el tope de TikTok).
+ *
+ * Motor — si el texto trae códigos [fotos:<registro>] (los lee el agente en
+ * su conocimiento), se sacan del texto, se manda el texto y después, en
+ * segundo plano y en orden, todas las fotos y el video de cada registro.
  */
 export async function POST(req: Request) {
   const denied = requireBotKey(req);
@@ -68,11 +79,25 @@ export async function POST(req: Request) {
   if (!conv.aiEnabled || conv.handoffAt) {
     return apiError(409, "ai_paused", "La IA está en pausa en esta conversación");
   }
+
+  const marcas = extraerMarcasFotos(body.data.text);
+  const pedidos: MediosDeRegistro[] = [];
+  for (const id of marcas.ids) {
+    const r = await mediosDeRegistro(organizationId, id);
+    if (r) pedidos.push(r);
+  }
+  const conMedios = pedidos.filter((r) => r.fotos.length || r.videos.length);
+  let texto = marcas.texto;
+  if (!texto) {
+    if (!conMedios.length) return apiError(422, "invalid_body", "El mensaje quedó vacío");
+    texto = `Te paso las fotos de ${conMedios.map((r) => r.titulo).join(" y ")}.`;
+  }
+
   if (conv.isTest) {
     const guardada = await guardarRespuestaDePrueba({
       organizationId,
       conversationId: body.data.conversationId,
-      text: body.data.text,
+      text: pedidos.length ? `${texto}\n\n${notaDeMedios(pedidos)}` : texto,
     });
     return Response.json({ messageId: guardada.messageId, status: "sent" });
   }
@@ -81,9 +106,18 @@ export async function POST(req: Request) {
     const result = await sendText({
       conversationId: body.data.conversationId,
       organizationId,
-      text: body.data.text,
+      text: texto,
       aiGenerated: true,
     });
+    if (conMedios.length) {
+      // En segundo plano: subir siete archivos a WhatsApp lleva segundos y el
+      // cerebro no tiene que esperarlos. Van después del texto, en orden.
+      void enviarMediosDeRegistros({
+        organizationId,
+        conversationId: body.data.conversationId,
+        registros: conMedios,
+      }).catch((err) => console.error("[motor] fotos del agente:", err));
+    }
     return Response.json({ messageId: result.messageId });
   } catch (err) {
     if (err instanceof SendError) {

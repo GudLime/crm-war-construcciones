@@ -289,3 +289,25 @@ describe("paso 5: relaciones con la oportunidad y reglas de etapa", () => {
     expect(sentenciaSiembra(config.relaciones[0]!)).toBeNull();
   });
 });
+
+describe("campos de archivos", () => {
+  const conCampo = (extra: Record<string, unknown>, titulo?: string[]) => {
+    const b = base() as { objetos: { campos: Record<string, unknown>[]; titulo: string[] }[] };
+    b.objetos[0]!.campos.push({ clave: "fotos", nombre: "Fotos", ...extra });
+    if (titulo) b.objetos[0]!.titulo = titulo;
+    return b;
+  };
+  it("acepta galería, video y documento con sus topes", () => {
+    expect(errores(conCampo({ tipo: "galeria", maxArchivos: 6 }))).toEqual([]);
+    expect(errores(conCampo({ tipo: "video", maxMb: 12 }))).toEqual([]);
+    expect(errores(conCampo({ tipo: "documento", maxMb: 20 }))).toEqual([]);
+  });
+  it("rechaza topes que no van o que WhatsApp no acepta", () => {
+    expect(errores(conCampo({ tipo: "texto", maxArchivos: 3 })).join()).toContain("solo para galerías");
+    expect(errores(conCampo({ tipo: "galeria", maxMb: 3 })).join()).toContain("solo para video y documento");
+    expect(errores(conCampo({ tipo: "video", maxMb: 20 })).join()).toContain("16 MB");
+  });
+  it("un archivo no puede ser el título", () => {
+    expect(errores(conCampo({ tipo: "galeria" }, ["fotos"])).join()).toContain("campo de archivos");
+  });
+});

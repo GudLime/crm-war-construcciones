@@ -555,6 +555,8 @@ export async function sendMediaMessage(input: {
   replyToMessageId?: string;
   /** 044: grabado en el compositor; sale como nota de voz si es Ogg/Opus. */
   voz?: boolean;
+  /** Lo manda el agente (las fotos de un registro del motor): queda marcado como IA. */
+  aiGenerated?: boolean;
 }): Promise<SendResult> {
   // 044: un WebM grabado se pasa a Ogg antes de validar (WhatsApp no acepta WebM).
   const audio = input.file.mimeType.startsWith("audio/")
@@ -632,7 +634,8 @@ export async function sendMediaMessage(input: {
       type: kind,
       text: null,
       status: "pending",
-      origin: "operator",
+      origin: input.aiGenerated ? "ai" : "operator",
+      aiGenerated: input.aiGenerated === true,
       mediaAssetId: assetId,
       media: asset,
       cita,
@@ -664,7 +667,8 @@ export async function sendMediaMessage(input: {
       text: null,
       status: "failed",
       error: sendErr.message,
-      origin: "operator",
+      origin: input.aiGenerated ? "ai" : "operator",
+      aiGenerated: input.aiGenerated === true,
       mediaAssetId: assetId,
       media: asset,
       cita,

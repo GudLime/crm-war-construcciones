@@ -37,6 +37,10 @@ export const TIPO_SQL: Record<Exclude<TipoCampo, "calculado">, string> = {
   booleano: "boolean",
   enlace: "text",
   imagen: "text",
+  // Ids de `motor_archivo`: varias fotos en orden, o uno solo.
+  galeria: "jsonb",
+  video: "text",
+  documento: "text",
 };
 
 /** Comillas de identificador; solo acepta identificadores ya validados. */

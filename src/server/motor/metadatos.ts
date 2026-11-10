@@ -134,6 +134,7 @@ export async function cargarMotor(organizationId: string): Promise<Motor> {
           calculo: (c.calculo as CalculoMeta | null) ?? null,
           visibleLista: c.visibleLista,
           visibleAgente: c.visibleAgente,
+          limites: c.limites ?? null,
         })),
     });
   }

@@ -16,7 +16,10 @@
         { "clave": "horarios", "nombre": "Horarios de atención", "tipo": "texto" },
         { "clave": "tratamientos_activos", "nombre": "Tratamientos activos", "tipo": "calculado",
           "calculo": { "resumen": { "relacion": "sede_tratamientos", "operacion": "cantidad",
-            "filtro": { "activo": ["true"] } } } }
+            "filtro": { "activo": ["true"] } } } },
+        { "clave": "fotos", "nombre": "Fotos", "tipo": "galeria", "visibleLista": false },
+        { "clave": "video", "nombre": "Video", "tipo": "video", "visibleLista": false },
+        { "clave": "folleto", "nombre": "Folleto", "tipo": "documento", "visibleLista": false, "visibleAgente": false }
       ]
     },
     {

@@ -63,6 +63,7 @@ const prefixes = {
   /** Una importación de CSV: agrupa sus cambios en el historial. */
   lote: "lot",
   motorRegla: "mrg",
+  motorArchivo: "arc",
 } as const;
 
 export type IdKind = keyof typeof prefixes;

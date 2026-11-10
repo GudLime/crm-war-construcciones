@@ -19,6 +19,8 @@ export type CampoMeta = {
   calculo: CalculoMeta | null;
   visibleLista: boolean;
   visibleAgente: boolean;
+  /** Galería, video, documento: `{ maxArchivos }` o `{ maxMb }`. */
+  limites?: { maxArchivos?: number; maxMb?: number } | null;
 };
 
 export type CalculoMeta =
@@ -33,6 +35,9 @@ export type CalculoMeta =
     };
 
 export type Valor = string | number | boolean | Date | string[] | null;
+
+/** Id de un archivo del motor (`motor_archivo`). */
+export const ID_ARCHIVO = /^arc_[A-Za-z0-9_-]{6,40}$/;
 
 export type Conversion = { ok: true; valor: Valor } | { ok: false; error: string };
 
@@ -129,6 +134,24 @@ export function convertir(campo: CampoMeta, entrada: unknown): Conversion {
       return v === null
         ? { ok: false, error: `«${campo.nombre}»: «${String(entrada)}» no es una opción` }
         : { ok: true, valor: v };
+    }
+    case "galeria": {
+      const lista = Array.isArray(entrada) ? entrada : [entrada];
+      const ids: string[] = [];
+      for (const x of lista) {
+        if (typeof x !== "string" || !ID_ARCHIVO.test(x)) return { ok: false, error: `«${campo.nombre}»: archivo no válido` };
+        if (!ids.includes(x)) ids.push(x);
+      }
+      const max = campo.limites?.maxArchivos ?? 6;
+      if (ids.length > max) return { ok: false, error: `«${campo.nombre}» admite hasta ${max} fotos` };
+      return { ok: true, valor: ids.length ? ids : null };
+    }
+    case "video":
+    case "documento": {
+      if (typeof entrada !== "string" || !ID_ARCHIVO.test(entrada)) {
+        return { ok: false, error: `«${campo.nombre}»: archivo no válido` };
+      }
+      return { ok: true, valor: entrada };
     }
     case "seleccion_multiple": {
       const lista = Array.isArray(entrada) ? entrada : String(entrada).split(/[;,]/);

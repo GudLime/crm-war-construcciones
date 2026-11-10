@@ -175,6 +175,28 @@ núcleo.
   (`completarColumnasDe`): en WAR, crear o importar unidades desde la página
   de Edificios llena tipo, ambientes y tipología.
 
+## Paso 9: fotos, video y documento
+
+- Tres tipos de campo nuevos: `galeria` (fotos JPG, hasta `maxArchivos`, 6
+  por defecto, tope 20), `video` (un MP4, `maxMb` hasta 16: el tope de
+  WhatsApp) y `documento` (un PDF, `maxMb` 10 por defecto, tope 25). En un
+  objeto adoptado van con `crear: true` (galería = `jsonb`, los otros `text`).
+- El binario va a `lib/storage/medios` (volumen o bucket) y `motor_archivo`
+  (migración `0044_motor_archivos`) dice qué es; el registro guarda los ids.
+  Se reconoce por el contenido (JPG, MP4, PDF), no por la extensión. Subir:
+  `POST /api/motor-archivos`; ver: `GET /api/motor-archivos/<id>`.
+- Las fotos se achican en el navegador antes de subir (lado mayor 1600 px,
+  JPG, ~1,5 MB como máximo); el servidor rechaza más de 2 MB. El video no se
+  recodifica: si pesa más del tope, se pide uno más liviano.
+- Sacar un archivo de un registro, o borrar el registro, lo borra del disco.
+  Los archivos no viajan en el CSV ni en el texto del historial.
+- El agente: una línea con fotos o video visibles lleva `[fotos:<id>]`. Si
+  la persona pide fotos, el agente escribe el código; `/api/bot/messages` lo
+  saca del texto, manda el texto y después, en segundo plano, TODAS las fotos
+  (en orden) y el video, marcados como IA. Hasta 3 registros por mensaje. En
+  una conversación de prueba se anota «[Se envían N fotos…]» y no se manda
+  nada. El PDF no sale por el agente.
+
 ## Próximos pasos
 
 8. Configuración de WAR (adopta Edificio y Departamento).

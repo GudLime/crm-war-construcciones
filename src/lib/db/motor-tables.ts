@@ -77,6 +77,8 @@ export const motorCampo = pgTable(
     calculo: jsonb("calculo").$type<Record<string, unknown>>(),
     visibleLista: boolean("visible_lista").notNull().default(true),
     visibleAgente: boolean("visible_agente").notNull().default(true),
+    /** Galería, video, documento (0044): `{ maxArchivos }` o `{ maxMb }`. */
+    limites: jsonb("limites").$type<{ maxArchivos?: number; maxMb?: number }>(),
     /** Cuándo se completó la columna con su valor inicial (0042): no se repite. */
     inicializadoAt: timestamp("inicializado_at"),
     orden: integer("orden").notNull().default(0),
@@ -177,4 +179,25 @@ export const motorRegla = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (t) => [uniqueIndex("motor_regla_org_clave_uq").on(t.organizationId, t.clave)]
+);
+
+/**
+ * Archivos de los campos galería, video y documento (migración 0044). El
+ * binario va al volumen de medios (`ruta`); el registro guarda los ids.
+ */
+export const motorArchivo = pgTable(
+  "motor_archivo",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    tipo: text("tipo", { enum: ["imagen", "video", "documento"] }).notNull(),
+    mime: text("mime").notNull(),
+    nombre: text("nombre"),
+    bytes: integer("bytes").notNull(),
+    ruta: text("ruta").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("motor_archivo_org_idx").on(t.organizationId, t.createdAt)]
 );

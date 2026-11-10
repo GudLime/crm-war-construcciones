@@ -15,6 +15,8 @@ export type CampoDto = {
   opciones: { valor: string; nombre: string }[] | null;
   visibleLista: boolean;
   visibleAgente: boolean;
+  /** Galería, video, documento: `{ maxArchivos }` o `{ maxMb }`. */
+  limites?: { maxArchivos?: number; maxMb?: number } | null;
 };
 
 /** Una relación uno a muchos vista desde un lado. */
