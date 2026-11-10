@@ -30,6 +30,9 @@ import {
 } from "./ui";
 import { ImportarUnidades } from "./importar-unidades";
 import { MediosMotor } from "./medios-motor";
+import { PildoraEdificio } from "./pildora-edificio";
+import { cn } from "@/lib/utils";
+import { COLORES_EDIFICIO, VALORES_COLOR_EDIFICIO } from "@/lib/colores-edificio";
 import { Select } from "@/components/ui/select";
 
 type UnidadForm = {
@@ -117,6 +120,7 @@ export function EdificioDetalleClient() {
     estado: "en_construccion",
     enVenta: "",
     notasAgente: "",
+    color: "",
   });
   const [memoriaAgente, setMemoriaAgente] = useState(false);
   const [unidad, setUnidad] = useState<UnidadForm>(unidadVacia);
@@ -149,6 +153,7 @@ export function EdificioDetalleClient() {
       estado: data.edificio.estado,
       enVenta: data.edificio.enVenta ?? "",
       notasAgente: data.edificio.notasAgente ?? "",
+      color: data.edificio.color ?? "",
     });
     setMemoriaAgente(data.edificio.memoriaAgente);
   }, [id]);
@@ -169,6 +174,7 @@ export function EdificioDetalleClient() {
         estado: datos.estado,
         enVenta: datos.enVenta || null,
         notasAgente: datos.notasAgente || null,
+        ...(datos.color ? { color: datos.color } : {}),
       }),
     }).catch(() => null);
     if (!res?.ok) {
@@ -188,6 +194,7 @@ export function EdificioDetalleClient() {
         estado: edificio.estado,
         enVenta: edificio.enVenta ?? "",
         notasAgente: edificio.notasAgente ?? "",
+        color: edificio.color ?? "",
       });
     }
     setErrorEdificio(null);
@@ -532,6 +539,7 @@ export function EdificioDetalleClient() {
               { etiqueta: "Dirección", valor: edificio.direccion },
               { etiqueta: "Estado", valor: etiqueta(ESTADOS_EDIFICIO, edificio.estado) },
               { etiqueta: "En venta", valor: edificio.enVenta },
+              { etiqueta: "Color", valor: <PildoraEdificio nombre={edificio.nombre} color={edificio.color} /> },
               { etiqueta: "Notas para el agente", valor: edificio.notasAgente, ancho: true },
             ]}
           />
@@ -561,6 +569,32 @@ export function EdificioDetalleClient() {
                 </option>
               ))}
             </Select>
+          </Campo>
+          <Campo label="Color" className="sm:col-span-2 lg:col-span-3">
+            <div role="radiogroup" aria-label="Color del edificio" className="flex flex-wrap items-center gap-2">
+              {VALORES_COLOR_EDIFICIO.map((c) => {
+                const tono = COLORES_EDIFICIO[c];
+                const elegido = datos.color === c;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    role="radio"
+                    aria-checked={elegido}
+                    aria-label={tono.nombre}
+                    title={tono.nombre}
+                    onClick={() => setDatos({ ...datos, color: c })}
+                    className={cn(
+                      "grid size-8 place-items-center rounded-full border-2",
+                      elegido ? "border-foreground" : "border-transparent hover:border-border-strong"
+                    )}
+                  >
+                    <span className="size-5 rounded-full" style={{ background: tono.punto }} />
+                  </button>
+                );
+              })}
+              <PildoraEdificio nombre={datos.nombre || "Edificio"} color={datos.color || null} className="ml-2" />
+            </div>
           </Campo>
           <Campo label="En venta" className="sm:col-span-2">
             <Input

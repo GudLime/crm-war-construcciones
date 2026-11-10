@@ -17,6 +17,7 @@ import {
 import { Chips } from "./oportunidad-panel";
 import { OrigenIcono } from "./origen-icono";
 import { useMotivosCierre } from "./use-motivos-cierre";
+import { PildoraEdificio } from "./pildora-edificio";
 import type { OrigenDto } from "@/lib/origenes";
 import type { DepartamentoDto, EdificioDto, OportunidadDto } from "@/server/ventas";
 import {
@@ -99,16 +100,24 @@ function haceCuanto(iso: string, ahora: number = Date.now()): string {
   return new Date(iso).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "2-digit" });
 }
 
-function interes(o: OportunidadDto): string {
+function Interes({ o }: { o: OportunidadDto }) {
   const edificios = o.edificios.length
-    ? o.edificios.map((e) => e.nombre).join(", ")
-    : o.edificioNombre ?? "";
-  const partes = [
-    edificios,
-    o.unidad ? `U. ${o.unidad}` : "",
-    o.tipologias.map((t) => etiqueta(TIPOLOGIAS, t)).join(", "),
-  ].filter(Boolean);
-  return partes.length ? partes.join(" · ") : "—";
+    ? o.edificios
+    : o.edificioId && o.edificioNombre
+      ? [{ id: o.edificioId, nombre: o.edificioNombre, color: null }]
+      : [];
+  const resto = [o.unidad ? `U. ${o.unidad}` : "", o.tipologias.map((t) => etiqueta(TIPOLOGIAS, t)).join(", ")]
+    .filter(Boolean)
+    .join(" · ");
+  if (!edificios.length && !resto) return <>—</>;
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      {edificios.map((e) => (
+        <PildoraEdificio key={e.id} nombre={e.nombre} color={e.color} />
+      ))}
+      {resto && <span className="text-xs text-text-3">{resto}</span>}
+    </span>
+  );
 }
 
 export function OportunidadesClient() {
@@ -490,7 +499,9 @@ export function OportunidadesClient() {
                   )}
                 </Td>
                 <Td>{o.contactoNombre || "—"}</Td>
-                <Td>{interes(o)}</Td>
+                <Td>
+                  <Interes o={o} />
+                </Td>
                 <Td>
                   <div className="flex flex-col items-start gap-1">
                     <EstadoPill opciones={ESTADOS_OPORTUNIDAD} value={o.estado} />

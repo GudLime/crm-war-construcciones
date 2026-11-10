@@ -41,6 +41,7 @@ import {
 } from "@/lib/unidades-csv";
 import { renderMemoriaAgente } from "@/lib/memoria-agente";
 import { NOMBRE_ORIGEN_MAX } from "@/lib/origenes";
+import { siguienteColor, VALORES_COLOR_EDIFICIO, type ColorEdificio } from "@/lib/colores-edificio";
 import { existeOrigen } from "@/server/origenes";
 
 /**
@@ -88,6 +89,8 @@ export const edificioSchema = z.object({
   /** 0032 — Si no viene, no se cambia. */
   memoriaAgente: z.boolean().optional(),
   notasAgente: texto(4000),
+  /** 0045 — Si no viene, no se cambia (al crear, el menos usado). */
+  color: z.enum(VALORES_COLOR_EDIFICIO as [ColorEdificio, ...ColorEdificio[]]).optional(),
 });
 
 /** Dormitorios, baños…: un entero chico, o nada. */
@@ -149,7 +152,12 @@ export type EdificioDto = {
   departamentos: number;
   memoriaAgente: boolean;
   notasAgente: string | null;
+  /** 0045 — Clave de la paleta (`lib/colores-edificio.ts`), o null. */
+  color: string | null;
 };
+
+/** Un edificio en una píldora: nombre y color. */
+export type EdificioCorto = { id: string; nombre: string; color: string | null };
 
 export type DepartamentoDto = {
   id: string;
@@ -191,7 +199,7 @@ export type OportunidadDto = {
   valorCents: number | null;
   moneda: string | null;
   /** 068 — Todos los edificios de interés (el `edificioId` de arriba es el principal). */
-  edificios: { id: string; nombre: string }[];
+  edificios: EdificioCorto[];
   /** 068 — Tipologías de interés. */
   tipologias: Tipologia[];
   /** War — último formulario o mensaje del interesado (ISO). Ordena la lista. */
@@ -216,6 +224,8 @@ export type TareaDto = {
   contactoNombre: string | null;
   oportunidadId: string | null;
   oportunidadNombre: string | null;
+  /** El edificio principal de la oportunidad, para su píldora. */
+  edificio: EdificioCorto | null;
 };
 
 function oNulo(v: string | null | undefined): string | null {
@@ -350,6 +360,7 @@ export async function listarEdificios(organizationId: string): Promise<EdificioD
     departamentos: porEdificio.get(f.id) ?? 0,
     memoriaAgente: f.memoriaAgente,
     notasAgente: f.notasAgente,
+    color: f.color,
   }));
 }
 
@@ -385,6 +396,7 @@ export async function obtenerEdificio(
       departamentos: unidades.length,
       memoriaAgente: fila.memoriaAgente,
       notasAgente: fila.notasAgente,
+      color: fila.color,
     },
     departamentos: unidades.map(aDepartamento),
   };
@@ -394,6 +406,10 @@ export async function crearEdificio(
   organizationId: string,
   datos: z.infer<typeof edificioSchema>
 ): Promise<EdificioDto> {
+  const usados = await getDb()
+    .select({ color: schema.edificio.color })
+    .from(schema.edificio)
+    .where(scoped(schema.edificio.organizationId, organizationId));
   const [fila] = await getDb()
     .insert(schema.edificio)
     .values({
@@ -405,6 +421,7 @@ export async function crearEdificio(
       enVenta: oNulo(datos.enVenta),
       memoriaAgente: datos.memoriaAgente ?? false,
       notasAgente: oNulo(datos.notasAgente),
+      color: datos.color ?? siguienteColor(usados.map((u) => u.color)),
     })
     .returning();
   return {
@@ -416,6 +433,7 @@ export async function crearEdificio(
     departamentos: 0,
     memoriaAgente: fila!.memoriaAgente,
     notasAgente: fila!.notasAgente,
+    color: fila!.color,
   };
 }
 
@@ -433,6 +451,7 @@ export async function editarEdificio(
       enVenta: oNulo(datos.enVenta),
       ...(datos.memoriaAgente !== undefined ? { memoriaAgente: datos.memoriaAgente } : {}),
       ...(datos.notasAgente !== undefined ? { notasAgente: oNulo(datos.notasAgente) } : {}),
+      ...(datos.color !== undefined ? { color: datos.color } : {}),
       updatedAt: new Date(),
     })
     .where(scoped(schema.edificio.organizationId, organizationId, eq(schema.edificio.id, id)))
@@ -540,7 +559,7 @@ async function interesDe(
   return resuelto;
 }
 
-type InteresOportunidad = { edificios: { id: string; nombre: string }[]; tipologias: Tipologia[] };
+type InteresOportunidad = { edificios: EdificioCorto[]; tipologias: Tipologia[] };
 
 /** 068 — El interés (edificios y tipologías) de varias oportunidades en dos consultas. */
 async function interesDeOportunidades(
@@ -557,6 +576,7 @@ async function interesDeOportunidades(
         oportunidadId: schema.oportunidadEdificio.oportunidadId,
         id: schema.edificio.id,
         nombre: schema.edificio.nombre,
+        color: schema.edificio.color,
       })
       .from(schema.oportunidadEdificio)
       .innerJoin(schema.edificio, eq(schema.edificio.id, schema.oportunidadEdificio.edificioId))
@@ -583,7 +603,7 @@ async function interesDeOportunidades(
       ),
   ]);
   for (const e of edificios) {
-    mapa.get(e.oportunidadId)?.edificios.push({ id: e.id, nombre: e.nombre });
+    mapa.get(e.oportunidadId)?.edificios.push({ id: e.id, nombre: e.nombre, color: e.color });
   }
   for (const t of tipologias) mapa.get(t.oportunidadId)?.tipologias.push(t.tipologia);
   for (const v of mapa.values()) {
@@ -873,7 +893,13 @@ export async function borrarOportunidad(organizationId: string, id: string): Pro
 
 function aTarea(
   fila: typeof schema.tareaVenta.$inferSelect,
-  extra: { contactoNombre: string | null; oportunidadNombre: string | null }
+  extra: {
+    contactoNombre: string | null;
+    oportunidadNombre: string | null;
+    edificioId: string | null;
+    edificioNombre: string | null;
+    edificioColor: string | null;
+  }
 ): TareaDto {
   return {
     id: fila.id,
@@ -886,6 +912,10 @@ function aTarea(
     contactoNombre: extra.contactoNombre,
     oportunidadId: fila.oportunidadId,
     oportunidadNombre: extra.oportunidadNombre,
+    edificio:
+      extra.edificioId && extra.edificioNombre
+        ? { id: extra.edificioId, nombre: extra.edificioNombre, color: extra.edificioColor }
+        : null,
   };
 }
 
@@ -898,10 +928,14 @@ export async function listarTareas(
       tarea: schema.tareaVenta,
       contactoNombre: schema.contact.name,
       oportunidadNombre: schema.oportunidad.nombre,
+      edificioId: schema.edificio.id,
+      edificioNombre: schema.edificio.nombre,
+      edificioColor: schema.edificio.color,
     })
     .from(schema.tareaVenta)
     .leftJoin(schema.contact, eq(schema.contact.id, schema.tareaVenta.contactId))
     .leftJoin(schema.oportunidad, eq(schema.oportunidad.id, schema.tareaVenta.oportunidadId))
+    .leftJoin(schema.edificio, eq(schema.edificio.id, schema.oportunidad.edificioId))
     .where(
       scoped(
         schema.tareaVenta.organizationId,
@@ -911,10 +945,7 @@ export async function listarTareas(
     )
     .orderBy(asc(schema.tareaVenta.fecha), desc(schema.tareaVenta.createdAt));
   return filas.map((f) =>
-    aTarea(f.tarea, {
-      contactoNombre: f.contactoNombre,
-      oportunidadNombre: f.oportunidadNombre,
-    })
+    aTarea(f.tarea, f)
   );
 }
 
@@ -943,17 +974,18 @@ async function tareaConNombres(organizationId: string, id: string): Promise<Tare
       tarea: schema.tareaVenta,
       contactoNombre: schema.contact.name,
       oportunidadNombre: schema.oportunidad.nombre,
+      edificioId: schema.edificio.id,
+      edificioNombre: schema.edificio.nombre,
+      edificioColor: schema.edificio.color,
     })
     .from(schema.tareaVenta)
     .leftJoin(schema.contact, eq(schema.contact.id, schema.tareaVenta.contactId))
     .leftJoin(schema.oportunidad, eq(schema.oportunidad.id, schema.tareaVenta.oportunidadId))
+    .leftJoin(schema.edificio, eq(schema.edificio.id, schema.oportunidad.edificioId))
     .where(scoped(schema.tareaVenta.organizationId, organizationId, eq(schema.tareaVenta.id, id)))
     .limit(1);
   if (!fila) throw new VentasError(404, "not_found", "Esa tarea no existe");
-  return aTarea(fila.tarea, {
-    contactoNombre: fila.contactoNombre,
-    oportunidadNombre: fila.oportunidadNombre,
-  });
+  return aTarea(fila.tarea, fila);
 }
 
 /**

@@ -221,3 +221,15 @@ cambios de GudLime, si `_journal.json` choca, se ordenan las entradas por
 - `war_0006_cochera_no_es_edificio`: corrige la importación de Notion. Borra el
   edificio «Cochera» (si no tiene unidades), deja la nota «Interés: cochera» en
   sus oportunidades y les pasa el edificio principal a otro que tengan.
+
+## Color de cada edificio (0045)
+
+- `edificio.color` guarda una clave de la paleta fija de `lib/colores-edificio.ts`
+  (violeta, naranja, azul, rosa, cian, ámbar; sin verdes, para no confundirse
+  con la marca ni con el avance). La migración 0045 les dio color a los
+  existentes en orden de creación; uno nuevo recibe el menos usado. Se cambia
+  en la página del edificio.
+- `PildoraEdificio` (`components/ventas/pildora-edificio.tsx`): punto, fondo con
+  tinte y texto oscuro del mismo tono; en tema oscuro el tinte sale del punto.
+  Se usa en la oportunidad (interés y oportunidad paralela), la lista de
+  oportunidades y las tareas (el edificio principal de su oportunidad).
