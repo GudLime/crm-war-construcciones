@@ -365,6 +365,20 @@
       "when": 1793854800000,
       "tag": "0045_edificio_color",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1793865600000,
+      "tag": "0046_vistas_guardadas",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1793865660000,
+      "tag": "war_0007_vista_mis_oportunidades",
+      "breakpoints": true
     }
   ]
 }
