@@ -459,6 +459,16 @@ export function OportunidadesClient() {
             derecha={pref.forma === "lista" ? <SelectorDeColumnas pref={pref} setPref={setPref} /> : undefined}
           />
           <VistaOportunidades
+            onMover={async (id, estado) => {
+              setFilas((fs) => fs.map((f) => (f.id === id ? { ...f, estado } : f)));
+              const res = await fetch(`/api/oportunidades/${id}/estado`, {
+                method: "PATCH",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ estado }),
+              }).catch(() => null);
+              if (!res?.ok) avisar(res ? await mensajeDe(res) : "No se pudo mover", "error");
+              void cargar();
+            }}
             filas={vistas.visibles}
             forma={pref.forma}
             pref={pref}
