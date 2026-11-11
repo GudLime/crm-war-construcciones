@@ -244,6 +244,10 @@ export type OpcionesListado = {
   filtros?: Record<string, string[]>;
   /** Solo los hijos de un registro: la relación uno a muchos y el id del padre. */
   padre?: { relacion: string; id: string };
+  /** Solo los hijos de alguno de estos registros (por la misma relación uno a muchos). */
+  padreEn?: { relacion: string; ids: string[] };
+  /** Solo estos registros. */
+  ids?: string[];
   limite?: number;
   desde?: number;
 };
@@ -274,6 +278,28 @@ function condicionesListado(motor: Motor, objeto: ObjetoMeta, op: OpcionesListad
     const r = relacionesPadre(motor, objeto).find((x) => x.clave === op.padre?.relacion);
     if (!r) throw new MotorError("invalido", `«${op.padre.relacion}» no es un padre de «${objeto.clave}»`);
     out.push(sql`${id(r.columna as string)} = ${op.padre.id}`);
+  }
+  if (op.padreEn) {
+    const r = relacionesPadre(motor, objeto).find((x) => x.clave === op.padreEn?.relacion);
+    if (!r) throw new MotorError("invalido", `«${op.padreEn.relacion}» no es un padre de «${objeto.clave}»`);
+    out.push(
+      op.padreEn.ids.length
+        ? sql`${id(r.columna as string)} IN (${sql.join(
+            op.padreEn.ids.map((x) => sql`${x}`),
+            sql`, `
+          )})`
+        : sql`FALSE`
+    );
+  }
+  if (op.ids) {
+    out.push(
+      op.ids.length
+        ? sql`id IN (${sql.join(
+            op.ids.map((x) => sql`${x}`),
+            sql`, `
+          )})`
+        : sql`FALSE`
+    );
   }
   return out;
 }

@@ -1,6 +1,7 @@
 import { asc, count, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db";
+import { unidadesDeOportunidades } from "@/server/motor/interes";
 import { completarColumnasDe } from "@/server/motor/sincronizar";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
@@ -209,8 +210,10 @@ export type OportunidadDto = {
   edificios: EdificioCorto[];
   /** 0047 — Ambientes de interés (números). */
   ambientes: number[];
-  /** 0047 — Tipologías de interés (unidades tipo «1A»). */
+  /** 0047 — Tipologías de interés (unidades tipo «1A»). Ya no se muestran: las reemplazan `unidades`. */
   tipologiasUnidad: string[];
+  /** 0049 — Unidades de interés (interés encadenado del motor), por nombre. */
+  unidades: { id: string; titulo: string }[];
   /** War — último formulario o mensaje del interesado (ISO). Ordena la lista. */
   ultimaInteraccion: string;
   /** War — cuántos formularios de anuncio o portal sumó esta oportunidad. */
@@ -573,7 +576,12 @@ async function interesDe(
   return resuelto;
 }
 
-type InteresOportunidad = { edificios: EdificioCorto[]; ambientes: number[]; tipologiasUnidad: string[] };
+type InteresOportunidad = {
+  edificios: EdificioCorto[];
+  ambientes: number[];
+  tipologiasUnidad: string[];
+  unidades: { id: string; titulo: string }[];
+};
 
 /** 068 — El interés (edificios y tipologías) de varias oportunidades en dos consultas. */
 async function interesDeOportunidades(
@@ -581,7 +589,7 @@ async function interesDeOportunidades(
   ids: readonly string[]
 ): Promise<Map<string, InteresOportunidad>> {
   const mapa = new Map<string, InteresOportunidad>();
-  for (const id of ids) mapa.set(id, { edificios: [], ambientes: [], tipologiasUnidad: [] });
+  for (const id of ids) mapa.set(id, { edificios: [], ambientes: [], tipologiasUnidad: [], unidades: [] });
   if (ids.length === 0) return mapa;
   const db = getDb();
   const [edificios, ambientes, tipologias] = await Promise.all([
@@ -638,13 +646,22 @@ async function interesDeOportunidades(
     v.ambientes.sort((a, b) => a - b);
     v.tipologiasUnidad = ordenarTipologiasUnidad(v.tipologiasUnidad);
   }
+  // 0049 — Las unidades de interés (si la configuración tiene interés encadenado).
+  const unidades = await unidadesDeOportunidades(organizationId, ids).catch((err: unknown) => {
+    console.error("[ventas] no se pudieron leer las unidades de interés", err);
+    return new Map<string, { id: string; titulo: string }[]>();
+  });
+  for (const [id, lista] of unidades) {
+    const v = mapa.get(id);
+    if (v) v.unidades = lista;
+  }
   return mapa;
 }
 
 function aOportunidad(
   fila: typeof schema.oportunidad.$inferSelect,
   extra: { contactoNombre: string | null; edificioNombre: string | null; unidad: string | null },
-  interes: InteresOportunidad = { edificios: [], ambientes: [], tipologiasUnidad: [] },
+  interes: InteresOportunidad = { edificios: [], ambientes: [], tipologiasUnidad: [], unidades: [] },
   formularios = 0,
   ajustes: AjustesVentas | null = null
 ): OportunidadDto {
@@ -667,6 +684,7 @@ function aOportunidad(
     edificios: interes.edificios,
     ambientes: interes.ambientes,
     tipologiasUnidad: interes.tipologiasUnidad,
+    unidades: interes.unidades,
     ultimaInteraccion: fila.ultimaInteraccion.toISOString(),
     formularios,
     sinRespuesta: abierta ? textoSinRespuesta(fila) : null,

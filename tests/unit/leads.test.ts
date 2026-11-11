@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { fuenteDelContacto, nombreDelLead, oportunidadParaElLead } from "@/lib/leads";
+import { fuenteDelContacto, leadBodySchema, nombreDelLead, oportunidadParaElLead } from "@/lib/leads";
+import { ambientesDeTexto } from "@/lib/ventas";
 import { ORIGENES_POR_DEFECTO, origenCanonico as canonico } from "@/lib/origenes";
 
 const NOMBRES = ORIGENES_POR_DEFECTO.map((o) => o.nombre);
@@ -73,5 +74,38 @@ describe("nombre del lead", () => {
     expect(nombreDelLead({ nombre: "Ana", apellido: "Pérez" })).toBe("Ana Pérez");
     expect(nombreDelLead({ nombre: "Ana", apellido: null })).toBe("Ana");
     expect(nombreDelLead({})).toBeNull();
+  });
+});
+
+describe("ambientes del lead", () => {
+  it.each([
+    [2, [2]],
+    ["2", [2]],
+    ["2 Ambientes", [2]],
+    ["Monoambiente", [1]],
+    ["1, 2 y 3 ambientes", [1, 2, 3]],
+    ["dos o tres ambientes", [2, 3]],
+    ["Unidad de interés: 2 Ambientes - ¡Hola! Quiero que se comuniquen conmigo", [2]],
+    ["Unidad de interés: Monoambiente - Hola", [1]],
+    ["triplex", [4]],
+    [[1, "3 amb"], [1, 3]],
+    ["1,2", [1, 2]],
+  ])("%j → %j", (entrada, esperado) => {
+    expect(ambientesDeTexto(entrada)).toEqual(esperado);
+  });
+
+  it("ignora lo que no son ambientes", () => {
+    expect(ambientesDeTexto("Piso 4 depto B")).toEqual([]);
+    expect(ambientesDeTexto("")).toEqual([]);
+    expect(ambientesDeTexto(null)).toEqual([]);
+    expect(ambientesDeTexto(12)).toEqual([]);
+    expect(ambientesDeTexto({ a: 2 })).toEqual([]);
+  });
+
+  it("el cuerpo acepta número, texto o lista", () => {
+    for (const ambientes of [2, "2 Ambientes", [1, "2"], null]) {
+      expect(leadBodySchema.safeParse({ leadId: "x", origen: "Zonaprop", ambientes }).success).toBe(true);
+    }
+    expect(leadBodySchema.safeParse({ leadId: "x", origen: "Zonaprop", ambientes: { n: 2 } }).success).toBe(false);
   });
 });

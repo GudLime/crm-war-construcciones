@@ -37,6 +37,8 @@ export type LeadEntrante = {
   email: string | null;
   /** Id del edificio o su nombre / dirección, como lo mande el escenario. */
   edificio: string | null;
+  /** Ambientes de interés, ya leídos (`ambientesDeTexto`). */
+  ambientes?: readonly number[];
   campaignId?: string | null;
   campaignName?: string | null;
   adsetId?: string | null;
@@ -292,7 +294,10 @@ export async function recibirLead(
     oportunidadId = nueva!.id;
     await registrarCreada(organizationId, nueva!, { fuente: "make" }, { leadId: lead.leadId });
   }
-  if (edificioId) await sumarInteres(organizationId, oportunidadId, [edificioId], []);
+  const ambientes = lead.ambientes ?? [];
+  if (edificioId || ambientes.length) {
+    await sumarInteres(organizationId, oportunidadId, edificioId ? [edificioId] : [], ambientes);
+  }
 
   try {
     await db.insert(schema.oportunidadLead).values({

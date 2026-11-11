@@ -561,3 +561,199 @@ describe.skipIf(!URL)("motor: registros en Postgres", () => {
   });
 });
 
+/**
+ * 0049 — Interés encadenado (Edificio → Ambientes → Unidades) y Valor
+ * calculado: opciones, podado y promedio. En el mismo archivo que el resto
+ * para correr después (las sincronizaciones de arriba aplican la
+ * configuración de ejemplo a todas las organizaciones).
+ */
+describe.skipIf(!URL)("motor: interés encadenado en Postgres", () => {
+  const org = `org_interes_${Date.now()}`;
+  const actor = { tipo: "usuario" as const, id: "usr_prueba" };
+  const op = `op_interes_${Date.now()}`;
+  const ed1 = `ed_interes_1_${Date.now()}`;
+  const ed2 = `ed_interes_2_${Date.now()}`;
+  const ids: Record<string, string> = {};
+
+  let db: typeof import("@/lib/db");
+  let interes: typeof import("@/server/motor/interes");
+  let vinculos: typeof import("@/server/motor/oportunidad");
+
+  beforeAll(async () => {
+    process.env.DATABASE_URL = URL;
+    process.env.APP_BASE_URL ??= "http://localhost:3000";
+    process.env.BETTER_AUTH_SECRET ??= "secreto-de-prueba-0123456789";
+    process.env.ENCRYPTION_KEY ??= Buffer.alloc(32, 7).toString("base64");
+    process.env.META_WEBHOOK_VERIFY_TOKEN ??= "verifica123";
+    process.env.MEDIA_DIR = `${(await import("node:os")).tmpdir()}/motor-interes-${Date.now()}`;
+
+    db = await import("@/lib/db");
+    const { sql } = await import("drizzle-orm");
+    const { validarConfig } = await import("@/lib/motor/config");
+    const sincronizar = await import("@/server/motor/sincronizar");
+    const registros = await import("@/server/motor/registros");
+    interes = await import("@/server/motor/interes");
+    vinculos = await import("@/server/motor/oportunidad");
+
+    const d = db.getDb();
+    await d.insert(db.schema.organization).values({ id: org, name: "Constructora interés" });
+    await d.execute(sql`INSERT INTO edificio (id, organization_id, nombre) VALUES (${ed1}, ${org}, 'Lavalle'), (${ed2}, ${org}, 'Gallo')`);
+
+    const r = validarConfig({
+      version: 1,
+      cliente: "Prueba interés",
+      objetos: [
+        {
+          clave: "edificio",
+          nombre: "Edificio",
+          nombrePlural: "Edificios",
+          adopta: "edificio",
+          titulo: ["nombre"],
+          campos: [{ clave: "nombre", nombre: "Nombre", tipo: "texto", obligatorio: true }],
+        },
+        {
+          clave: "unidadint",
+          nombre: "Unidad",
+          nombrePlural: "Unidades",
+          titulo: ["nombre"],
+          campos: [
+            { clave: "nombre", nombre: "Nombre", tipo: "texto", obligatorio: true },
+            { clave: "ambientes", nombre: "Ambientes", tipo: "numero" },
+            {
+              clave: "estado",
+              nombre: "Estado",
+              tipo: "seleccion",
+              opciones: [
+                { valor: "disponible", nombre: "Disponible" },
+                { valor: "vendido", nombre: "Vendido" },
+              ],
+            },
+            { clave: "valor", nombre: "Precio", tipo: "moneda" },
+            { clave: "moneda", nombre: "Moneda", tipo: "texto" },
+          ],
+        },
+      ],
+      relaciones: [
+        {
+          clave: "edificio_unidadesint",
+          desde: "edificio",
+          hacia: "unidadint",
+          tipo: "uno_a_muchos",
+          nombreDesde: "Unidades",
+          nombreHacia: "Edificio",
+        },
+        {
+          clave: "oportunidad_unidadesint",
+          desde: "oportunidad",
+          hacia: "unidadint",
+          tipo: "muchos_a_muchos",
+          nombreDesde: "Unidades de interés",
+          nombreHacia: "Oportunidades",
+          interes: {
+            edificio: "edificio_unidadesint",
+            ambientes: "ambientes",
+            filtro: { estado: ["disponible"] },
+            valor: "valor",
+            moneda: "moneda",
+          },
+        },
+      ],
+    });
+    if (!r.ok) throw new Error(r.errores.join("\n"));
+    const aplicado = await sincronizar.aplicarConfig(r.config, [org]);
+    expect(aplicado).toMatchObject({ estado: "ok" });
+
+    const crear = async (nombre: string, edificio: string, ambientes: number, valor: number, estado = "disponible") => {
+      const reg = await registros.crearRegistro(
+        org,
+        "unidadint",
+        { valores: { nombre, ambientes, valor, moneda: "USD", estado }, padres: { edificio_unidadesint: edificio } },
+        actor
+      );
+      ids[nombre] = reg.id;
+    };
+    await crear("1A", ed1, 1, 10_000_000);
+    await crear("2A", ed1, 2, 20_000_000);
+    await crear("2B", ed1, 2, 40_000_000);
+    await crear("2C", ed1, 2, 99_000_000, "vendido");
+    await crear("3A", ed2, 3, 50_000_000);
+
+    await d.execute(sql`INSERT INTO oportunidad (id, organization_id, nombre) VALUES (${op}, ${org}, 'Ana')`);
+    await d.execute(sql`INSERT INTO oportunidad_edificio (organization_id, oportunidad_id, edificio_id) VALUES (${org}, ${op}, ${ed1})`);
+  });
+
+  afterAll(async () => {
+    if (!db) return;
+    const { sql } = await import("drizzle-orm");
+    await db.getDb().execute(sql`DELETE FROM oportunidad WHERE id = ${op}`);
+    await db.getDb().execute(sql`DELETE FROM edificio WHERE id IN (${ed1}, ${ed2})`);
+    await db.getDb().execute(sql`DELETE FROM organization WHERE id = ${org}`);
+  });
+
+  const valor = async () => {
+    const { sql } = await import("drizzle-orm");
+    const [f] = (await db.getDb().execute(
+      sql`SELECT valor_cents, moneda FROM oportunidad WHERE id = ${op}`
+    )) as unknown as { valor_cents: number | null; moneda: string | null }[];
+    return f;
+  };
+
+  it("ofrece las unidades del edificio de interés y sus ambientes (sin las vendidas)", async () => {
+    const o = await interes.opcionesDeInteres(org, op);
+    expect(o?.relacion).toBe("oportunidad_unidadesint");
+    expect(o?.ambientesDisponibles).toEqual([1, 2]);
+    expect(o?.unidades.map((u) => u.titulo).sort()).toEqual(["1A", "2A", "2B", "2C"]);
+    expect(o?.unidades.find((u) => u.titulo === "2C")?.ofrecida).toBe(false);
+    expect(o?.valorCalculado).toBe(true);
+  });
+
+  it("sin unidades ni ambientes, el Valor queda vacío; con ambientes, el promedio de esos", async () => {
+    const { sql } = await import("drizzle-orm");
+    await interes.recalcularValor(org, op);
+    expect((await valor())?.valor_cents).toBeNull();
+    await db
+      .getDb()
+      .execute(sql`INSERT INTO oportunidad_ambiente (organization_id, oportunidad_id, ambientes) VALUES (${org}, ${op}, 2)`);
+    await interes.recalcularValor(org, op);
+    // 2A y 2B (la 2C está vendida): (200.000 + 400.000) / 2
+    expect(await valor()).toMatchObject({ valor_cents: 30_000_000, moneda: "USD" });
+  });
+
+  it("con unidades elegidas, el promedio de esas", async () => {
+    await vinculos.vincularOportunidad(org, op, "oportunidad_unidadesint", [ids["1A"]!, ids["2B"]!]);
+    expect((await valor())?.valor_cents).toBe(25_000_000);
+    const lista = await interes.unidadesDeOportunidades(org, [op]);
+    expect(lista.get(op)?.map((u) => u.titulo)).toEqual(["1A", "2B"]);
+  });
+
+  it("sacar un ambiente suelta sus unidades", async () => {
+    const { sql } = await import("drizzle-orm");
+    // Quedan solo los de 1 ambiente: la 2B ya no coincide.
+    await db.getDb().execute(sql`DELETE FROM oportunidad_ambiente WHERE oportunidad_id = ${op}`);
+    await db
+      .getDb()
+      .execute(sql`INSERT INTO oportunidad_ambiente (organization_id, oportunidad_id, ambientes) VALUES (${org}, ${op}, 1)`);
+    await interes.ajustarInteres(org, op, { podar: true });
+    const o = await interes.opcionesDeInteres(org, op);
+    expect(o?.elegidas).toEqual([ids["1A"]]);
+    expect((await valor())?.valor_cents).toBe(10_000_000);
+  });
+
+  it("un precio nuevo recalcula el Valor de quien eligió la unidad", async () => {
+    const registros = await import("@/server/motor/registros");
+    await registros.actualizarRegistro(org, "unidadint", ids["1A"]!, { valores: { valor: 12_000_000 } }, actor);
+    await interes.recalcularPorRegistro(org, "unidadint", ids["1A"]!);
+    expect((await valor())?.valor_cents).toBe(12_000_000);
+  });
+
+  it("al arrancar no borra un valor que no se puede calcular", async () => {
+    const { sql } = await import("drizzle-orm");
+    await vinculos.vincularOportunidad(org, op, "oportunidad_unidadesint", []);
+    await db.getDb().execute(sql`DELETE FROM oportunidad_ambiente WHERE oportunidad_id = ${op}`);
+    await db.getDb().execute(sql`UPDATE oportunidad SET valor_cents = 777, moneda = 'USD' WHERE id = ${op}`);
+    await interes.recalcularTodos(org, { conservarSiVacio: true });
+    expect((await valor())?.valor_cents).toBe(777);
+    await interes.recalcularValor(org, op);
+    expect((await valor())?.valor_cents).toBeNull();
+  });
+});

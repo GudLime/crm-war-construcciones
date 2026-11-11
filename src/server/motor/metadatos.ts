@@ -2,7 +2,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import type { TipoCampo } from "@/lib/motor/config";
-import type { AgenteObjeto } from "@/lib/db/motor-tables";
+import type { AgenteObjeto, InteresRelacion } from "@/lib/db/motor-tables";
 import type { CalculoMeta, CampoMeta } from "@/lib/motor/valores";
 
 /**
@@ -46,6 +46,8 @@ export type RelacionMeta = {
   columnaDesde: string;
   columnaHacia: string;
   obligatoria: boolean;
+  /** 0049 — Interés encadenado y Valor calculado (solo en una relación de la oportunidad). */
+  interes: InteresRelacion | null;
 };
 
 export type ReglaMeta = {
@@ -155,6 +157,7 @@ export async function cargarMotor(organizationId: string): Promise<Motor> {
         columnaDesde: r.columnaDesde ?? "desde_id",
         columnaHacia: r.columnaHacia ?? "hacia_id",
         obligatoria: r.obligatoria,
+        interes: r.interes ?? null,
       })),
     reglas: reglas.map((g) => ({ clave: g.clave, etapa: g.etapa, relacion: g.relacion, campo: g.campo, valor: g.valor })),
   };

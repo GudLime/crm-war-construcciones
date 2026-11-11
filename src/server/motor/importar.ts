@@ -3,6 +3,7 @@ import { leerCsv, valorDeCelda, generarCsv } from "@/lib/motor/csv";
 import type { ObjetoDto } from "@/lib/motor/dto";
 import { armarTitulo, convertir, mismoValor, normalizar, type Valor } from "@/lib/motor/valores";
 import { aDto, describirObjeto } from "./api";
+import { recalcularTodos } from "./interes";
 import { cargarMotor, type Motor, type ObjetoMeta } from "./metadatos";
 import {
   actualizarRegistro,
@@ -248,6 +249,8 @@ export async function aplicarImportacion(
       }
     }
   }
+  // Una lista de precios nueva cambia el Valor de las oportunidades que miran esas unidades.
+  if (plan.operaciones.length) await recalcularTodos(organizationId);
   return { ...sinOperaciones(plan), aplicado: true, lote };
 }
 

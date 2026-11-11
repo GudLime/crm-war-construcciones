@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
 import { mensajeDe } from "@/components/ventas/ui";
-import type { ObjetoDto, RegistroDto } from "@/lib/motor/dto";
+import type { InteresDto, ObjetoDto, RegistroDto } from "@/lib/motor/dto";
+import { unidadesElegibles } from "@/lib/motor/interes";
 
 /**
  * 070 — En la página de la oportunidad: los objetos del cliente vinculados
@@ -144,8 +146,15 @@ function ReglaPendiente({
  * barra de avance. Cada vez que cambia la etapa se pregunta si alguna regla
  * necesita que alguien elija.
  */
-export function useObjetosDeOportunidad(oportunidadId: string, estado: string) {
+export function useObjetosDeOportunidad(
+  oportunidadId: string,
+  estado: string,
+  /** Después de guardar un vínculo (el Valor de la oportunidad puede haber cambiado). */
+  onCambio?: () => void
+) {
   const [vinculos, setVinculos] = useState<Vinculo[]>([]);
+  /** El interés encadenado (Edificio → Ambientes → Unidades), si la configuración lo tiene. */
+  const [interes, setInteres] = useState<InteresDto | null>(null);
   const [pendientes, setPendientes] = useState<Pendiente[]>([]);
   const avisar = useAvisoGuardado();
   const base = `/api/oportunidades/${encodeURIComponent(oportunidadId)}`;
@@ -153,7 +162,9 @@ export function useObjetosDeOportunidad(oportunidadId: string, estado: string) {
   const cargar = useCallback(async () => {
     const res = await fetch(`${base}/objetos`).catch(() => null);
     if (!res?.ok) return;
-    setVinculos(((await res.json()) as { vinculos: Vinculo[] }).vinculos);
+    const data = (await res.json()) as { vinculos: Vinculo[]; interes?: InteresDto | null };
+    setVinculos(data.vinculos);
+    setInteres(data.interes ?? null);
   }, [base]);
 
   useEffect(() => {
@@ -177,8 +188,11 @@ export function useObjetosDeOportunidad(oportunidadId: string, estado: string) {
       body: JSON.stringify({ relacion, registros: ids }),
     }).catch(() => null);
     if (!res?.ok) return res ? await mensajeDe(res) : "No se pudo guardar";
-    setVinculos(((await res.json()) as { vinculos: Vinculo[] }).vinculos);
+    const data = (await res.json()) as { vinculos: Vinculo[]; interes?: InteresDto | null };
+    setVinculos(data.vinculos);
+    setInteres(data.interes ?? null);
     avisar();
+    onCambio?.();
     return null;
   }
 
@@ -199,7 +213,7 @@ export function useObjetosDeOportunidad(oportunidadId: string, estado: string) {
     setPendientes((p) => p.filter((x) => x.regla !== regla));
   }
 
-  return { vinculos, pendientes, guardarVinculo, aplicarRegla, omitirRegla };
+  return { vinculos, interes, pendientes, guardarVinculo, aplicarRegla, omitirRegla, recargar: cargar };
 }
 
 export type ObjetosDeOportunidad = ReturnType<typeof useObjetosDeOportunidad>;
@@ -249,6 +263,83 @@ export function VinculoEnLinea({
       >
         <Pencil className="size-3.5" />
       </button>
+    </span>
+  );
+}
+
+/**
+ * 0049 — Las unidades de interés, encadenadas: se ofrecen solo las de los
+ * edificios de interés con alguno de los ambientes elegidos (y en un estado
+ * que se ofrece). Las elegidas siempre aparecen, para poder sacarlas. Cada
+ * toque guarda.
+ */
+export function UnidadesDeInteres({
+  interes,
+  ambientes,
+  edificios,
+  onGuardar,
+}: {
+  interes: InteresDto;
+  /** Ambientes de interés de la oportunidad. */
+  ambientes: readonly number[];
+  /** Edificios de interés (para agrupar y nombrar). */
+  edificios: readonly { id: string; nombre: string }[];
+  onGuardar: (ids: string[]) => Promise<string | null>;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const opciones = useMemo(
+    () =>
+      unidadesElegibles(interes.unidades, interes.elegidas, ambientes).sort((a, b) =>
+        a.titulo.localeCompare(b.titulo, "es", { numeric: true })
+      ),
+    [interes.unidades, interes.elegidas, ambientes]
+  );
+  const etiqueta = (u: InteresDto["unidades"][number]) =>
+    [u.titulo, u.ambientes !== null ? `${u.ambientes} amb.` : null, u.ofrecida ? null : "no disponible"]
+      .filter(Boolean)
+      .join(" · ");
+  const nombreEdificio = new Map(edificios.map((e) => [e.id, e.nombre] as const));
+  const grupos = new Map<string, typeof opciones>();
+  for (const u of opciones) {
+    const g = (u.edificioId && nombreEdificio.get(u.edificioId)) || "Otros";
+    grupos.set(g, [...(grupos.get(g) ?? []), u]);
+  }
+  const agrupar = grupos.size > 1;
+
+  if (!opciones.length) {
+    return (
+      <span className="font-normal text-text-3">
+        {edificios.length ? `Sin ${interes.objeto.nombrePlural.toLowerCase()} disponibles` : "Elegí un edificio"}
+      </span>
+    );
+  }
+  return (
+    <span className="flex min-w-0 flex-col gap-1">
+      <Select
+        multiple
+        values={interes.elegidas}
+        onValuesChange={(v) => void onGuardar(v).then(setError)}
+        placeholder="Elegir…"
+        aria-label={interes.nombre}
+        className="h-auto min-h-7 w-auto max-w-full rounded-full px-2 py-0.5 text-[13px]"
+      >
+        {agrupar
+          ? [...grupos].map(([g, us]) => (
+              <optgroup key={g} label={g}>
+                {us.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {etiqueta(u)}
+                  </option>
+                ))}
+              </optgroup>
+            ))
+          : opciones.map((u) => (
+              <option key={u.id} value={u.id}>
+                {etiqueta(u)}
+              </option>
+            ))}
+      </Select>
+      {error && <span className="text-[12px] text-danger-text">{error}</span>}
     </span>
   );
 }
