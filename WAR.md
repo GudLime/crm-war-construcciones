@@ -223,7 +223,7 @@ cambios de GudLime, si `_journal.json` choca, se ordenan las entradas por
   sus oportunidades y les pasa el edificio principal a otro que tengan.
 - `war_0007_vista_mis_oportunidades`: siembra la vista del equipo «Mis
   oportunidades» (responsable = quien mira) en Oportunidades.
-- `war_0008_mis_oportunidades_abiertas`: «Mis oportunidades» pasa a mostrar
+- `war_0009_mis_oportunidades_abiertas`: «Mis oportunidades» pasa a mostrar
   solo las abiertas y quien había quedado en «Todas» vuelve a «Abiertas».
 - `war_0008_tipologias_a_unidades`: las tipologías de interés pasan a Unidades
   de interés. En War la tipología es el nombre de la unidad («4B»): se vincula
