@@ -353,14 +353,6 @@ export function EdificioDetalleClient() {
             placeholder="3"
           />
         </Campo>
-        <Campo label="Tipología">
-          <Input
-            value={unidad.tipologiaUnidad}
-            onChange={(e) => setUnidad({ ...unidad, tipologiaUnidad: e.target.value })}
-            maxLength={30}
-            placeholder="2B"
-          />
-        </Campo>
         <Campo label="Ambientes">
           <Select
             value={unidad.tipologia}
@@ -695,7 +687,7 @@ export function EdificioDetalleClient() {
             <thead className="border-b bg-secondary/40">
               <tr>
                 <Th>Unidad</Th>
-                <Th>Tipología</Th>
+                <Th>Ambientes</Th>
                 <Th>Orientación edificio</Th>
                 <Th>Orientación GEO</Th>
                 <Th className="text-right">Cub.</Th>
@@ -731,8 +723,8 @@ export function EdificioDetalleClient() {
                     )}
                   </Td>
                   <Td>
-                    {u.tipologiaUnidad || "—"}
-                    {u.tipologia && <span className="ml-1.5 text-xs text-text-3">{etiqueta(TIPOLOGIAS, u.tipologia)}</span>}
+                    {/* War — la «tipología» es el nombre de la unidad (4B): no se muestra aparte. */}
+                    {u.tipologia ? etiqueta(TIPOLOGIAS, u.tipologia) : "—"}
                   </Td>
                   <Td>{u.orientacionEdificio || "—"}</Td>
                   <Td>{u.orientacionGeo || "—"}</Td>

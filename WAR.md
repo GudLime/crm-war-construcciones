@@ -296,6 +296,11 @@ cambios de GudLime, si `_journal.json` choca, se ordenan las entradas por
   mano. Se recalcula al elegir, al cambiar el interés, al editar o importar
   precios y al arrancar (sin borrar un valor que no se pueda calcular).
 - La API de leads acepta `ambientes` («2 Ambientes», «Monoambiente», `[1, 2]`).
+- **La unidad se llama por su nombre** («4B», columna `unidad`), sin tipología
+  aparte (decisión de Sebastián, 10/11): en `war.json` la Unidad tiene el campo
+  «Unidad» (`nombre`) como título y conserva el Piso. El campo «Tipología» salió
+  de la configuración y de la pantalla del edificio; la columna
+  `tipologia_unidad` queda en la base sin uso.
 
 ## Tareas: formas de ver, agrupación y responsable (0048)
 
