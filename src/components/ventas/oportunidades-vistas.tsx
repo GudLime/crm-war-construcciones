@@ -10,10 +10,13 @@ import {
   KanbanSquare,
   LayoutGrid,
   List,
+  ChevronLeft,
+  ChevronRight,
   Maximize2,
   X,
 } from "lucide-react";
 import { Menu, MenuItem, MenuSeparador, MenuTitulo } from "@/components/ui/menu";
+import { Select } from "@/components/ui/select";
 import { PanelLateral } from "@/components/ui/panel-lateral";
 import { WhatsAppLogo } from "@/components/whatsapp-logo";
 import {
@@ -48,7 +51,14 @@ type Preferencias = {
   ocultas: ClaveColumna[];
   orden: Orden;
   anchos: Partial<Record<ClaveColumna, number>>;
+  /** Cuántas oportunidades por página en Lista y Mosaico. */
+  porPagina?: number;
 };
+
+export const TAMANOS_DE_PAGINA = [25, 50, 100] as const;
+const POR_PAGINA = 50;
+/** En el Pipeline, cuántas tarjetas por columna antes de «Mostrar más». */
+const POR_COLUMNA = 30;
 
 const PREFERENCIAS: Preferencias = {
   forma: "lista",
@@ -347,20 +357,43 @@ export function VistaOportunidades({
   onMover?: (id: string, estado: OportunidadDto["estado"]) => void;
 }) {
   const [panel, setPanel] = useState<string | null>(null);
+  const [pagina, setPagina] = useState(1);
+  const porPagina = pref.porPagina ?? POR_PAGINA;
   const ordenadas = useMemo(() => ordenar(filas, pref.orden), [filas, pref.orden]);
   const abierta = panel ? filas.find((f) => f.id === panel) : undefined;
+  // Otra vista, otro orden u otro tamaño: de vuelta a la primera página.
+  useEffect(() => setPagina(1), [filas, pref.orden, porPagina]);
+  const paginas = Math.max(1, Math.ceil(ordenadas.length / porPagina));
+  const actual = Math.min(pagina, paginas);
+  const enPagina = ordenadas.slice((actual - 1) * porPagina, actual * porPagina);
+  const paginador = (
+    <Paginador
+      total={ordenadas.length}
+      pagina={actual}
+      paginas={paginas}
+      porPagina={porPagina}
+      onPagina={setPagina}
+      onPorPagina={(n) => setPref({ ...pref, porPagina: n })}
+    />
+  );
 
   return (
     <>
       {forma === "lista" && (
-        <Lista filas={ordenadas} pref={pref} setPref={setPref} iconoDe={iconoDe} moneda={moneda} onElegir={setPanel} />
+        <>
+          <Lista filas={enPagina} pref={pref} setPref={setPref} iconoDe={iconoDe} moneda={moneda} onElegir={setPanel} />
+          {paginador}
+        </>
       )}
       {forma === "mosaico" && (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-3">
-          {ordenadas.map((o) => (
-            <Tarjeta key={o.id} o={o} iconoDe={iconoDe} onElegir={setPanel} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-3">
+            {enPagina.map((o) => (
+              <Tarjeta key={o.id} o={o} iconoDe={iconoDe} onElegir={setPanel} />
+            ))}
+          </div>
+          {paginador}
+        </>
       )}
       {forma === "pipeline" && (
         <Pipeline filas={ordenadas} iconoDe={iconoDe} moneda={moneda} onElegir={setPanel} onMover={onMover} />
@@ -637,6 +670,8 @@ function Pipeline({
   const columnas = columnasPipeline(filas, CAMINO_OPORTUNIDAD);
   const [arrastrando, setArrastrando] = useState<string | null>(null);
   const [sobre, setSobre] = useState<string | null>(null);
+  /** Cuántas tarjetas se ven en cada columna (las demás, con «Mostrar más»). */
+  const [visiblesPor, setVisiblesPor] = useState<Record<string, number>>({});
   return (
     <div className="flex gap-3 overflow-x-auto pb-2">
       {columnas.map((c) => (
@@ -672,7 +707,7 @@ function Pipeline({
               <span className="text-[11.5px] tabular-nums text-text-3">{plata(c.total, null, moneda)}</span>
             )}
           </header>
-          {c.items.map((o) => (
+          {c.items.slice(0, visiblesPor[c.estado] ?? POR_COLUMNA).map((o) => (
             <Tarjeta
               key={o.id}
               o={o}
@@ -682,11 +717,122 @@ function Pipeline({
               onArrastrar={onMover ? setArrastrando : undefined}
             />
           ))}
+          {c.items.length > (visiblesPor[c.estado] ?? POR_COLUMNA) && (
+            <button
+              type="button"
+              onClick={() =>
+                setVisiblesPor((v) => ({ ...v, [c.estado]: (v[c.estado] ?? POR_COLUMNA) + POR_COLUMNA }))
+              }
+              className="rounded-md py-1.5 text-[12.5px] font-medium text-text-2 hover:bg-accent hover:text-foreground"
+            >
+              Mostrar más ({c.items.length - (visiblesPor[c.estado] ?? POR_COLUMNA)})
+            </button>
+          )}
           {c.items.length === 0 && <p className="px-1 py-3 text-center text-[12px] text-text-3">Nada acá</p>}
         </section>
       ))}
     </div>
   );
+}
+
+/** «1–50 de 312», tamaño de página y botones de página. */
+function Paginador({
+  total,
+  pagina,
+  paginas,
+  porPagina,
+  onPagina,
+  onPorPagina,
+}: {
+  total: number;
+  pagina: number;
+  paginas: number;
+  porPagina: number;
+  onPagina: (n: number) => void;
+  onPorPagina: (n: number) => void;
+}) {
+  if (total === 0) return null;
+  const desde = (pagina - 1) * porPagina + 1;
+  const hasta = Math.min(total, pagina * porPagina);
+  const numeros = numerosDePagina(pagina, paginas);
+  return (
+    <nav aria-label="Páginas" className="flex flex-wrap items-center justify-between gap-3 pt-1 text-[13px] text-text-2">
+      <span>
+        {desde}–{hasta} de {total}
+      </span>
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="inline-flex items-center gap-2">
+          <span className="text-text-3">Por página</span>
+          <Select
+            value={String(porPagina)}
+            onValueChange={(v) => onPorPagina(Number(v))}
+            aria-label="Oportunidades por página"
+            className="h-8 w-20"
+          >
+            {TAMANOS_DE_PAGINA.map((n) => (
+              <option key={n} value={String(n)}>
+                {n}
+              </option>
+            ))}
+          </Select>
+        </label>
+        {paginas > 1 && (
+          <div className="flex items-center gap-1">
+            <BotonPagina disabled={pagina === 1} onClick={() => onPagina(pagina - 1)} aria-label="Página anterior">
+              <ChevronLeft className="size-4" />
+            </BotonPagina>
+            {numeros.map((n, i) =>
+              n === null ? (
+                <span key={`h${i}`} className="px-1 text-text-3">
+                  …
+                </span>
+              ) : (
+                <BotonPagina key={n} activa={n === pagina} onClick={() => onPagina(n)} aria-label={`Página ${n}`}>
+                  {n}
+                </BotonPagina>
+              )
+            )}
+            <BotonPagina disabled={pagina === paginas} onClick={() => onPagina(pagina + 1)} aria-label="Página siguiente">
+              <ChevronRight className="size-4" />
+            </BotonPagina>
+          </div>
+        )}
+      </div>
+    </nav>
+  );
+}
+
+function BotonPagina({
+  activa,
+  children,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { activa?: boolean }) {
+  return (
+    <button
+      type="button"
+      aria-current={activa ? "page" : undefined}
+      className={cn(
+        "grid h-8 min-w-8 place-items-center rounded-md px-2 tabular-nums disabled:opacity-40",
+        activa ? "bg-foreground font-semibold text-background" : "hover:bg-accent hover:text-foreground"
+      )}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** La primera, la última y las de alrededor de la actual; null = «…». */
+export function numerosDePagina(actual: number, total: number): (number | null)[] {
+  const set = new Set([1, total, actual - 1, actual, actual + 1].filter((n) => n >= 1 && n <= total));
+  const orden = [...set].sort((a, b) => a - b);
+  const out: (number | null)[] = [];
+  for (const n of orden) {
+    const prev = out[out.length - 1];
+    if (typeof prev === "number" && n - prev > 1) out.push(n - prev === 2 ? prev + 1 : null);
+    out.push(n);
+  }
+  return out;
 }
 
 /** Lo esencial de una oportunidad sin salir de la lista. */

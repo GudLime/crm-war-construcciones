@@ -251,3 +251,15 @@ una oportunidad, 200 si se sumó a una o si el `leadId` ya había entrado.
   para cambiar el estado (las oportunidades pasan por el historial).
 - `tarea_venta.responsable_user_id` (0048): al crear, quien la crea si no se
   elige; filtro por avatares. `/api/equipo` lista el equipo.
+
+## Oportunidades: abiertas por defecto y por páginas
+
+- La lista arranca en la pestaña **Abiertas** (Recibido, En charlas, Conoce
+  información, Visitó: `ESTADOS_ABIERTOS_LISTA`). **Cerradas** (Reservó,
+  Compró, Perdido, No calificado) es otra pestaña de fábrica y el filtro
+  «Situación». El servidor trae solo esa parte (`GET /api/oportunidades?situacion=`),
+  así que las cerradas no se cargan hasta que se piden. Las pestañas cuentan
+  solo lo que está cargado.
+- Lista y Mosaico van **por páginas** (25 / 50 / 100, se recuerda en el
+  navegador); el Pipeline muestra 30 por columna con «Mostrar más». Los
+  contactos del formulario se piden recién al abrirlo.
