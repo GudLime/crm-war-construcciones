@@ -19,7 +19,10 @@ export const filtrosSchema = z
     edificios: z.array(z.string().min(1).max(60)).max(100).optional(),
     origenes: z.array(z.string().min(1).max(120)).max(100).optional(),
     estados: z.array(z.string().min(1).max(40)).max(20).optional(),
+    /** 0047 — Ya no filtra (las tipologías pasaron a Unidades); se acepta para no romper vistas guardadas. */
     tipologias: z.array(z.string().min(1).max(40)).max(20).optional(),
+    /** 0049 — Unidades de interés (ids). */
+    unidades: z.array(z.string().min(1).max(60)).max(50).optional(),
     paraCerrar: z.boolean().optional(),
   })
   .strict();
@@ -73,8 +76,8 @@ export type FilaFiltrable = {
   origen: string | null;
   edificioId: string | null;
   edificios: { id: string }[];
-  /** 0047 — Unidades tipo de interés («1A»). */
-  tipologiasUnidad: readonly string[];
+  /** 0049 — Unidades de interés. */
+  unidades: readonly { id: string }[];
   paraCerrar: boolean;
   responsableId?: string | null;
 };
@@ -89,7 +92,7 @@ export function cumpleFiltros(f: FilaFiltrable, filtros: Filtros, yo: string | n
     const ids = f.edificios.length ? f.edificios.map((e) => e.id) : f.edificioId ? [f.edificioId] : [];
     if (!ids.some((id) => filtros.edificios!.includes(id))) return false;
   }
-  if (!vacio(filtros.tipologias) && !f.tipologiasUnidad.some((t) => filtros.tipologias!.includes(t))) return false;
+  if (!vacio(filtros.unidades) && !f.unidades.some((u) => filtros.unidades!.includes(u.id))) return false;
   if (!vacio(filtros.responsables)) {
     const quien = f.responsableId ?? null;
     const ok = filtros.responsables!.some((r) =>

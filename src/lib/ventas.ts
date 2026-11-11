@@ -306,6 +306,49 @@ export function normalizarTipologias(raw: unknown): Tipologia[] {
 }
 
 /**
+ * Ambientes de interés (números) a partir de lo que mande una integración:
+ * un número (`2`), una lista (`[1, 2]`, `["2", "3 ambientes"]`) o texto libre
+ * («2 Ambientes», «Monoambiente», «1, 2 y 3 ambientes», «Unidad de interés:
+ * 2 Ambientes», «triplex»). Un número suelto cuenta como ambientes. Devuelve
+ * los reconocidos entre 1 y `MAX_AMBIENTES`, sin repetir y ordenados.
+ */
+const SEPARADOR_AMBIENTES = /\s*[,/-]\s*|\s+(?:y|o)\s+/;
+
+export function ambientesDeTexto(raw: unknown): number[] {
+  const palabras: Record<string, number> = { un: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5 };
+  const encontrados = new Set<number>();
+  const sumar = (n: number | undefined) => {
+    if (n !== undefined && Number.isInteger(n) && n >= 1 && n <= MAX_AMBIENTES) encontrados.add(n);
+  };
+  const leerTexto = (texto: string) => {
+    const t = sinAcentos(texto);
+    if (/tri ?plex/.test(t)) sumar(4);
+    if (/mono ?amb/.test(t)) sumar(1);
+    // «2 ambientes», «tres amb.», «1, 2 y 3 ambientes» (los números de una lista
+    // que termina en «ambientes» cuentan todos).
+    const lista = /((?:\d+|un|uno|dos|tres|cuatro|cinco)(?:\s*(?:,|y|o|\/|-)\s*(?:\d+|un|uno|dos|tres|cuatro|cinco))*)\s*amb/g;
+    let algunaConPalabra = false;
+    for (const m of t.matchAll(lista)) {
+      algunaConPalabra = true;
+      for (const p of m[1]!.split(SEPARADOR_AMBIENTES)) {
+        sumar(/^\d+$/.test(p) ? Number(p) : palabras[p]);
+      }
+    }
+    // Solo números («2», «1, 2»): también valen.
+    if (!algunaConPalabra && /^\s*\d+((\s*[,/-]\s*|\s+y\s+)\d+)*\s*$/.test(t)) {
+      for (const p of t.split(SEPARADOR_AMBIENTES)) sumar(Number(p));
+    }
+  };
+  const leer = (v: unknown) => {
+    if (typeof v === "number") sumar(v);
+    else if (typeof v === "string") leerTexto(v);
+  };
+  if (Array.isArray(raw)) raw.forEach(leer);
+  else leer(raw);
+  return [...encontrados].sort((a, b) => a - b);
+}
+
+/**
  * Edificios a partir de texto libre: cada parte separada por coma se compara,
  * sin acentos, con el nombre y la dirección. Una parte puede ser solo la
  * calle ("Olazábal") o el número de calle ("Gallo 716").

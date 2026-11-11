@@ -1,6 +1,15 @@
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { organization } from "./schema";
 
+/** 0049 — Ver `relacionSchema.interes` en `lib/motor/config.ts`. */
+export type InteresRelacion = {
+  edificio: string;
+  ambientes?: string;
+  estado?: { campo: string; valores: string[] };
+  valor?: string;
+  moneda?: string;
+};
+
 /** Cómo se le presenta un objeto al agente (`clientes/<cliente>.json` → `agente`). */
 export type AgenteObjeto = {
   filtro?: Record<string, string[]>;
@@ -119,6 +128,8 @@ export const motorRelacion = pgTable(
     /** Cuándo se copiaron: no se repite. */
     sembradoAt: timestamp("sembrado_at"),
     obligatoria: boolean("obligatoria").notNull().default(false),
+    /** 0049 — Interés encadenado y Valor calculado (`relacionSchema.interes`). */
+    interes: jsonb("interes").$type<InteresRelacion>(),
     archivado: boolean("archivado").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),

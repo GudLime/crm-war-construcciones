@@ -13,7 +13,6 @@ import {
   AMBIENTES,
   TIPOS_OPORTUNIDAD,
   etiquetaAmbientes,
-  ordenarTipologiasUnidad,
 } from "@/lib/ventas";
 import { Chips } from "./oportunidad-panel";
 import { OrigenIcono } from "./origen-icono";
@@ -39,11 +38,10 @@ type Formulario = {
   nombre: string;
   origen: string;
   contactId: string;
-  /** 068 — Varios edificios y tipologías de interés. */
+  /** 068 — Varios edificios de interés. */
   edificioIds: string[];
-  /** 0047 — Ambientes («2», «3») y tipologías («1A») de interés. */
+  /** 0047 — Ambientes de interés («2», «3»). Las unidades se eligen en la página de la oportunidad. */
   ambientes: string[];
-  tipologiasUnidad: string[];
   departamentoId: string;
   estado: string;
   tipo: string;
@@ -57,7 +55,6 @@ const vacio: Formulario = {
   contactId: "",
   edificioIds: [],
   ambientes: [],
-  tipologiasUnidad: [],
   departamentoId: "",
   estado: "recibido",
   tipo: "venta",
@@ -76,7 +73,6 @@ function desde(o: OportunidadDto): Formulario {
         ? [o.edificioId]
         : [],
     ambientes: o.ambientes.map(String),
-    tipologiasUnidad: o.tipologiasUnidad,
     departamentoId: o.departamentoId ?? "",
     estado: o.estado,
     tipo: o.tipo ?? "",
@@ -86,6 +82,15 @@ function desde(o: OportunidadDto): Formulario {
         ? ""
         : (o.valorCents / 100).toLocaleString("es-AR", { maximumFractionDigits: 2 }),
   };
+}
+
+/** 0049 — Las unidades de interés que aparecen en la lista, para el filtro «Unidad». */
+function unidadesDeFiltro(filas: readonly OportunidadDto[]): { value: string; label: string }[] {
+  const vistas = new Map<string, string>();
+  for (const o of filas) for (const u of o.unidades) vistas.set(u.id, u.titulo);
+  return [...vistas]
+    .map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label, "es", { numeric: true }));
 }
 
 export function OportunidadesClient() {
@@ -102,6 +107,8 @@ export function OportunidadesClient() {
   const [form, setForm] = useState<Formulario>(vacio);
   const [error, setError] = useState<string | null>(null);
   const [listo, setListo] = useState(false);
+  /** 0049 — El Valor es el promedio de las unidades de interés: no se carga a mano. */
+  const [valorCalculado, setValorCalculado] = useState(false);
   const router = useRouter();
   /** War — Se vino a editar desde la página de la oportunidad: al terminar, se vuelve ahí. */
   const volverA = useRef<string | null>(null);
@@ -121,8 +128,9 @@ export function OportunidadesClient() {
   const cargar = useCallback(async () => {
     const res = await fetch("/api/oportunidades").catch(() => null);
     if (!res?.ok) return;
-    const data = (await res.json()) as { oportunidades: OportunidadDto[] };
+    const data = (await res.json()) as { oportunidades: OportunidadDto[]; valorCalculado?: boolean };
     setFilas(data.oportunidades);
+    setValorCalculado(data.valorCalculado === true);
     setListo(true);
   }, []);
 
@@ -218,13 +226,12 @@ export function OportunidadesClient() {
         contactId: form.contactId || null,
         edificioIds: form.edificioIds,
         ambientes: form.ambientes.map(Number),
-        tipologiasUnidad: form.tipologiasUnidad,
         departamentoId: form.departamentoId || null,
         estado: form.estado,
         tipo: form.tipo || null,
         motivoCierre: form.motivoCierre || null,
-        valorCents,
-        moneda: valorCents == null ? null : moneda,
+        // Con el Valor calculado (promedio de las unidades) no se manda: lo calcula el servidor.
+        ...(valorCalculado ? {} : { valorCents, moneda: valorCents == null ? null : moneda }),
       }),
     }).catch(() => null);
     if (!res?.ok) {
@@ -350,22 +357,6 @@ export function OportunidadesClient() {
                 onCambio={(ambientes) => setForm({ ...form, ambientes })}
               />
             </div>
-            <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2 lg:col-span-3">
-              <span className="text-xs font-medium text-text-2">Interés · tipologías</span>
-              <Chips
-                opciones={ordenarTipologiasUnidad([
-                  ...unidades.map((u) => u.tipologiaUnidad ?? "").filter(Boolean),
-                  ...form.tipologiasUnidad,
-                ]).map((t) => ({ value: t, label: t }))}
-                elegidos={form.tipologiasUnidad}
-                vacio={
-                  form.edificioIds.length
-                    ? "Las unidades de estos edificios no tienen tipología cargada."
-                    : "Elegí un edificio para ver sus tipologías."
-                }
-                onCambio={(tipologiasUnidad) => setForm({ ...form, tipologiasUnidad })}
-              />
-            </div>
             <Campo label="Departamento puntual">
               <Select
                 value={form.departamentoId}
@@ -392,11 +383,17 @@ export function OportunidadesClient() {
               </Select>
             </Campo>
             <Campo label="Valor">
-              <Input
-                value={form.valor}
-                onChange={(e) => setForm({ ...form, valor: e.target.value })}
-                inputMode="decimal"
-              />
+              {valorCalculado ? (
+                <p className="py-1.5 text-[13px] text-text-3">
+                  Se calcula solo: el promedio de las unidades de interés (o de los ambientes elegidos).
+                </p>
+              ) : (
+                <Input
+                  value={form.valor}
+                  onChange={(e) => setForm({ ...form, valor: e.target.value })}
+                  inputMode="decimal"
+                />
+              )}
             </Campo>
             <Campo label="Motivo de cierre">
               <Select
@@ -452,10 +449,7 @@ export function OportunidadesClient() {
             opciones={{
               edificios: edificios.map((e) => ({ value: e.id, label: e.nombre })),
               origenes: origenes.map((o) => ({ value: o.nombre, label: o.nombre })),
-              tipologias: ordenarTipologiasUnidad(filas.flatMap((o) => o.tipologiasUnidad)).map((t) => ({
-                value: t,
-                label: t,
-              })),
+              unidades: unidadesDeFiltro(filas),
             }}
             derecha={pref.forma === "lista" ? <SelectorDeColumnas pref={pref} setPref={setPref} /> : undefined}
           />

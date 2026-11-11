@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiError, parseBody, withAuth } from "@/lib/api";
+import { recalcularTodos } from "@/server/motor/interes";
 import { exportarUnidadesCsv, importarUnidadesCsv, VentasError } from "@/server/ventas";
 
 export const dynamic = "force-dynamic";
@@ -44,15 +45,16 @@ export const POST = withAuth(async (session, req: Request, ctx: Params) => {
   const body = await parseBody(req, bodySchema);
   if (!body.ok) return body.response;
   try {
-    return Response.json(
-      await importarUnidadesCsv({
-        organizationId: session.organizationId,
-        edificioId: id,
-        csv: body.data.csv,
-        monedaNegocio: body.data.moneda.toUpperCase(),
-        aplicar: body.data.aplicar,
-      })
-    );
+    const resultado = await importarUnidadesCsv({
+      organizationId: session.organizationId,
+      edificioId: id,
+      csv: body.data.csv,
+      monedaNegocio: body.data.moneda.toUpperCase(),
+      aplicar: body.data.aplicar,
+    });
+    // Una lista de precios nueva cambia el Valor de las oportunidades.
+    if (body.data.aplicar) await recalcularTodos(session.organizationId);
+    return Response.json(resultado);
   } catch (err) {
     if (err instanceof VentasError) return apiError(err.status, err.code, err.message);
     throw err;

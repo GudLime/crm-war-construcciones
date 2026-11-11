@@ -6,6 +6,7 @@ import { iniciarWorker, tanda } from "@/server/dispatch/worker";
 import { cifrarSecretosEnClaro } from "@/server/zernio/secreto-guardado";
 import { barrido, iniciarBarrido } from "@/server/webhooks/worker";
 import { iniciarBarridoSilencios } from "@/server/oportunidad-historial";
+import { recalcularValoresAlArrancar } from "@/server/motor/interes";
 import { sincronizarMotorAlArrancar } from "@/server/motor/sincronizar";
 
 /**
@@ -141,4 +142,6 @@ export function resumeVentas(): void {
  */
 export async function syncMotor(): Promise<void> {
   await sincronizarMotorAlArrancar();
+  // 0049 — El Valor calculado de las oportunidades, en segundo plano: no frena el arranque.
+  void recalcularValoresAlArrancar();
 }

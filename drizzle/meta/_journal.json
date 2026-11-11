@@ -393,6 +393,13 @@
       "when": 1793887200000,
       "tag": "0048_tarea_responsable",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1793898000000,
+      "tag": "0049_relacion_interes",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,5 @@
 import { apiError, parseBody, withAuth } from "@/lib/api";
+import { valorEsCalculado } from "@/server/motor/interes";
 import {
   crearOportunidad,
   listarOportunidades,
@@ -9,7 +10,12 @@ import {
 export const dynamic = "force-dynamic";
 
 export const GET = withAuth(async (session) => {
-  return Response.json({ oportunidades: await listarOportunidades(session.organizationId) });
+  const [oportunidades, valorCalculado] = await Promise.all([
+    listarOportunidades(session.organizationId),
+    // 0049 — Con interés encadenado, el Valor es el promedio de las unidades.
+    valorEsCalculado(session.organizationId).catch(() => false),
+  ]);
+  return Response.json({ oportunidades, valorCalculado });
 });
 
 export const POST = withAuth(async (session, req: Request) => {

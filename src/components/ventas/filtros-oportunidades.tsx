@@ -32,13 +32,13 @@ import type { PreferenciasDeLista } from "./oportunidades-vistas";
 type Opcion = { value: string; label: string };
 export type Miembro = { userId: string; nombre: string };
 
-type Propiedad = "edificios" | "origenes" | "estados" | "tipologias" | "paraCerrar";
+type Propiedad = "edificios" | "origenes" | "estados" | "unidades" | "paraCerrar";
 
 const NOMBRE_PROPIEDAD: Record<Propiedad, string> = {
   edificios: "Edificio",
   origenes: "Origen",
   estados: "Estado",
-  tipologias: "Tipología",
+  unidades: "Unidad",
   paraCerrar: "Para cerrar",
 };
 
@@ -293,7 +293,7 @@ export function BarraDeFiltros({
 }: {
   v: EstadoVistas;
   equipo: Miembro[];
-  opciones: { edificios: Opcion[]; origenes: Opcion[]; tipologias: Opcion[] };
+  opciones: { edificios: Opcion[]; origenes: Opcion[]; unidades: Opcion[] };
   derecha?: React.ReactNode;
 }) {
   const [guardando, setGuardando] = useState(false);
@@ -307,7 +307,7 @@ export function BarraDeFiltros({
     edificios: opciones.edificios,
     origenes: opciones.origenes,
     estados: ESTADOS_OPORTUNIDAD.map((e) => ({ value: e.value, label: e.label })),
-    tipologias: opciones.tipologias,
+    unidades: opciones.unidades,
   };
   const activas = (Object.keys(NOMBRE_PROPIEDAD) as Propiedad[]).filter((p) =>
     p === "paraCerrar" ? f.paraCerrar === true : f[p] !== undefined

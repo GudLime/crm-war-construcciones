@@ -1,6 +1,7 @@
 import { apiError, parseBody } from "@/lib/api";
 import { leadBodySchema as bodySchema, nombreDelLead } from "@/lib/leads";
 import { origenCanonico } from "@/lib/origenes";
+import { ambientesDeTexto } from "@/lib/ventas";
 import { resolveInstanceOrg } from "@/server/bot/auth";
 import { exigirLlaveLeads } from "@/server/integraciones/auth";
 import { LeadError, recibirLead } from "@/server/integraciones/leads";
@@ -58,6 +59,7 @@ export async function POST(req: Request) {
       telefono: d.telefono || null,
       email: emailValido(d.email),
       edificio: d.edificio || null,
+      ambientes: ambientesDeTexto(d.ambientes),
       campaignId: d.campaignId || null,
       campaignName: d.campaignName || null,
       adsetId: d.adsetId || null,

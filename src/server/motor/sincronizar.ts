@@ -219,6 +219,7 @@ async function registrarEnOrganizacion(organizationId: string, config: ConfigCli
         columnaHacia: r.tipo === "muchos_a_muchos" ? columnasDeRelacion(r).hacia : null,
         sembrarDesde: r.sembrarDesde ?? null,
         obligatoria: r.obligatoria,
+        interes: r.interes ?? null,
         archivado: false,
       };
       await tx

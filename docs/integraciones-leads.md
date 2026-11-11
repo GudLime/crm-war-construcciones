@@ -30,6 +30,7 @@ responde 401.
 | `leadId` | sí | ID del lead en Meta (o del portal). Hace la entrada idempotente. |
 | `origen` | sí | Uno de los orígenes de **Configuración → Orígenes** (`Meta Ads`, `Zonaprop`, `Argenprop`…). Acepta `meta_ads`, `META ADS`, etc. Si se renombra o se borra un origen allá, hay que cambiarlo también en el escenario de Make. |
 | `edificio` | no | Id del edificio, o su nombre o dirección tal como está en el CRM. |
+| `ambientes` | no | Ambientes de interés: un número (`2`), una lista (`[1, 2]`) o texto («2 Ambientes», «Monoambiente», «1, 2 y 3 ambientes», «Unidad de interés: 2 Ambientes»). Triplex cuenta como 4. Lo que no se reconoce se ignora. Se suman a los de la oportunidad. |
 | `nombre`, `apellido` / `nombreCompleto` | no | Nombre de la persona. |
 | `telefono` | no* | Como lo escribió la persona: el CRM lo normaliza. |
 | `email` | no | Si no tiene forma de correo, se ignora. |
@@ -88,7 +89,8 @@ Los errores vienen como `{ "error": { "code": "...", "message": "..." } }`.
 4. **Oportunidad**: si el contacto tiene una abierta del **mismo edificio**,
    o una abierta **sin edificio** (la que abrió el WhatsApp que llegó antes
    que el formulario), el lead se suma a esa. Si no, abre una nueva con el
-   origen y el edificio. El edificio se suma al interés de la oportunidad.
+   origen y el edificio. El edificio y los `ambientes` se suman al interés de
+   la oportunidad (nunca se quitan los que ya tenía).
 5. **Registro**: el `leadId`, la campaña, el anuncio y el formulario quedan en
    la tabla `oportunidad_lead`. En la lista de Oportunidades, la que sumó más
    de un formulario lo indica junto al origen.
