@@ -5,7 +5,7 @@ import { organization } from "./schema";
 export type InteresRelacion = {
   edificio: string;
   ambientes?: string;
-  estado?: { campo: string; valores: string[] };
+  filtro?: Record<string, string[]>;
   valor?: string;
   moneda?: string;
 };

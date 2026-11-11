@@ -253,7 +253,10 @@ const relacionSchema = z.object({
    *   sueltan los suyos.
    * - `ambientes`: campo numérico del registro. Solo se ofrecen los de los
    *   ambientes de interés; si se saca uno, se sueltan los suyos.
-   * - `estado`: qué registros se ofrecen (los ya elegidos quedan).
+   * - `filtro`: qué registros se ofrecen, por campo de selección o texto
+   *   (`{ "estado": ["disponible"], "tipo": ["departamento"] }`). Los ya
+   *   elegidos quedan aunque no pasen.
+   *   Los que no tienen ambientes ni pasan el filtro no entran al Valor.
    * - `valor` (+ `moneda`): el Valor de la oportunidad pasa a ser calculado:
    *   el promedio de los elegidos o, sin elegidos, el de los que se ofrecen
    *   para los ambientes de interés.
@@ -262,7 +265,7 @@ const relacionSchema = z.object({
     .object({
       edificio: clave,
       ambientes: clave.optional(),
-      estado: z.object({ campo: clave, valores: z.array(z.string().min(1)).min(1) }).optional(),
+      filtro: z.record(clave, z.array(z.string().min(1)).min(1)).optional(),
       valor: clave.optional(),
       moneda: clave.optional(),
     })
@@ -515,7 +518,7 @@ export function validarConfig(datos: unknown): ResultadoConfig {
       }
     };
     exigir(i.ambientes, "ambientes", ["numero"]);
-    exigir(i.estado?.campo, "estado.campo", ["seleccion", "texto"]);
+    for (const k of Object.keys(i.filtro ?? {})) exigir(k, `filtro.${k}`, ["seleccion", "texto"]);
     exigir(i.valor, "valor", ["moneda", "numero"]);
     exigir(i.moneda, "moneda", ["texto", "seleccion"]);
     if (i.moneda && !i.valor) errores.push(`relación «${r.clave}»: «interes.moneda» necesita «interes.valor»`);
