@@ -224,8 +224,9 @@ cambios de GudLime, si `_journal.json` choca, se ordenan las entradas por
 - `war_0007_vista_mis_oportunidades`: siembra la vista del equipo «Mis
   oportunidades» (responsable = quien mira) en Oportunidades.
 - `war_0008_tipologias_a_unidades`: las tipologías de interés pasan a Unidades
-  de interés (cada tipología → las unidades de esa tipología en los edificios
-  de interés de la oportunidad). No borra la tabla vieja.
+  de interés. En War la tipología es el nombre de la unidad («4B»): se vincula
+  la unidad que se llama así (sin espacios, «°» ni mayúsculas) en los edificios
+  de interés de la oportunidad. No borra la tabla vieja.
 
 ## Color de cada edificio (0045)
 
@@ -288,8 +289,8 @@ cambios de GudLime, si `_journal.json` choca, se ordenan las entradas por
   esos ambientes, disponibles o «consultar», y que son departamentos (no
   cocheras ni bauleras). Sacar un ambiente o un edificio suelta sus unidades.
 - **Tipologías ya no se usan**: pasan a Unidades (detalle, columna, filtro y
-  panel). `war_0008` vinculó cada tipología con sus unidades; la tabla vieja
-  queda.
+  panel). `war_0008` vinculó cada tipología con la unidad de ese nombre; la
+  tabla vieja queda.
 - **Valor**: promedio del precio de las unidades elegidas; sin unidades, el de
   las disponibles de los ambientes elegidos; sin ambientes, vacío. No se edita a
   mano. Se recalcula al elegir, al cambiar el interés, al editar o importar
