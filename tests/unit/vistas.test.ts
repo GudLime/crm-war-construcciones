@@ -62,3 +62,21 @@ describe("cambios sin guardar", () => {
     expect(filtrosSchema.safeParse({ cualquiera: 1 }).success).toBe(false);
   });
 });
+
+describe("abiertas y cerradas", () => {
+  it("la lista arranca en Abiertas; Reservó y Compró cuentan como cerradas", async () => {
+    const { VISTAS_DE_FABRICA, situacionACargar } = await import("@/lib/vistas");
+    expect(VISTAS_DE_FABRICA[0]).toMatchObject({ id: "abiertas", filtros: { situacion: "abiertas" } });
+    expect(situacionACargar({ situacion: "cerradas" })).toBe("cerradas");
+    expect(situacionACargar({ responsables: ["yo"] })).toBe("todas");
+    expect(cumpleFiltros(fila({ estado: "visito" }), { situacion: "abiertas" }, null)).toBe(true);
+    for (const estado of ["reservo", "compro", "perdido", "no_calificado"] as const) {
+      expect(cumpleFiltros(fila({ estado }), { situacion: "abiertas" }, null)).toBe(false);
+      expect(cumpleFiltros(fila({ estado }), { situacion: "cerradas" }, null)).toBe(true);
+    }
+  });
+  it("la situación se guarda y se compara como cualquier filtro", () => {
+    expect(limpiarFiltros({ situacion: "cerradas", estados: [] })).toEqual({ situacion: "cerradas" });
+    expect(filtrosSchema.safeParse({ situacion: "otra" }).success).toBe(false);
+  });
+});

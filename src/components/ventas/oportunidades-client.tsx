@@ -19,6 +19,7 @@ import { Chips } from "./oportunidad-panel";
 import { OrigenIcono } from "./origen-icono";
 import { SelectorDeColumnas, SelectorDeForma, VistaOportunidades, usePreferenciasDeLista } from "./oportunidades-vistas";
 import { BarraDeFiltros, PestanasDeVistas, useVistas, type Miembro } from "./filtros-oportunidades";
+import { situacionACargar } from "@/lib/vistas";
 import type { OrigenDto } from "@/lib/origenes";
 import type { DepartamentoDto, EdificioDto, OportunidadDto } from "@/server/ventas";
 import {
@@ -114,7 +115,10 @@ export function OportunidadesClient() {
   /** Nombre del origen → su ícono o imagen (Configuración → Orígenes). */
   const iconoDe = useMemo(() => new Map(origenes.map((o) => [o.nombre, o])), [origenes]);
   const [pref, setPref] = usePreferenciasDeLista();
-  const vistas = useVistas({ filas, pref, setPref });
+  /** Qué hay cargado: la lista arranca con las abiertas y trae las cerradas solo si se piden. */
+  const [cargadas, setCargadas] = useState<"abiertas" | "cerradas" | "todas" | null>(null);
+  const vistas = useVistas({ filas, cargadas, pref, setPref });
+  const situacion = situacionACargar(vistas.filtros);
   /** El equipo, para filtrar por responsable (si la instancia tiene responsables). */
   const [equipo, setEquipo] = useState<Miembro[]>([]);
   useEffect(() => {
@@ -125,19 +129,35 @@ export function OportunidadesClient() {
   }, []);
 
   const cargar = useCallback(async () => {
-    const res = await fetch("/api/oportunidades").catch(() => null);
+    const res = await fetch(
+      `/api/oportunidades${situacion === "todas" ? "" : `?situacion=${situacion}`}`
+    ).catch(() => null);
     if (!res?.ok) return;
     const data = (await res.json()) as { oportunidades: OportunidadDto[]; valorCalculado?: boolean };
     setFilas(data.oportunidades);
+    setCargadas(situacion);
     setValorCalculado(data.valorCalculado === true);
     setListo(true);
-  }, []);
+  }, [situacion]);
 
   useEffect(() => {
     void cargar();
+  }, [cargar]);
+
+  // Los contactos (pueden ser miles) solo hacen falta en el formulario.
+  const [conContactos, setConContactos] = useState(false);
+  useEffect(() => {
+    if (!abierto || conContactos) return;
+    setConContactos(true);
+    void fetch("/api/contacts")
+      .then((r) => (r.ok ? r.json() : { contacts: [] }))
+      .then((d: { contacts: Contacto[] }) => setContactos(d.contacts))
+      .catch(() => undefined);
+  }, [abierto, conContactos]);
+
+  useEffect(() => {
     void (async () => {
-      const [c, e, o] = await Promise.all([
-        fetch("/api/contacts").catch(() => null),
+      const [e, o] = await Promise.all([
         fetch("/api/edificios").catch(() => null),
         fetch("/api/origenes").catch(() => null),
       ]);
@@ -145,30 +165,38 @@ export function OportunidadesClient() {
         const data = (await o.json()) as { origenes: OrigenDto[] };
         setOrigenes(data.origenes);
       }
-      if (c?.ok) {
-        const data = (await c.json()) as { contacts: Contacto[] };
-        setContactos(data.contacts);
-      }
       if (e?.ok) {
         const data = (await e.json()) as { edificios: EdificioDto[] };
         setEdificios(data.edificios);
       }
     })();
-  }, [cargar]);
+  }, []);
 
   // War — `?editar=<id>` (el botón Editar de la página de la oportunidad).
   useEffect(() => {
     if (!listo) return;
     const id = new URLSearchParams(window.location.search).get("editar");
     if (!id) return;
+    const abrirCon = (o: OportunidadDto) => {
+      volverA.current = `/oportunidades/${id}`;
+      setEditando(o.id);
+      setForm(desde(o));
+      setError(null);
+      setAbierto(true);
+      window.history.replaceState(null, "", "/oportunidades");
+    };
     const o = filas.find((f) => f.id === id);
-    if (!o) return;
-    volverA.current = `/oportunidades/${id}`;
-    setEditando(o.id);
-    setForm(desde(o));
-    setError(null);
-    setAbierto(true);
-    window.history.replaceState(null, "", "/oportunidades");
+    if (o) {
+      abrirCon(o);
+      return;
+    }
+    // Puede ser una cerrada (no está cargada): se pide sola.
+    void fetch(`/api/oportunidades/${encodeURIComponent(id)}/detalle`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { oportunidad?: OportunidadDto } | null) => {
+        if (d?.oportunidad) abrirCon(d.oportunidad);
+      })
+      .catch(() => undefined);
   }, [listo, filas]);
 
   // 068 — Las unidades de todos los edificios elegidos, para fijar una.
@@ -428,7 +456,7 @@ export function OportunidadesClient() {
         </Ficha>
       )}
 
-      {listo && filas.length === 0 && !abierto ? (
+      {listo && filas.length === 0 && cargadas === "todas" && !abierto ? (
         <EmptyState
           icon={Tag}
           title="Todavía no hay oportunidades"
@@ -439,7 +467,7 @@ export function OportunidadesClient() {
             </Button>
           }
         />
-      ) : filas.length > 0 ? (
+      ) : listo ? (
         <div className="space-y-3">
           <PestanasDeVistas v={vistas} />
           <BarraDeFiltros
