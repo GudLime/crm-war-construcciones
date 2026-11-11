@@ -63,3 +63,28 @@ export const STATUS_ERROR: Record<string, number> = {
   duplicado: 409,
   en_uso: 409,
 };
+
+/** 0049 — Interés encadenado de la oportunidad (`server/motor/interes.ts`). */
+export type UnidadDeInteresDto = {
+  id: string;
+  titulo: string;
+  edificioId: string | null;
+  ambientes: number | null;
+  valorCents: number | null;
+  moneda: string | null;
+  /** Pasa el `filtro` del interés (las reservadas, vendidas o cocheras ya elegidas quedan, pero no se ofrecen). */
+  ofrecida: boolean;
+};
+
+export type InteresDto = {
+  relacion: string;
+  nombre: string;
+  objeto: { clave: string; nombre: string; nombrePlural: string };
+  /** Ambientes que tienen las unidades ofrecidas de los edificios de interés. */
+  ambientesDisponibles: number[];
+  /** Las unidades de los edificios de interés, más las elegidas que estén en otro lado. */
+  unidades: UnidadDeInteresDto[];
+  elegidas: string[];
+  /** El Valor de la oportunidad se calcula (no se edita a mano). */
+  valorCalculado: boolean;
+};

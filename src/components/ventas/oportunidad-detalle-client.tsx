@@ -19,7 +19,6 @@ import {
   FileText,
   Flag,
   History,
-  LayoutGrid,
   Mail,
   Megaphone,
   Pencil,
@@ -51,20 +50,18 @@ import type { OrigenDto } from "@/lib/origenes";
 import { formatearTelefono } from "@/lib/telefono-formato";
 import { cn } from "@/lib/utils";
 import {
-  AMBIENTES,
   CAMINO_OPORTUNIDAD,
   ESTADOS_OPORTUNIDAD,
   TIPOS_CONTACTO,
   TIPOS_OPORTUNIDAD,
   TIPOS_TAREA,
   etiqueta,
-  etiquetaAmbientes,
-  ordenarTipologiasUnidad,
   type EstadoOportunidad,
 } from "@/lib/ventas";
 import type { OportunidadDetalleDto } from "@/server/oportunidad-detalle";
 import {
   AvisosDeReglas,
+  UnidadesDeInteres,
   VinculoEnLinea,
   useObjetosDeOportunidad,
 } from "@/components/motor/oportunidad-objetos";
@@ -184,28 +181,6 @@ export function OportunidadDetalleClient() {
   const [error, setError] = useState<string | null>(null);
   const [origenes, setOrigenes] = useState<IconoDeOrigen>(new Map());
   const moneda = useMoneda();
-  const objetos = useObjetosDeOportunidad(id, datos?.oportunidad.estado ?? "");
-  /** Las unidades tipo de los edificios de interés: las opciones de Tipologías. */
-  const [tipologiasDeEdificios, setTipologiasDeEdificios] = useState<string[]>([]);
-  const claveEdificios = (datos?.oportunidad.edificios ?? []).map((e) => e.id).join(",");
-  useEffect(() => {
-    const ids = claveEdificios ? claveEdificios.split(",") : [];
-    let vigente = true;
-    void Promise.all(
-      ids.map(async (e) => {
-        const r = await fetch(`/api/edificios/${e}`).catch(() => null);
-        if (!r?.ok) return [];
-        const d = (await r.json()) as { departamentos: { tipologiaUnidad: string | null }[] };
-        return d.departamentos.map((u) => u.tipologiaUnidad ?? "").filter(Boolean);
-      })
-    ).then((ls) => {
-      if (vigente) setTipologiasDeEdificios(ordenarTipologiasUnidad(ls.flat()));
-    });
-    return () => {
-      vigente = false;
-    };
-  }, [claveEdificios]);
-
   const cargar = useCallback(async () => {
     const res = await fetch(`/api/oportunidades/${id}/detalle`).catch(() => null);
     if (res?.status === 404) {
@@ -215,6 +190,15 @@ export function OportunidadDetalleClient() {
     if (!res?.ok) return;
     setDatos((await res.json()) as OportunidadDetalleDto);
   }, [id]);
+  // Las unidades de interés y las reglas de etapa (motor). Al elegir unidades
+  // el Valor puede cambiar: se vuelve a leer la oportunidad.
+  const objetos = useObjetosDeOportunidad(id, datos?.oportunidad.estado ?? "", () => void cargar());
+  // Si cambian los edificios de interés (por ejemplo desde Editar), cambian las unidades que se ofrecen.
+  const { recargar: recargarObjetos } = objetos;
+  const claveEdificios = (datos?.oportunidad.edificios ?? []).map((e) => e.id).join(",");
+  useEffect(() => {
+    if (claveEdificios) void recargarObjetos();
+  }, [claveEdificios, recargarObjetos]);
 
   useEffect(() => {
     void cargar();
@@ -240,7 +224,7 @@ export function OportunidadDetalleClient() {
     await cargar();
   }
 
-  async function cambiarInteres(cambios: { ambientes?: number[]; tipologiasUnidad?: string[] }) {
+  async function cambiarInteres(cambios: { ambientes?: number[] }) {
     if (!datos?.contacto) return;
     setError(null);
     const res = await fetch(`/api/contacts/${datos.contacto.id}/oportunidad`, {
@@ -252,7 +236,8 @@ export function OportunidadDetalleClient() {
       setError(await mensajeError(res));
       return;
     }
-    await cargar();
+    // Sacar un ambiente suelta sus unidades y cambia el Valor.
+    await Promise.all([cargar(), objetos.recargar()]);
   }
 
   if (noExiste) {
@@ -274,8 +259,21 @@ export function OportunidadDetalleClient() {
     : op.edificioId && op.edificioNombre
       ? [{ id: op.edificioId, nombre: op.edificioNombre, color: null }]
       : [];
-  const otrosVinculos = objetos.vinculos.filter((v) => !v.esInteres);
-  const tipologiasDisponibles = ordenarTipologiasUnidad([...tipologiasDeEdificios, ...op.tipologiasUnidad]);
+  const interes = objetos.interes;
+  // Las unidades de interés se eligen encadenadas (abajo); el resto de los vínculos, como siempre.
+  const otrosVinculos = objetos.vinculos.filter((v) => !v.esInteres && v.relacion !== interes?.relacion);
+  // Ambientes: los que tienen las unidades de los edificios de interés (sin
+  // edificios o sin interés configurado, 1 a 4), más los ya elegidos.
+  const opcionesAmbientes = [
+    ...new Set([
+      ...(interes && edificios.length ? interes.ambientesDisponibles : [1, 2, 3, 4]),
+      ...op.ambientes,
+    ]),
+  ].sort((a, b) => a - b);
+  // Cuántas unidades elegidas tienen precio (el Valor es su promedio).
+  const conPrecio = interes
+    ? interes.unidades.filter((u) => interes.elegidas.includes(u.id) && u.valorCents !== null).length
+    : 0;
   const origen = op.origen ? origenes.get(op.origen) : undefined;
 
   return (
@@ -346,54 +344,53 @@ export function OportunidadDetalleClient() {
                   </Fila>
                   <Fila icono={BedDouble} titulo="Ambientes">
                     {contacto ? (
-                      <Select
-                        multiple
-                        values={op.ambientes.map(String)}
-                        onValuesChange={(v) => void cambiarInteres({ ambientes: v.map(Number) })}
-                        placeholder="Elegir…"
-                        aria-label="Ambientes"
-                        className="h-auto min-h-7 w-auto max-w-full rounded-full px-2 py-0.5 text-[13px]"
-                      >
-                        {AMBIENTES.map((n) => (
-                          <option key={n} value={String(n)}>
-                            {etiquetaAmbientes(n)}
-                          </option>
-                        ))}
-                      </Select>
+                      <span role="group" aria-label="Ambientes" className="flex flex-wrap items-center gap-1.5">
+                        {opcionesAmbientes.map((n) => {
+                          const elegido = op.ambientes.includes(n);
+                          return (
+                            <button
+                              key={n}
+                              type="button"
+                              aria-pressed={elegido}
+                              onClick={() =>
+                                void cambiarInteres({
+                                  ambientes: elegido ? op.ambientes.filter((a) => a !== n) : [...op.ambientes, n],
+                                })
+                              }
+                              className={cn(
+                                "grid h-7 min-w-8 place-items-center rounded-full border px-2 text-[13px] font-semibold transition-colors",
+                                elegido
+                                  ? "border-brand bg-brand text-brand-fg"
+                                  : "border-border bg-card text-text-2 hover:bg-accent"
+                              )}
+                            >
+                              {n}
+                            </button>
+                          );
+                        })}
+                      </span>
                     ) : op.ambientes.length ? (
-                      op.ambientes.map(etiquetaAmbientes).join(", ")
+                      op.ambientes.join(" · ")
                     ) : (
                       <SinDato />
                     )}
                   </Fila>
-                  <Fila icono={LayoutGrid} titulo="Tipologías">
-                    {contacto && tipologiasDisponibles.length ? (
-                      <Select
-                        multiple
-                        values={op.tipologiasUnidad}
-                        onValuesChange={(v) => void cambiarInteres({ tipologiasUnidad: v })}
-                        placeholder="Elegir…"
-                        aria-label="Tipologías"
-                        className="h-auto min-h-7 w-auto max-w-full rounded-full px-2 py-0.5 text-[13px]"
-                      >
-                        {tipologiasDisponibles.map((t) => (
-                          <option key={t} value={t}>
-                            {t}
-                          </option>
-                        ))}
-                      </Select>
-                    ) : op.tipologiasUnidad.length ? (
-                      op.tipologiasUnidad.join(", ")
-                    ) : (
-                      <SinDato texto={edificios.length ? "Sus unidades no tienen tipología" : "—"} />
-                    )}
-                  </Fila>
+                  {interes && (
+                    <Fila icono={DoorOpen} titulo={interes.nombre}>
+                      <UnidadesDeInteres
+                        interes={interes}
+                        ambientes={op.ambientes}
+                        edificios={edificios}
+                        onGuardar={(ids) => objetos.guardarVinculo(interes.relacion, ids)}
+                      />
+                    </Fila>
+                  )}
                   {otrosVinculos.map((v) => (
                     <Fila key={v.relacion} icono={DoorOpen} titulo={v.nombre}>
                       <VinculoEnLinea vinculo={v} onGuardar={(ids) => objetos.guardarVinculo(v.relacion, ids)} />
                     </Fila>
                   ))}
-                  {!otrosVinculos.length && op.unidad && (
+                  {!interes && !otrosVinculos.length && op.unidad && (
                     <Fila icono={DoorOpen} titulo="Departamento">
                       <span className="inline-block rounded-full border border-border px-2.5 py-0.5 text-[12.5px]">
                         {op.unidad}
@@ -401,7 +398,20 @@ export function OportunidadDetalleClient() {
                     </Fila>
                   )}
                   <Fila icono={CircleDollarSign} titulo="Valor">
-                    {op.valorCents == null ? <SinDato texto="Sin cargar" /> : plata(op.valorCents, op.moneda, moneda)}
+                    {op.valorCents == null ? (
+                      <SinDato texto={interes?.valorCalculado ? "Elegí unidades o ambientes" : "Sin cargar"} />
+                    ) : (
+                      <span className="flex flex-wrap items-baseline gap-x-2">
+                        {plata(op.valorCents, op.moneda, moneda)}
+                        {interes?.valorCalculado && (conPrecio > 0 || op.ambientes.length > 0) && (
+                          <span className="text-[12px] font-normal text-text-3">
+                            {conPrecio
+                              ? `promedio de ${conPrecio === 1 ? "1 unidad" : `${conPrecio} unidades`}`
+                              : `promedio de ${op.ambientes.join(", ")} amb.`}
+                          </span>
+                        )}
+                      </span>
+                    )}
                   </Fila>
                 </dl>
                 <dl className="flex min-w-0 flex-[0_1_340px] flex-col gap-0.5">

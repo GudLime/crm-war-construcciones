@@ -220,6 +220,38 @@
               "Urquiza 1872"
             ]
           },
+          "ambientes": {
+            "description": "Ambientes de interés. Un número, una lista de números o texto: «2 Ambientes», «Monoambiente», «1, 2 y 3 ambientes», «Unidad de interés: 2 Ambientes». Triplex cuenta como 4. Lo que no se reconoce se ignora (no da error). Se suman a los ambientes de interés de la oportunidad.",
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": [
+                    "integer",
+                    "string"
+                  ]
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "2 Ambientes",
+              [
+                1,
+                2
+              ]
+            ]
+          },
           "nombreCompleto": {
             "type": [
               "string",

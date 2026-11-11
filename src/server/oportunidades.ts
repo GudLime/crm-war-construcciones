@@ -32,6 +32,7 @@ import {
 } from "@/server/oportunidad-historial";
 import { seReabre, textoSinRespuesta } from "@/lib/ventas-ajustes";
 import { publish } from "@/server/events/bus";
+import { ajustarInteres } from "@/server/motor/interes";
 import { VentasError } from "@/server/ventas";
 
 /**
@@ -457,8 +458,22 @@ async function edificiosValidos(organizationId: string, ids: readonly string[]):
   return filas.map((f) => f.id);
 }
 
-/** Suma interés sin quitar lo que ya había (lo que hace la IA). */
+/**
+ * Suma interés sin quitar lo que ya había (lo que hace la IA o un lead). Con
+ * el interés encadenado del motor, recalcula el Valor; nunca suelta unidades.
+ */
 export async function sumarInteres(
+  organizationId: string,
+  oportunidadId: string,
+  edificioIds: readonly string[],
+  ambientes: readonly number[],
+  tipologiasUnidad: readonly string[] = []
+): Promise<void> {
+  await insertarInteres(organizationId, oportunidadId, edificioIds, ambientes, tipologiasUnidad);
+  await ajustarInteres(organizationId, oportunidadId, { podar: false });
+}
+
+async function insertarInteres(
   organizationId: string,
   oportunidadId: string,
   edificioIds: readonly string[],
@@ -510,7 +525,7 @@ export async function reemplazarInteres(
           eq(schema.oportunidadEdificio.oportunidadId, oportunidadId)
         )
       );
-    await sumarInteres(organizationId, oportunidadId, cambios.edificioIds, []);
+    await insertarInteres(organizationId, oportunidadId, cambios.edificioIds, []);
   }
   if (cambios.ambientes) {
     await db
@@ -522,7 +537,7 @@ export async function reemplazarInteres(
           eq(schema.oportunidadAmbiente.oportunidadId, oportunidadId)
         )
       );
-    await sumarInteres(organizationId, oportunidadId, [], cambios.ambientes);
+    await insertarInteres(organizationId, oportunidadId, [], cambios.ambientes);
   }
   if (cambios.tipologiasUnidad) {
     await db
@@ -534,7 +549,12 @@ export async function reemplazarInteres(
           eq(schema.oportunidadTipologiaUnidad.oportunidadId, oportunidadId)
         )
       );
-    await sumarInteres(organizationId, oportunidadId, [], [], cambios.tipologiasUnidad);
+    await insertarInteres(organizationId, oportunidadId, [], [], cambios.tipologiasUnidad);
+  }
+  // Sacar un edificio o un ambiente suelta las unidades que ya no coinciden, y
+  // el Valor se recalcula (interés encadenado del motor).
+  if (cambios.edificioIds || cambios.ambientes) {
+    await ajustarInteres(organizationId, oportunidadId, { podar: true });
   }
 }
 

@@ -243,6 +243,33 @@ const relacionSchema = z.object({
     .object({ tabla: clave, columnaDesde: clave, columnaHacia: clave })
     .optional(),
   obligatoria: z.boolean().default(false),
+  /**
+   * Muchos a muchos desde la oportunidad: los registros son el «interés» de la
+   * oportunidad (las unidades que mira) y se eligen encadenados a lo que la
+   * oportunidad ya tiene en el núcleo:
+   * - `edificio`: la relación uno a muchos que da el edificio de cada
+   *   registro (su lado «desde» adopta `edificio`). Solo se ofrecen los
+   *   registros de los edificios de interés; si se saca un edificio, se
+   *   sueltan los suyos.
+   * - `ambientes`: campo numérico del registro. Solo se ofrecen los de los
+   *   ambientes de interés; si se saca uno, se sueltan los suyos.
+   * - `filtro`: qué registros se ofrecen, por campo de selección o texto
+   *   (`{ "estado": ["disponible"], "tipo": ["departamento"] }`). Los ya
+   *   elegidos quedan aunque no pasen.
+   *   Los que no tienen ambientes ni pasan el filtro no entran al Valor.
+   * - `valor` (+ `moneda`): el Valor de la oportunidad pasa a ser calculado:
+   *   el promedio de los elegidos o, sin elegidos, el de los que se ofrecen
+   *   para los ambientes de interés.
+   */
+  interes: z
+    .object({
+      edificio: clave,
+      ambientes: clave.optional(),
+      filtro: z.record(clave, z.array(z.string().min(1)).min(1)).optional(),
+      valor: clave.optional(),
+      moneda: clave.optional(),
+    })
+    .optional(),
 });
 
 /**
@@ -463,6 +490,38 @@ export function validarConfig(datos: unknown): ResultadoConfig {
     if (r.tipo === "muchos_a_muchos" && cols.desde === cols.hacia) {
       errores.push(`relación «${r.clave}»: «columnaDesde» y «columnaHacia» no pueden ser la misma`);
     }
+  }
+
+  // El interés encadenado (edificio → ambientes → registros) y el Valor calculado.
+  const conInteres = config.relaciones.filter((r) => r.interes);
+  if (conInteres.length > 1) errores.push("solo una relación puede tener «interes»");
+  for (const r of conInteres) {
+    const i = r.interes!;
+    if (r.tipo !== "muchos_a_muchos" || r.desde !== "oportunidad") {
+      errores.push(`relación «${r.clave}»: «interes» es solo para muchos a muchos desde la oportunidad`);
+      continue;
+    }
+    const destino = objetos.get(r.hacia);
+    if (!destino) continue;
+    const padre = relaciones.get(i.edificio);
+    if (!padre || padre.tipo !== "uno_a_muchos" || padre.hacia !== r.hacia || objetos.get(padre.desde)?.adopta !== "edificio") {
+      errores.push(
+        `relación «${r.clave}»: «interes.edificio» tiene que ser una relación uno a muchos desde el objeto que adopta «edificio» hasta «${r.hacia}»`
+      );
+    }
+    const campo = (k: string | undefined) => (k ? destino.campos.find((c) => c.clave === k) : undefined);
+    const exigir = (k: string | undefined, nombre: string, tipos: readonly string[]) => {
+      if (!k) return;
+      const c = campo(k);
+      if (!c || !tieneColumna(c.tipo) || !tipos.includes(c.tipo)) {
+        errores.push(`relación «${r.clave}»: «interes.${nombre}» tiene que ser un campo de «${r.hacia}» (${tipos.join(" o ")})`);
+      }
+    };
+    exigir(i.ambientes, "ambientes", ["numero"]);
+    for (const k of Object.keys(i.filtro ?? {})) exigir(k, `filtro.${k}`, ["seleccion", "texto"]);
+    exigir(i.valor, "valor", ["moneda", "numero"]);
+    exigir(i.moneda, "moneda", ["texto", "seleccion"]);
+    if (i.moneda && !i.valor) errores.push(`relación «${r.clave}»: «interes.moneda» necesita «interes.valor»`);
   }
 
   const reglas = new Set<string>();

@@ -8,7 +8,7 @@ const fila = (extra: Partial<FilaFiltrable> = {}): FilaFiltrable => ({
   origen: "Meta Ads",
   edificioId: "ed_1",
   edificios: [{ id: "ed_1" }, { id: "ed_2" }],
-  tipologiasUnidad: ["2B"],
+  unidades: [{ id: "u_2b" }],
   paraCerrar: false,
   responsableId: "u_seba",
   ...extra,
@@ -24,11 +24,13 @@ describe("cumpleFiltros", () => {
     expect(cumpleFiltros(fila(), { edificios: ["ed_9"] }, null)).toBe(false);
     expect(cumpleFiltros(fila({ edificios: [] }), { edificios: ["ed_1"] }, null)).toBe(true);
   });
-  it("origen, estado, tipología y para cerrar", () => {
+  it("origen, estado, unidad y para cerrar", () => {
     expect(cumpleFiltros(fila(), { origenes: ["Zonaprop"] }, null)).toBe(false);
     expect(cumpleFiltros(fila(), { estados: ["en_charlas", "visito"] }, null)).toBe(true);
-    expect(cumpleFiltros(fila(), { tipologias: ["3A"] }, null)).toBe(false);
-    expect(cumpleFiltros(fila(), { tipologias: ["2B", "3A"] }, null)).toBe(true);
+    expect(cumpleFiltros(fila(), { unidades: ["u_3a"] }, null)).toBe(false);
+    expect(cumpleFiltros(fila(), { unidades: ["u_2b", "u_3a"] }, null)).toBe(true);
+    // Las tipologías pasaron a Unidades: una vista guardada con ese filtro ya no filtra.
+    expect(cumpleFiltros(fila(), { tipologias: ["3A"] }, null)).toBe(true);
     expect(cumpleFiltros(fila(), { paraCerrar: true }, null)).toBe(false);
     expect(cumpleFiltros(fila({ paraCerrar: true }), { paraCerrar: true }, null)).toBe(true);
   });

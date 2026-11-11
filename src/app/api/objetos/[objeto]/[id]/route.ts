@@ -1,6 +1,7 @@
 import { parseBody, withAuth } from "@/lib/api";
 import type { ObjetoDto, RegistroDto } from "@/lib/motor/dto";
 import { aDto, describirObjeto, entradaSchema, respuestaDeError } from "@/server/motor/api";
+import { recalcularPorRegistro } from "@/server/motor/interes";
 import { cargarMotor } from "@/server/motor/metadatos";
 import {
   actualizarRegistro,
@@ -82,6 +83,9 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
       tipo: "usuario",
       id: session.userId,
     });
+    // El precio, los ambientes o el estado de una unidad cambian el Valor de
+    // las oportunidades que la miran.
+    await recalcularPorRegistro(session.organizationId, clave, id);
     return Response.json({ registro: aDto(registro) });
   } catch (err) {
     return respuestaDeError(err);
