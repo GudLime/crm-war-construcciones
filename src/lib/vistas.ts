@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { situacionDe, type EstadoOportunidad } from "@/lib/ventas";
 
 /**
  * Vistas guardadas (D5): los filtros de una página con nombre, como pestañas
@@ -24,6 +25,8 @@ export const filtrosSchema = z
     /** 0049 — Unidades de interés (ids). */
     unidades: z.array(z.string().min(1).max(60)).max(50).optional(),
     paraCerrar: z.boolean().optional(),
+    /** Abiertas (Recibido…Visitó) o cerradas (Reservó, Compró, Perdido, No calificado). */
+    situacion: z.enum(["abiertas", "cerradas"]).optional(),
   })
   .strict();
 
@@ -55,24 +58,33 @@ export type VistaDto = {
   deFabrica?: boolean;
 };
 
-/** Las pestañas que trae toda instancia. */
+const deFabrica = (id: string, nombre: string, filtros: Filtros): VistaDto => ({
+  id,
+  nombre,
+  compartida: true,
+  filtros,
+  orden: null,
+  columnas: null,
+  anchos: null,
+  deFabrica: true,
+});
+
+/** Las pestañas que trae toda instancia. La primera es la que se abre por defecto. */
 export const VISTAS_DE_FABRICA: VistaDto[] = [
-  { id: "todas", nombre: "Todas", compartida: true, filtros: {}, orden: null, columnas: null, anchos: null, deFabrica: true },
-  {
-    id: "para-cerrar",
-    nombre: "Para cerrar",
-    compartida: true,
-    filtros: { paraCerrar: true },
-    orden: null,
-    columnas: null,
-    anchos: null,
-    deFabrica: true,
-  },
+  deFabrica("abiertas", "Abiertas", { situacion: "abiertas" }),
+  deFabrica("cerradas", "Cerradas", { situacion: "cerradas" }),
+  deFabrica("para-cerrar", "Para cerrar", { situacion: "abiertas", paraCerrar: true }),
+  deFabrica("todas", "Todas", {}),
 ];
+
+/** Qué hay que pedirle al servidor para una vista: solo abiertas, solo cerradas o todas. */
+export function situacionACargar(filtros: Filtros): "abiertas" | "cerradas" | "todas" {
+  return filtros.situacion ?? "todas";
+}
 
 /** Lo que el filtro necesita de una oportunidad. */
 export type FilaFiltrable = {
-  estado: string;
+  estado: EstadoOportunidad;
   origen: string | null;
   edificioId: string | null;
   edificios: { id: string }[];
@@ -85,6 +97,7 @@ export type FilaFiltrable = {
 const vacio = (a: readonly unknown[] | undefined) => !a || a.length === 0;
 
 export function cumpleFiltros(f: FilaFiltrable, filtros: Filtros, yo: string | null): boolean {
+  if (filtros.situacion && situacionDe(f.estado) !== filtros.situacion) return false;
   if (filtros.paraCerrar && !f.paraCerrar) return false;
   if (!vacio(filtros.estados) && !filtros.estados!.includes(f.estado)) return false;
   if (!vacio(filtros.origenes) && !filtros.origenes!.includes(f.origen ?? "")) return false;
@@ -107,7 +120,9 @@ export function cumpleFiltros(f: FilaFiltrable, filtros: Filtros, yo: string | n
 export function limpiarFiltros(f: Filtros): Filtros {
   const out: Filtros = {};
   for (const [k, v] of Object.entries(f) as [keyof Filtros, unknown][]) {
-    if (Array.isArray(v) ? v.length > 0 : v === true) (out as Record<string, unknown>)[k] = Array.isArray(v) ? [...v].sort() : v;
+    if (Array.isArray(v) ? v.length > 0 : v === true || typeof v === "string") {
+      (out as Record<string, unknown>)[k] = Array.isArray(v) ? [...v].sort() : v;
+    }
   }
   return out;
 }

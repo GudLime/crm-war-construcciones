@@ -223,6 +223,8 @@ cambios de GudLime, si `_journal.json` choca, se ordenan las entradas por
   sus oportunidades y les pasa el edificio principal a otro que tengan.
 - `war_0007_vista_mis_oportunidades`: siembra la vista del equipo «Mis
   oportunidades» (responsable = quien mira) en Oportunidades.
+- `war_0009_mis_oportunidades_abiertas`: «Mis oportunidades» pasa a mostrar
+  solo las abiertas y quien había quedado en «Todas» vuelve a «Abiertas».
 - `war_0008_tipologias_a_unidades`: las tipologías de interés pasan a Unidades
   de interés. En War la tipología es el nombre de la unidad («4B»): se vincula
   la unidad que se llama así (sin espacios, «°» ni mayúsculas) en los edificios
@@ -315,3 +317,15 @@ cambios de GudLime, si `_journal.json` choca, se ordenan las entradas por
   para cambiar el estado (las oportunidades pasan por el historial).
 - `tarea_venta.responsable_user_id` (0048): al crear, quien la crea si no se
   elige; filtro por avatares. `/api/equipo` lista el equipo.
+
+## Oportunidades: abiertas por defecto y por páginas
+
+- La lista arranca en la pestaña **Abiertas** (Recibido, En charlas, Conoce
+  información, Visitó: `ESTADOS_ABIERTOS_LISTA`). **Cerradas** (Reservó,
+  Compró, Perdido, No calificado) es otra pestaña de fábrica y el filtro
+  «Situación». El servidor trae solo esa parte (`GET /api/oportunidades?situacion=`),
+  así que las cerradas no se cargan hasta que se piden. Las pestañas cuentan
+  solo lo que está cargado.
+- Lista y Mosaico van **por páginas** (25 / 50 / 100, se recuerda en el
+  navegador); el Pipeline muestra 30 por columna con «Mostrar más». Los
+  contactos del formulario se piden recién al abrirlo.

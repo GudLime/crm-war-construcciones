@@ -1,4 +1,4 @@
-import { asc, count, desc, eq, inArray } from "drizzle-orm";
+import { asc, count, desc, eq, inArray, notInArray } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db";
 import { unidadesDeOportunidades } from "@/server/motor/interes";
@@ -7,6 +7,7 @@ import { motivoDesconocido, motivoValido } from "@/server/motivos-cierre";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
 import {
+  ESTADOS_ABIERTOS_LISTA,
   MAX_AMBIENTES,
   estaAbierta,
   metrosTotales,
@@ -21,6 +22,7 @@ import {
   VALORES_TIPOLOGIA,
   type EstadoEdificio,
   type EstadoOportunidad,
+  type Situacion,
   type EstadoTarea,
   type EstadoUnidad,
   type Tipologia,
@@ -718,7 +720,17 @@ async function formulariosDeOportunidades(
   return new Map(filas.map((f) => [f.oportunidadId, Number(f.n)]));
 }
 
-export async function listarOportunidades(organizationId: string): Promise<OportunidadDto[]> {
+export async function listarOportunidades(
+  organizationId: string,
+  /** Solo las abiertas o solo las cerradas de la lista (`ESTADOS_ABIERTOS_LISTA`); sin esto, todas. */
+  situacion?: Situacion
+): Promise<OportunidadDto[]> {
+  const deSituacion =
+    situacion === "abiertas"
+      ? inArray(schema.oportunidad.estado, [...ESTADOS_ABIERTOS_LISTA])
+      : situacion === "cerradas"
+        ? notInArray(schema.oportunidad.estado, [...ESTADOS_ABIERTOS_LISTA])
+        : undefined;
   const filas = await getDb()
     .select({
       op: schema.oportunidad,
@@ -730,7 +742,7 @@ export async function listarOportunidades(organizationId: string): Promise<Oport
     .leftJoin(schema.contact, eq(schema.contact.id, schema.oportunidad.contactId))
     .leftJoin(schema.edificio, eq(schema.edificio.id, schema.oportunidad.edificioId))
     .leftJoin(schema.departamento, eq(schema.departamento.id, schema.oportunidad.departamentoId))
-    .where(scoped(schema.oportunidad.organizationId, organizationId))
+    .where(scoped(schema.oportunidad.organizationId, organizationId, deSituacion))
     // War: lo que tuvo movimiento del interesado (formulario o WhatsApp) arriba.
     .orderBy(desc(schema.oportunidad.ultimaInteraccion), desc(schema.oportunidad.updatedAt));
   const ids = filas.map((f) => f.op.id);

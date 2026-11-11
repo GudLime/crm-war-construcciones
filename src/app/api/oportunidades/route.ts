@@ -9,9 +9,12 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export const GET = withAuth(async (session) => {
+/** `?situacion=abiertas|cerradas` trae solo esas (la lista arranca en Abiertas). */
+export const GET = withAuth(async (session, req: Request) => {
+  const s = new URL(req.url).searchParams.get("situacion");
+  const situacion = s === "abiertas" || s === "cerradas" ? s : undefined;
   const [oportunidades, valorCalculado] = await Promise.all([
-    listarOportunidades(session.organizationId),
+    listarOportunidades(session.organizationId, situacion),
     // 0049 — Con interés encadenado, el Valor es el promedio de las unidades.
     valorEsCalculado(session.organizationId).catch(() => false),
   ]);

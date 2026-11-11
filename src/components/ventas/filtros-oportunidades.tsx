@@ -15,6 +15,7 @@ import {
   cumpleFiltros,
   difiereDe,
   limpiarFiltros,
+  situacionACargar,
   type FilaFiltrable,
   type Filtros,
   type VistaDto,
@@ -60,17 +61,21 @@ async function mensaje(res: Response | null): Promise<string> {
 /** Vistas, filtros y cuál está elegida: el estado de la página. */
 export function useVistas<F extends FilaFiltrable>({
   filas,
+  cargadas,
   pref,
   setPref,
 }: {
   filas: F[];
+  /** Qué trajo la página del servidor: con eso se puede contar cada pestaña. */
+  cargadas: "abiertas" | "cerradas" | "todas" | null;
   pref: PreferenciasDeLista;
   setPref: React.Dispatch<React.SetStateAction<PreferenciasDeLista>>;
 }) {
   const [guardadas, setGuardadas] = useState<VistaDto[]>([]);
   const [yo, setYo] = useState<string | null>(null);
-  const [activa, setActiva] = useState<string>("todas");
-  const [filtros, setFiltros] = useState<Filtros>({});
+  // Por defecto, «Abiertas»: las cerradas no se cargan hasta que se piden.
+  const [activa, setActiva] = useState<string>(VISTAS_DE_FABRICA[0]!.id);
+  const [filtros, setFiltros] = useState<Filtros>(VISTAS_DE_FABRICA[0]!.filtros);
   const [lista, setLista] = useState(false);
 
   const vistas = useMemo(() => [...VISTAS_DE_FABRICA, ...guardadas], [guardadas]);
@@ -105,7 +110,7 @@ export function useVistas<F extends FilaFiltrable>({
       setLista(true);
       if (!d?.ultima) return;
       const v = [...VISTAS_DE_FABRICA, ...d.vistas].find((x) => x.id === d.ultima);
-      if (v && v.id !== "todas") {
+      if (v && v.id !== VISTAS_DE_FABRICA[0]!.id) {
         setActiva(v.id);
         aplicar(v);
       }
@@ -172,7 +177,12 @@ export function useVistas<F extends FilaFiltrable>({
   }
 
   const visibles = useMemo(() => filas.filter((f) => cumpleFiltros(f, filtros, yo)), [filas, filtros, yo]);
-  const contar = (v: VistaDto) => filas.filter((f) => cumpleFiltros(f, v.filtros, yo)).length;
+  /** Solo se cuenta lo que está cargado: una pestaña de cerradas no se cuenta con las abiertas. */
+  const contar = (v: VistaDto): number | null => {
+    const necesita = situacionACargar(v.filtros);
+    if (cargadas === null || (cargadas !== "todas" && necesita !== cargadas)) return null;
+    return filas.filter((f) => cumpleFiltros(f, v.filtros, yo)).length;
+  };
 
   return {
     vistas,
@@ -222,7 +232,9 @@ export function PestanasDeVistas({ v }: { v: EstadoVistas }) {
             >
               {!x.compartida && <span className="sr-only">(solo tuya)</span>}
               {x.nombre}
-              <span className="rounded-full bg-muted px-1.5 text-[11px] font-semibold text-text-2">{v.contar(x)}</span>
+              {v.contar(x) !== null && (
+                <span className="rounded-full bg-muted px-1.5 text-[11px] font-semibold text-text-2">{v.contar(x)}</span>
+              )}
             </button>
             {elegida && !x.deFabrica && (
               <Menu
@@ -382,6 +394,56 @@ export function BarraDeFiltros({
         </div>
       )}
 
+      {f.situacion && (
+        <span className="inline-flex items-center rounded-full border border-border bg-card">
+          <Menu
+            boton={(abierto, alternar) => (
+              <button
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={abierto}
+                onClick={alternar}
+                className="inline-flex h-7 items-center gap-1 rounded-l-full pl-3 pr-1 hover:bg-accent"
+              >
+                Situación: <strong className="font-semibold">{f.situacion === "abiertas" ? "Abiertas" : "Cerradas"}</strong>
+                <ChevronDown className="size-3.5 text-text-3" />
+              </button>
+            )}
+          >
+            {(cerrar) => (
+              <>
+                {(
+                  [
+                    ["abiertas", "Abiertas", "Recibido, En charlas, Conoce información, Visitó"],
+                    ["cerradas", "Cerradas", "Reservó, Compró, Perdido, No calificado"],
+                  ] as const
+                ).map(([valor, texto, detalle]) => (
+                  <MenuItem
+                    key={valor}
+                    marcado={f.situacion === valor}
+                    onClick={() => {
+                      v.setFiltros({ ...f, situacion: valor });
+                      cerrar();
+                    }}
+                  >
+                    <span className="block">{texto}</span>
+                    <span className="block text-[11.5px] text-text-3">{detalle}</span>
+                  </MenuItem>
+                ))}
+              </>
+            )}
+          </Menu>
+          <button
+            type="button"
+            aria-label="Quitar el filtro Situación (ver todas)"
+            onClick={() => v.setFiltros({ ...f, situacion: undefined })}
+            className="grid size-7 place-items-center rounded-r-full text-text-3 hover:bg-accent hover:text-foreground"
+          >
+            <X className="size-3.5" />
+          </button>
+        </span>
+      )}
+
       {activas.map((p) => (
         <span key={p} className="inline-flex items-center rounded-full border border-border bg-card">
           {p === "paraCerrar" ? (
@@ -435,7 +497,7 @@ export function BarraDeFiltros({
         </span>
       ))}
 
-      {agregables.length > 0 && (
+      {(agregables.length > 0 || !f.situacion) && (
         <Menu
           boton={(abierto, alternar) => (
             <button
@@ -452,6 +514,17 @@ export function BarraDeFiltros({
           {(cerrar) => (
             <>
               <MenuTitulo>Filtrar por</MenuTitulo>
+              {!f.situacion && (
+                <MenuItem
+                  icono={<Filter className="size-3.5" />}
+                  onClick={() => {
+                    cerrar();
+                    v.setFiltros({ ...f, situacion: "cerradas" });
+                  }}
+                >
+                  Situación (abiertas / cerradas)
+                </MenuItem>
+              )}
               {agregables.map((p) => (
                 <MenuItem
                   key={p}
@@ -473,8 +546,11 @@ export function BarraDeFiltros({
         </Menu>
       )}
 
-      {(activas.length > 0 || responsables.length > 0) && (
-        <button type="button" onClick={() => v.setFiltros({})} className="px-1 text-text-3 hover:text-foreground hover:underline">
+      {(activas.length > 0 || responsables.length > 0 || f.situacion !== "abiertas") && (
+        <button
+          type="button"
+          title="Vuelve a las abiertas, sin otros filtros"
+          onClick={() => v.setFiltros({ situacion: "abiertas" })} className="px-1 text-text-3 hover:text-foreground hover:underline">
           Limpiar
         </button>
       )}
