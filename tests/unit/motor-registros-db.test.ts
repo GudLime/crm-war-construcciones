@@ -652,7 +652,7 @@ describe.skipIf(!URL)("motor: interés encadenado en Postgres", () => {
           interes: {
             edificio: "edificio_unidadesint",
             ambientes: "ambientes",
-            estado: { campo: "estado", valores: ["disponible"] },
+            filtro: { estado: ["disponible"] },
             valor: "valor",
             moneda: "moneda",
           },

@@ -131,7 +131,7 @@ describe("configuración de «interes»", () => {
         interes: {
           edificio: "edificio_unidades",
           ambientes: "ambientes",
-          estado: { campo: "estado", valores: ["disponible"] },
+          filtro: { estado: ["disponible"] },
           valor: "valor",
           moneda: "moneda",
         },

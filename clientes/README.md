@@ -77,7 +77,7 @@ eligen encadenados a lo que la oportunidad ya tiene en el núcleo.
   "interes": {
     "edificio": "edificio_unidades",          // uno a muchos desde el objeto que adopta `edificio`
     "ambientes": "ambientes",                 // campo numérico de la unidad
-    "estado": { "campo": "estado", "valores": ["disponible", "consultar"] },
+    "filtro": { "estado": ["disponible", "consultar"], "tipo": ["departamento"] },
     "valor": "valor", "moneda": "moneda"      // el Valor de la oportunidad pasa a calcularse
   } }
 ```
@@ -85,7 +85,8 @@ eligen encadenados a lo que la oportunidad ya tiene en el núcleo.
 - **Ambientes**: en la oportunidad se ofrecen los que tienen las unidades de
   sus edificios de interés.
 - **Unidades**: solo las de esos edificios, con alguno de los ambientes
-  elegidos y en un estado de `estado.valores`. Las ya elegidas siempre se ven.
+  elegidos y que pasan `filtro` (campo → valores aceptados). Las ya elegidas
+  siempre se ven.
 - **Encadenado**: sacar un edificio o un ambiente suelta las unidades que ya no
   coinciden. Sumar (un lead, el agente) nunca suelta.
 - **Valor**: promedio del precio de las unidades elegidas; sin elegidas, el de

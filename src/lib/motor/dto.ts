@@ -72,7 +72,7 @@ export type UnidadDeInteresDto = {
   ambientes: number | null;
   valorCents: number | null;
   moneda: string | null;
-  /** En un estado que se ofrece (las reservadas o vendidas ya elegidas quedan, pero no se ofrecen). */
+  /** Pasa el `filtro` del interés (las reservadas, vendidas o cocheras ya elegidas quedan, pero no se ofrecen). */
   ofrecida: boolean;
 };
 

@@ -17,7 +17,7 @@ export type { InteresDto, UnidadDeInteresDto };
  *
  * - Se ofrecen los registros de los edificios de interés (núcleo:
  *   `oportunidad_edificio`), con alguno de los ambientes de interés
- *   (`oportunidad_ambiente`; sin ambientes, todos) y en un estado ofrecible.
+ *   (`oportunidad_ambiente`; sin ambientes, todos) y que pasan `filtro`.
  * - Al sacar un edificio o un ambiente, se sueltan los registros elegidos que
  *   ya no coinciden (`podarInteres`).
  * - Valor = promedio del campo `valor` de los elegidos; sin elegidos, el de los
@@ -54,7 +54,6 @@ function aUnidad(r: RelacionConInteres, padre: RelacionMeta | null, reg: Registr
   const amb = i.ambientes ? aNumero(reg.valores[i.ambientes]) : null;
   const valor = i.valor ? aNumero(reg.valores[i.valor]) : null;
   const moneda = i.moneda ? reg.valores[i.moneda] : null;
-  const estado = i.estado ? reg.valores[i.estado.campo] : null;
   return {
     id: reg.id,
     titulo: reg.titulo,
@@ -62,7 +61,7 @@ function aUnidad(r: RelacionConInteres, padre: RelacionMeta | null, reg: Registr
     ambientes: amb === null ? null : Math.round(amb),
     valorCents: valor === null ? null : Math.round(valor),
     moneda: typeof moneda === "string" && moneda.trim() ? moneda.trim() : null,
-    ofrecida: !i.estado || i.estado.valores.includes(String(estado ?? "")),
+    ofrecida: Object.entries(i.filtro ?? {}).every(([campo, valores]) => valores.includes(String(reg.valores[campo] ?? ""))),
   };
 }
 
