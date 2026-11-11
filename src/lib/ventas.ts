@@ -208,6 +208,23 @@ export function estaAbierta(estado: EstadoOportunidad): boolean {
   return ESTADOS_ABIERTOS.includes(estado);
 }
 
+/**
+ * La lista de oportunidades separa «Abiertas» (las que todavía hay que
+ * trabajar) de «Cerradas». Para la lista, Reservó ya cuenta como cerrada.
+ */
+export const ESTADOS_ABIERTOS_LISTA: readonly EstadoOportunidad[] = [
+  "recibido",
+  "en_charlas",
+  "conoce_informacion",
+  "visito",
+];
+
+export type Situacion = "abiertas" | "cerradas";
+
+export function situacionDe(estado: EstadoOportunidad): Situacion {
+  return ESTADOS_ABIERTOS_LISTA.includes(estado) ? "abiertas" : "cerradas";
+}
+
 /** El camino principal, en orden: lo que muestra el panel como pasos. */
 export const CAMINO_OPORTUNIDAD: readonly EstadoOportunidad[] = [
   "recibido",

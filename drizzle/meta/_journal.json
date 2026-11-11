@@ -407,6 +407,13 @@
       "when": 1793898060000,
       "tag": "war_0008_tipologias_a_unidades",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1793898120000,
+      "tag": "war_0008_mis_oportunidades_abiertas",
+      "breakpoints": true
     }
   ]
 }
