@@ -14,7 +14,7 @@ const f = (
   edificios: [],
   edificioNombre: null,
   ambientes: [],
-  tipologiasUnidad: [],
+  unidades: [],
   unidad: null,
   estado: "recibido" as EstadoOportunidad,
   ultimaInteraccion: "2026-11-01T10:00:00.000Z",
@@ -24,8 +24,8 @@ const f = (
 
 describe("ordenar", () => {
   const filas = [
-    f("Bruno", { estado: "visito", valorCents: 500, ambientes: [3], tipologiasUnidad: ["2B", "10A"], ultimaInteraccion: "2026-11-05T10:00:00.000Z" }),
-    f("ana", { estado: "perdido", valorCents: null, ambientes: [4, 1], tipologiasUnidad: ["1A"] }),
+    f("Bruno", { estado: "visito", valorCents: 500, ambientes: [3], unidades: [{ titulo: "2B" }, { titulo: "10A" }], ultimaInteraccion: "2026-11-05T10:00:00.000Z" }),
+    f("ana", { estado: "perdido", valorCents: null, ambientes: [4, 1], unidades: [{ titulo: "1A" }] }),
     f("Carla", { estado: "recibido", valorCents: 100, ultimaInteraccion: "2026-11-09T10:00:00.000Z" }),
   ];
 
@@ -39,9 +39,9 @@ describe("ordenar", () => {
     expect(ordenar(filas, { columna: "valor", dir: "asc" }).map((x) => x.id)).toEqual(["Carla", "Bruno", "ana"]);
     expect(ordenar(filas, { columna: "valor", dir: "desc" }).map((x) => x.id)).toEqual(["Bruno", "Carla", "ana"]);
   });
-  it("ambientes por el menor, tipología 1A → 4B; última interacción por fecha", () => {
+  it("ambientes por el menor, unidades por la primera; última interacción por fecha", () => {
     expect(ordenar(filas, { columna: "ambientes", dir: "asc" }).map((x) => x.id)).toEqual(["ana", "Bruno", "Carla"]);
-    expect(ordenar(filas, { columna: "tipologia", dir: "desc" }).map((x) => x.id)).toEqual(["Bruno", "ana", "Carla"]);
+    expect(ordenar(filas, { columna: "unidades", dir: "desc" }).map((x) => x.id)).toEqual(["Bruno", "ana", "Carla"]);
     expect(ordenar(filas, { columna: "ultima", dir: "desc" }).map((x) => x.id)).toEqual(["Carla", "Bruno", "ana"]);
   });
   it("sin orden, como vino; nunca toca el original", () => {

@@ -1,4 +1,5 @@
 import { apiError, parseBody, withAuth } from "@/lib/api";
+import { recalcularPorRegistro } from "@/server/motor/interes";
 import {
   borrarDepartamento,
   departamentoSchema,
@@ -15,9 +16,10 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   const body = await parseBody(req, departamentoSchema);
   if (!body.ok) return body.response;
   try {
-    return Response.json({
-      departamento: await editarDepartamento(session.organizationId, id, body.data),
-    });
+    const departamento = await editarDepartamento(session.organizationId, id, body.data);
+    // Su precio o su estado cambian el Valor de las oportunidades que la miran.
+    await recalcularPorRegistro(session.organizationId, "departamento", id);
+    return Response.json({ departamento });
   } catch (err) {
     if (err instanceof VentasError) return apiError(err.status, err.code, err.message);
     throw err;

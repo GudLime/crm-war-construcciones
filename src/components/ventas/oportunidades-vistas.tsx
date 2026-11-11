@@ -194,8 +194,8 @@ function celda(c: ClaveColumna, o: OportunidadDto, iconoDe: IconoDe, moneda: str
     }
     case "ambientes":
       return <Etiquetas valores={o.ambientes.map(String)} />;
-    case "tipologia":
-      return <Etiquetas valores={o.tipologiasUnidad} />;
+    case "unidades":
+      return <Etiquetas valores={o.unidades.map((u) => u.titulo)} />;
     case "departamento":
       return o.unidad ? (
         <span className="inline-block rounded-full border border-border px-2 py-px text-[12px]">{o.unidad}</span>
@@ -560,7 +560,7 @@ function Tarjeta({
   const eds = edificiosDe(o);
   const detalle = [
     o.unidad ? `U. ${o.unidad}` : "",
-    o.tipologiasUnidad.join(", "),
+    o.unidades.map((u) => u.titulo).join(", "),
     o.ambientes.length ? `${o.ambientes.join(", ")} amb.` : "",
   ]
     .filter(Boolean)
@@ -718,7 +718,7 @@ function PanelOportunidad({
       ),
     ],
     ["Ambientes", o.ambientes.length ? o.ambientes.map(etiquetaAmbientes).join(", ") : "—"],
-    ["Tipología", <Etiquetas key="t" valores={o.tipologiasUnidad} />],
+    ["Unidades", <Etiquetas key="u" valores={o.unidades.map((u) => u.titulo)} />],
     ["Departamento", o.unidad ?? "—"],
     ["Valor", plata(o.valorCents, o.moneda, moneda)],
     ["Última interacción", haceCuanto(o.ultimaInteraccion)],

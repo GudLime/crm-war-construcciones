@@ -2,6 +2,7 @@ import { sql, type SQL } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import type { ObjetoDto, RegistroDto } from "@/lib/motor/dto";
 import { aDto, describirObjeto } from "./api";
+import { recalcularPorRegistro, recalcularValor, relacionDeInteres } from "./interes";
 import { cargarMotor, type Motor, type RelacionMeta, type ReglaMeta } from "./metadatos";
 import { actualizarRegistro, MotorError, obtenerRegistro, type Actor } from "./registros";
 
@@ -125,6 +126,8 @@ export async function vincularOportunidad(
       );
     }
   });
+  // Las unidades de interés definen el Valor de la oportunidad.
+  if (relacionDeInteres(motor)?.clave === r.clave) await recalcularValor(organizationId, oportunidadId);
 }
 
 // ── Reglas de etapa ─────────────────────────────────────────────────────────
@@ -197,6 +200,7 @@ export async function aplicarRegla(
   for (const rid of new Set(registroIds)) {
     if (!vinculados.includes(rid)) throw new MotorError("invalido", "Ese registro no está vinculado a la oportunidad");
     await actualizarRegistro(organizationId, r.hacia, rid, { valores: { [g.campo]: g.valor } }, actor);
+    await recalcularPorRegistro(organizationId, r.hacia, rid);
     aplicados++;
   }
   return aplicados;

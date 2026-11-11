@@ -1,4 +1,4 @@
-import { ESTADOS_OPORTUNIDAD, ordenarTipologiasUnidad, type EstadoOportunidad } from "@/lib/ventas";
+import { ESTADOS_OPORTUNIDAD, type EstadoOportunidad } from "@/lib/ventas";
 
 /**
  * La lista de oportunidades: columnas, orden y anchos (lo puro, sin React,
@@ -13,7 +13,7 @@ export type ClaveColumna =
   | "origen"
   | "interes"
   | "ambientes"
-  | "tipologia"
+  | "unidades"
   | "departamento"
   | "estado"
   | "ultima"
@@ -37,7 +37,7 @@ export const COLUMNAS: readonly Columna[] = [
   { clave: "origen", titulo: "Origen", ancho: 180, criterioAsc: "A → Z", criterioDesc: "Z → A" },
   { clave: "interes", titulo: "Interés", ancho: 150, criterioAsc: "A → Z", criterioDesc: "Z → A" },
   { clave: "ambientes", titulo: "Ambientes", ancho: 110, criterioAsc: "menor primero", criterioDesc: "mayor primero" },
-  { clave: "tipologia", titulo: "Tipología", ancho: 140, criterioAsc: "1A → 4B", criterioDesc: "4B → 1A" },
+  { clave: "unidades", titulo: "Unidades", ancho: 150, criterioAsc: "1A → 9B", criterioDesc: "9B → 1A" },
   { clave: "departamento", titulo: "Departamento", ancho: 130, criterioAsc: "A → Z", criterioDesc: "Z → A" },
   { clave: "estado", titulo: "Estado", ancho: 190, criterioAsc: "orden del embudo", criterioDesc: "embudo al revés" },
   { clave: "ultima", titulo: "Última interacción", ancho: 150, criterioAsc: "más vieja primero", criterioDesc: "más nueva primero" },
@@ -58,7 +58,8 @@ export type FilaOrdenable = {
   edificios: { nombre: string }[];
   edificioNombre: string | null;
   ambientes: readonly number[];
-  tipologiasUnidad: readonly string[];
+  /** 0049 — Unidades de interés (ya ordenadas). */
+  unidades: readonly { titulo: string }[];
   unidad: string | null;
   estado: EstadoOportunidad;
   ultimaInteraccion: string;
@@ -80,8 +81,8 @@ function claveDe(f: FilaOrdenable, c: ClaveColumna): string | number | null {
       return f.edificios[0]?.nombre ?? f.edificioNombre ?? null;
     case "ambientes":
       return f.ambientes.length ? Math.min(...f.ambientes) : null;
-    case "tipologia":
-      return ordenarTipologiasUnidad(f.tipologiasUnidad)[0] ?? null;
+    case "unidades":
+      return f.unidades[0]?.titulo ?? null;
     case "departamento":
       return f.unidad || null;
     case "estado":
@@ -90,6 +91,9 @@ function claveDe(f: FilaOrdenable, c: ClaveColumna): string | number | null {
       return new Date(f.ultimaInteraccion).getTime();
     case "valor":
       return f.valorCents;
+    default:
+      // Una vista guardada con una columna que ya no existe (Tipología → Unidades).
+      return null;
   }
 }
 

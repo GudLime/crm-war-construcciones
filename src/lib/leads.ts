@@ -94,6 +94,15 @@ export const leadBodySchema = z.object({
   plataforma: texto,
   /** Fecha del lead (ISO o epoch en segundos). Sin ella, ahora. */
   creadoEn: texto,
+  /**
+   * Ambientes de interés: un número, una lista o texto («2 Ambientes»,
+   * «Monoambiente», «1, 2 y 3 ambientes»). Se leen con `ambientesDeTexto`;
+   * lo que no se reconoce se ignora.
+   */
+  ambientes: z
+    .union([z.number(), z.string(), z.array(z.union([z.number(), z.string()]))])
+    .optional()
+    .nullable(),
   /** Preguntas extra del formulario, tal cual. */
   respuestas: z.record(z.string(), z.unknown()).optional().nullable(),
 });

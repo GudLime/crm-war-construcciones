@@ -65,6 +65,36 @@ Relaciones: `uno_a_muchos` (columna `<desde>_id` en la tabla del lado «hacia»)
 o `muchos_a_muchos` (tabla `rel_<clave>`). `desde` puede ser `oportunidad` o
 `contacto`, del núcleo.
 
+## Interés encadenado y Valor calculado (0049)
+
+Una relación muchos a muchos desde la oportunidad puede llevar `interes`: sus
+registros pasan a ser el interés de la oportunidad (las unidades que mira) y se
+eligen encadenados a lo que la oportunidad ya tiene en el núcleo.
+
+```jsonc
+{ "clave": "oportunidad_unidades", "desde": "oportunidad", "hacia": "unidad",
+  "tipo": "muchos_a_muchos", "nombreDesde": "Unidades de interés", "nombreHacia": "Oportunidades",
+  "interes": {
+    "edificio": "edificio_unidades",          // uno a muchos desde el objeto que adopta `edificio`
+    "ambientes": "ambientes",                 // campo numérico de la unidad
+    "estado": { "campo": "estado", "valores": ["disponible", "consultar"] },
+    "valor": "valor", "moneda": "moneda"      // el Valor de la oportunidad pasa a calcularse
+  } }
+```
+
+- **Ambientes**: en la oportunidad se ofrecen los que tienen las unidades de
+  sus edificios de interés.
+- **Unidades**: solo las de esos edificios, con alguno de los ambientes
+  elegidos y en un estado de `estado.valores`. Las ya elegidas siempre se ven.
+- **Encadenado**: sacar un edificio o un ambiente suelta las unidades que ya no
+  coinciden. Sumar (un lead, el agente) nunca suelta.
+- **Valor**: promedio del precio de las unidades elegidas; sin elegidas, el de
+  las ofrecidas de los ambientes elegidos; sin ambientes, vacío. Con monedas
+  distintas, se promedian las de la más repetida. Se recalcula al elegir, al
+  cambiar el interés, al editar o importar precios, y al arrancar (sin borrar
+  un valor que no se pueda calcular).
+- Una sola relación puede tener `interes`. Sin ella, el Valor sigue a mano.
+
 ## Adoptar una tabla que ya existe
 
 `"adopta": "<tabla>"` describe una tabla del CRM en vez de crear una nueva:
