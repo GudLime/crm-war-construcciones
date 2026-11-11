@@ -102,7 +102,10 @@
       "nombreDesde": "Edificios de interés", "nombreHacia": "Oportunidades" },
     { "clave": "oportunidad_unidades", "desde": "oportunidad", "hacia": "unidad", "tipo": "muchos_a_muchos",
       "sembrarDesde": { "tabla": "oportunidad", "columnaDesde": "id", "columnaHacia": "departamento_id" },
-      "nombreDesde": "Unidades de interés", "nombreHacia": "Oportunidades" }
+      "nombreDesde": "Unidades de interés", "nombreHacia": "Oportunidades",
+      "interes": { "edificio": "edificio_unidades", "ambientes": "ambientes",
+        "filtro": { "estado": ["disponible", "consultar"], "tipo": ["departamento"] },
+        "valor": "valor", "moneda": "moneda" } }
   ],
   "reglasEtapa": [
     { "clave": "reserva_reserva_unidad", "etapa": "reservo", "relacion": "oportunidad_unidades",
