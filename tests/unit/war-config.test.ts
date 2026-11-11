@@ -19,13 +19,12 @@ describe("WAR: clientes/war.json", () => {
     expect(r.ok ? [] : r.errores).toEqual([]);
   });
 
-  it("solo agrega: tipo, ambientes, tipología, fotos y video en departamento; fotos y video en edificio; y la tabla de vínculos", () => {
+  it("solo agrega: tipo, ambientes, fotos y video en departamento; fotos y video en edificio; y la tabla de vínculos", () => {
     if (!r.ok) return;
     const ddl = sentenciasDdl(r.config);
     expect(ddl.join("\n")).not.toMatch(/\bDROP\b|\bALTER COLUMN\b|\bRENAME\b|\bDELETE FROM\b|\bTRUNCATE\b/);
     expect(ddl.filter((s) => s.startsWith("ALTER") && s.includes('"departamento"'))).toEqual([
       'ALTER TABLE IF EXISTS "departamento" ADD COLUMN IF NOT EXISTS "tipo" text',
-      'ALTER TABLE IF EXISTS "departamento" ADD COLUMN IF NOT EXISTS "tipologia_unidad" text',
       'ALTER TABLE IF EXISTS "departamento" ADD COLUMN IF NOT EXISTS "ambientes" numeric',
       'ALTER TABLE IF EXISTS "departamento" ADD COLUMN IF NOT EXISTS "fotos" jsonb',
       'ALTER TABLE IF EXISTS "departamento" ADD COLUMN IF NOT EXISTS "video" text',
@@ -45,5 +44,14 @@ describe("WAR: clientes/war.json", () => {
     );
     expect(esperadas.get("edificio")).toEqual(expect.arrayContaining(["nombre", "estado", "memoria_agente", "en_venta"]));
     expect(esperadas.get("oportunidad_edificio")).toEqual(["organization_id", "oportunidad_id", "edificio_id"]);
+  });
+
+  it("la unidad se llama por su nombre («4B»), sin tipología aparte; el piso queda", () => {
+    if (!r.ok) return;
+    const unidad = r.config.objetos.find((o) => o.clave === "unidad")!;
+    expect(unidad.titulo).toEqual(["nombre"]);
+    expect(unidad.campos.find((c) => c.clave === "nombre")).toMatchObject({ columna: "unidad", obligatorio: true });
+    expect(unidad.campos.some((c) => c.clave === "piso")).toBe(true);
+    expect(unidad.campos.some((c) => c.clave === "tipologia")).toBe(false);
   });
 });

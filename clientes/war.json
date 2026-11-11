@@ -42,8 +42,7 @@
       "nombrePlural": "Unidades",
       "icono": "door-open",
       "adopta": "departamento",
-      "titulo": ["piso", "tipologia"],
-      "columnaTitulo": "unidad",
+      "titulo": ["nombre"],
       "tituloUnicoDentroDe": "edificio_unidades",
       "enMenu": false,
       "agente": {
@@ -60,10 +59,8 @@
             { "valor": "cochera", "nombre": "Cochera" },
             { "valor": "baulera", "nombre": "Baulera" }
           ] },
+        { "clave": "nombre", "nombre": "Unidad", "tipo": "texto", "obligatorio": true, "columna": "unidad" },
         { "clave": "piso", "nombre": "Piso", "tipo": "numero", "obligatorio": true },
-        { "clave": "tipologia", "nombre": "Tipología", "tipo": "texto", "obligatorio": true,
-          "columna": "tipologia_unidad", "crear": true,
-          "inicial": { "copiarDe": "unidad", "patron": "^[0-9]+\\s*([A-Za-z]+)$" } },
         { "clave": "ambientes", "nombre": "Ambientes", "tipo": "numero", "crear": true,
           "inicial": { "copiarDe": "tipologia",
             "mapa": { "1_ambiente": 1, "2_ambientes": 2, "3_ambientes": 3, "4_ambientes": 4 } } },
