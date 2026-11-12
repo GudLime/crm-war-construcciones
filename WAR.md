@@ -406,3 +406,8 @@ persona, solo admin). Spec: proyecto «CRM War Construcciones» →
 - **Ventana de 24 h por cerrar**: chats de WhatsApp de mis contactos donde el
   último mensaje es del cliente, nadie respondió y la ventana cierra en menos de
   12 h.
+- **Tu semana**: desde el lunes contra la semana anterior hasta el mismo punto:
+  nuevas asignadas, % contactadas, mediana hasta el 1.er contacto, visitas,
+  reservas (Reservó o Compró) y perdidas, de `oportunidad_evento`.
+- **Ver como** (solo admin): el Inicio de otra persona del equipo; los links
+  abren las listas filtradas por esa persona.
