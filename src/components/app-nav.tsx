@@ -50,6 +50,10 @@ import {
   versionTitle,
   type ResolvedCommit,
 } from "@/lib/version";
+import { FlechaOrigenes, HiloOrigenes, useOrigenesDelMenu } from "@/components/nav-origenes";
+
+/** La entrada que despliega las subpáginas por origen. */
+const OPORTUNIDADES = "/oportunidades";
 
 /**
  * Un renglón del menú, como el `side-item` del mockup de la landing: texto
@@ -196,8 +200,36 @@ export function AppNav({
   // #87 — Qué hay en el menú y en qué grupo lo decide `appNavGroups`; aquí
   // solo se pinta.
   const groups = appNavGroups({ agenda, role, objetos });
+  // Subpáginas de Oportunidades por origen (el hilo bajo «Oportunidades»).
+  const subOrigenes = useOrigenesDelMenu(pathname);
 
   function renderItem(item: NavItem) {
+    if (item.href === OPORTUNIDADES) {
+      const enSub = pathname.startsWith(`${OPORTUNIDADES}/origen/`);
+      const active = isNavActive(pathname, item.href) && !enSub;
+      return (
+        <div key={item.href} className="flex flex-col gap-0.5">
+          <div className="relative">
+            <Link
+              href={item.href}
+              className={cn(navItemClass(active || enSub), "pr-9")}
+              aria-current={active ? "page" : undefined}
+            >
+              <item.icon
+                className={cn("h-5 w-5 shrink-0", active || enSub ? "text-brand" : "text-text-3")}
+                strokeWidth={1.8}
+                aria-hidden
+              />
+              <span className="flex-1">{item.label}</span>
+            </Link>
+            {subOrigenes.origenes.length > 0 && (
+              <FlechaOrigenes abierto={subOrigenes.abierto} onAlternar={subOrigenes.alternar} activo={false} />
+            )}
+          </div>
+          {subOrigenes.abierto && <HiloOrigenes origenes={subOrigenes.origenes} pathname={pathname} />}
+        </div>
+      );
+    }
     const active = isNavActive(pathname, item.href);
     return (
       <Link
@@ -275,6 +307,7 @@ export function AppNav({
       version={versionTexto}
       versionTitulo={versionTitulo}
       onSalir={() => void salir()}
+      subOrigenes={subOrigenes}
     />
     <aside
       // Móvil: cajón que se desliza desde la izquierda (siempre montado, así
@@ -401,7 +434,9 @@ function Riel({
   version,
   versionTitulo,
   onSalir,
+  subOrigenes,
 }: {
+  subOrigenes: ReturnType<typeof useOrigenesDelMenu>;
   branding: Branding;
   groups: ReturnType<typeof appNavGroups>;
   pathname: string;
@@ -433,6 +468,42 @@ function Riel({
   }, [cuenta]);
 
   const boton = (item: NavItem) => {
+    if (item.href === OPORTUNIDADES) {
+      // En una subpágina por origen, «Oportunidades» queda en tinte y el
+      // origen activo va en el acento sólido.
+      const enSub = pathname.startsWith(`${OPORTUNIDADES}/origen/`);
+      const active = isNavActive(pathname, item.href) && !enSub;
+      return (
+        <div key={item.href} className="flex flex-col gap-0.5">
+          <div className="relative">
+            <Link
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "relative flex w-full items-center gap-2.5 rounded-md py-2 pl-2.5 pr-9 text-[13.5px] font-semibold transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                active
+                  ? "bg-brand text-brand-fg"
+                  : enSub
+                    ? "bg-brand-tint text-brand-text"
+                    : "text-text-2 hover:bg-accent hover:text-foreground"
+              )}
+            >
+              <item.icon
+                className={cn("h-5 w-5 shrink-0", active ? "text-brand-fg" : enSub ? "text-brand" : "text-text-3")}
+                strokeWidth={1.8}
+                aria-hidden
+              />
+              <span className="min-w-0 flex-1 truncate">{item.label}</span>
+            </Link>
+            {subOrigenes.origenes.length > 0 && (
+              <FlechaOrigenes abierto={subOrigenes.abierto} onAlternar={subOrigenes.alternar} activo={active} />
+            )}
+          </div>
+          {subOrigenes.abierto && <HiloOrigenes origenes={subOrigenes.origenes} pathname={pathname} />}
+        </div>
+      );
+    }
     const active = isNavActive(pathname, item.href);
     return (
       <Link

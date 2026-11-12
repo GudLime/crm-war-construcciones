@@ -328,11 +328,14 @@ export function BarraDeFiltros({
   equipo,
   opciones,
   derecha,
+  sinOrigen = false,
 }: {
   v: EstadoVistas;
   equipo: Miembro[];
   opciones: { edificios: Opcion[]; origenes: Opcion[]; unidades: Opcion[] };
   derecha?: React.ReactNode;
+  /** Subpágina por origen: el origen ya está fijo, no se ofrece como filtro. */
+  sinOrigen?: boolean;
 }) {
   const [guardando, setGuardando] = useState(false);
   const [nombre, setNombre] = useState("");
@@ -350,7 +353,9 @@ export function BarraDeFiltros({
   const activas = (Object.keys(NOMBRE_PROPIEDAD) as Propiedad[]).filter((p) =>
     esBooleana(p) ? f[p] === true : f[p] !== undefined
   );
-  const agregables = (Object.keys(NOMBRE_PROPIEDAD) as Propiedad[]).filter((p) => !activas.includes(p));
+  const agregables = (Object.keys(NOMBRE_PROPIEDAD) as Propiedad[]).filter(
+    (p) => !activas.includes(p) && !(sinOrigen && p === "origenes")
+  );
   const responsables = f.responsables ?? [];
 
   function alternarResponsable(id: string) {
