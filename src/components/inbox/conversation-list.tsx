@@ -88,8 +88,19 @@ export function ConversationList({
   selectedId,
   onSelect,
   onSeeded,
+  responsable,
 }: {
   conversations: ConversationDto[] | null;
+  /**
+   * Solo para un admin: de quién son los chats que se ven (lo suyo y lo sin
+   * asignar por defecto, todos o los de otra persona). Un operador ve solo lo
+   * suyo y no recibe esto.
+   */
+  responsable?: {
+    valor: string;
+    opciones: readonly { value: string; label: string }[];
+    onChange: (valor: string) => void;
+  };
   /** Canales encendidos en esta instancia (ADR-001). */
   channels: readonly Channel[];
   selectedId: string | null;
@@ -261,6 +272,20 @@ export function ConversationList({
         <div className="flex items-center gap-2">
           <h2 className="text-[17px] font-bold tracking-tight">Bandeja</h2>
           <span className="font-mono text-[12px] text-text-3">{conversations.length}</span>
+          {responsable && (
+            <Select
+              aria-label="De quién son los chats"
+              value={responsable.valor}
+              onValueChange={responsable.onChange}
+              className="h-7 w-auto max-w-[170px] text-[12px]"
+            >
+              {responsable.opciones.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+          )}
           {multiChannel && (
             <div className="ml-auto flex items-center gap-1">
               {channels.map((ch) => {

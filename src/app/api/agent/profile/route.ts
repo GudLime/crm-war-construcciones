@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAdmin } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { estadoIaDe, mensajeDeEstado } from "@/lib/ai/provider";
@@ -16,7 +16,7 @@ import { guardarVersionAnterior } from "@/server/agente/instrucciones-versiones"
 
 export const dynamic = "force-dynamic";
 
-export const GET = withAuth(async (session) => {
+export const GET = withAdmin(async (session) => {
   const db = getDb();
   const rows = await db
     .select()
@@ -61,7 +61,7 @@ const putSchema = z.object({
     .optional(),
 });
 
-export const PUT = withAuth(async (session, req: Request) => {
+export const PUT = withAdmin(async (session, req: Request) => {
   const body = await parseBody(req, putSchema);
   if (!body.ok) return body.response;
 

@@ -5,6 +5,7 @@ import { capabilitiesFor } from "@/server/channels/capabilities";
 import { ForwardImageError, forwardImage } from "@/server/inbox/forward-image";
 import { SendError } from "@/server/inbox/send";
 import { MediaValidationError } from "@/server/whatsapp/media";
+import { alcanceDe, noEncontrado, puedeVerConversacion, puedeVerMensaje } from "@/server/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ const SEND_ERROR_STATUS: Record<SendError["code"], number> = {
  */
 export const POST = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
+  if (!(await puedeVerConversacion(alcanceDe(session), id))) return noEncontrado("Esa conversación");
   const target = await getConversation(session.organizationId, id);
   if (!target) return apiError(404, "not_found", "Conversación no encontrada");
   if (target.conversation.isTest) {
@@ -49,6 +51,9 @@ export const POST = withAuth(async (session, req: Request, ctx: Params) => {
   }
   const body = await parseBody(req, bodySchema);
   if (!body.ok) return body.response;
+  if (!(await puedeVerMensaje(alcanceDe(session), body.data.sourceMessageId))) {
+    return noEncontrado("Ese mensaje");
+  }
 
   try {
     const result = await forwardImage({

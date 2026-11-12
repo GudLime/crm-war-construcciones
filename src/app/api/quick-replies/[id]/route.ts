@@ -1,4 +1,4 @@
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAdmin } from "@/lib/api";
 import { canConfigure } from "@/lib/auth/roles";
 import {
   borrarRespuesta,
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ id: string }> };
 
 /** 049 — Editar una respuesta rápida: solo quien configura. */
-export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
+export const PATCH = withAdmin(async (session, req: Request, ctx: Params) => {
   if (!canConfigure(session.role)) {
     return apiError(403, "forbidden", "Solo quien administra edita respuestas rápidas");
   }
@@ -28,7 +28,7 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
 });
 
 /** Borrar: solo quien configura. */
-export const DELETE = withAuth(async (session, _req: Request, ctx: Params) => {
+export const DELETE = withAdmin(async (session, _req: Request, ctx: Params) => {
   if (!canConfigure(session.role)) {
     return apiError(403, "forbidden", "Solo quien administra borra respuestas rápidas");
   }

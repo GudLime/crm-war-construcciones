@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { parseBody, withAuth } from "@/lib/api";
+import { parseBody, withAdmin } from "@/lib/api";
 import { CSV_MAX_FILAS } from "@/lib/motor/csv";
 import { respuestaDeError } from "@/server/motor/api";
 import { aplicarImportacion, previsualizarImportacion } from "@/server/motor/importar";
@@ -22,7 +22,7 @@ const cuerpoSchema = z.object({
   aplicar: z.boolean().default(false),
 });
 
-export const POST = withAuth(async (session, req: Request, ctx: Params) => {
+export const POST = withAdmin(async (session, req: Request, ctx: Params) => {
   const { objeto: clave } = await ctx.params;
   const body = await parseBody(req, cuerpoSchema);
   if (!body.ok) return body.response;

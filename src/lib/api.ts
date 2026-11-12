@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { requireSession, UnauthorizedError, type SessionContext } from "@/lib/auth/session";
+import { esAdmin } from "@/lib/auth/roles";
 
 /** Respuesta de error estándar de la API interna (contrato api.md). */
 export function apiError(
@@ -34,6 +35,19 @@ export function withAuth<Args extends unknown[]>(
       return apiError(500, "internal", "Error interno");
     }
   };
+}
+
+/**
+ * Como `withAuth`, pero solo para el admin (owner/admin): un operador recibe
+ * 403. Para configuración y escrituras de catálogo (edificios, orígenes…).
+ */
+export function withAdmin<Args extends unknown[]>(
+  handler: (session: SessionContext, ...args: Args) => Promise<Response>
+): (...args: Args) => Promise<Response> {
+  return withAuth(async (session, ...args: Args) => {
+    if (!esAdmin(session.role)) return apiError(403, "forbidden", "Solo un admin puede hacer esto");
+    return handler(session, ...args);
+  });
 }
 
 /** Parsea el body JSON con un esquema Zod; inválido → Response 422. */

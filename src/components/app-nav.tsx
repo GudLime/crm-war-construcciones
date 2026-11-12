@@ -20,6 +20,7 @@ import type { Branding } from "@/lib/branding";
 import type { Apariencia } from "@/lib/temas";
 import { cn, initials } from "@/lib/utils";
 import { appNavGroups, isNavActive, SETTINGS_ITEM, type NavItem } from "@/lib/nav";
+import { canConfigure } from "@/lib/auth/roles";
 import type { ObjetoMenuDto } from "@/lib/motor/dto";
 import { signOut } from "@/lib/auth/client";
 import { useEvents } from "@/components/use-events";
@@ -333,7 +334,7 @@ export function AppNav({
       <BotonInstalar className={navItemClass(false)} />
 
       {/* Ajustes va abajo, solo: no es trabajo del día. */}
-      {renderItem(SETTINGS_ITEM)}
+      {canConfigure(role) && renderItem(SETTINGS_ITEM)}
 
       <div className="mt-1 flex items-center gap-2.5 rounded-sm px-2.5 py-2 hover:bg-accent">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-bold text-brand-text">
@@ -496,7 +497,7 @@ function Riel({
           {campana}
           <span className="min-w-0 flex-1 truncate">Avisos</span>
         </div>
-        {boton(SETTINGS_ITEM)}
+        {canConfigure(role) && boton(SETTINGS_ITEM)}
         <div ref={cuentaRef} className="relative">
           <button
             type="button"

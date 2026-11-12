@@ -104,14 +104,21 @@ function Iniciales({ nombre, className }: { nombre: string; className?: string }
   );
 }
 
+/** Lo que manda /api/tareas: la tarea y si quien mira la puede cambiar. */
+type Tarea = TareaDto & { editable?: boolean };
+
 export function TareasClient() {
   const avisar = useAvisoGuardado();
-  const [filas, setFilas] = useState<TareaDto[]>([]);
+  const [filas, setFilas] = useState<Tarea[]>([]);
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [oportunidades, setOportunidades] = useState<OportunidadDto[]>([]);
   const [equipo, setEquipo] = useState<Miembro[]>([]);
   const [filtro, setFiltro] = useState<FiltroEstado>("realizar");
   const [responsables, setResponsables] = useState<string[]>([]);
+  /** Un admin ve las de todos y elige el responsable; un operador, solo lo suyo. */
+  const [admin, setAdmin] = useState(false);
+  /** Las visitas de otra persona se ven pero no se cambian. */
+  const [soloLectura, setSoloLectura] = useState(false);
   const [forma, setForma] = useState<FormaDeVer>("lista");
   const [agrupar, setAgrupar] = useState(true);
   const [plegados, setPlegados] = useState<Partial<Record<GrupoTarea, boolean>>>({});
@@ -146,7 +153,7 @@ export function TareasClient() {
   const cargar = useCallback(async () => {
     const res = await fetch("/api/tareas").catch(() => null);
     if (!res?.ok) return;
-    const data = (await res.json()) as { tareas: TareaDto[] };
+    const data = (await res.json()) as { tareas: Tarea[] };
     setFilas(data.tareas);
     setListo(true);
   }, []);
@@ -164,19 +171,27 @@ export function TareasClient() {
       ]);
       if (c?.ok) setContactos(((await c.json()) as { contacts: Contacto[] }).contacts);
       if (o?.ok) setOportunidades(((await o.json()) as { oportunidades: OportunidadDto[] }).oportunidades);
-      if (e?.ok) setEquipo(((await e.json()) as { equipo: Miembro[] }).equipo);
+      if (e?.ok) {
+        const d = (await e.json()) as { equipo: Miembro[]; yo: string; admin?: boolean };
+        setEquipo(d.equipo);
+        setAdmin(d.admin === true);
+        // El admin arranca viendo lo suyo y lo sin asignar; puede cambiarlo.
+        if (d.admin === true) setResponsables([d.yo, SIN]);
+      }
     })();
   }, []);
 
   function abrirNueva(fecha: string | null = null) {
     setEditando(null);
+    setSoloLectura(false);
     setForm({ ...vacio, fecha: fecha ?? "" });
     setError(null);
     setAbierto(true);
   }
 
-  function abrir(t: TareaDto) {
+  function abrir(t: Tarea) {
     setEditando(t.id);
+    setSoloLectura(t.editable === false);
     setForm({
       titulo: t.titulo,
       tipo: t.tipo,
@@ -206,7 +221,7 @@ export function TareasClient() {
         comentarios: form.comentarios || null,
         contactId: form.contactId || oportunidad?.contactId || null,
         oportunidadId: form.oportunidadId || null,
-        ...(equipo.length ? { responsableId: form.responsableId || null } : {}),
+        ...(admin && equipo.length ? { responsableId: form.responsableId || null } : {}),
       }),
     }).catch(() => null);
     if (!res?.ok) {
@@ -232,8 +247,12 @@ export function TareasClient() {
   }
 
   /** Pipeline: soltar una tarjeta en otra columna cambia el estado. */
-  async function mover(t: TareaDto, estado: string) {
+  async function mover(t: Tarea, estado: string) {
     if (t.estado === estado) return;
+    if (t.editable === false) {
+      avisar("Esa visita es de otra persona: la podés ver, no cambiar", "error");
+      return;
+    }
     setFilas((fs) => fs.map((x) => (x.id === t.id ? { ...x, estado: estado as TareaDto["estado"] } : x)));
     const res = await fetch(`/api/tareas/${t.id}`, {
       method: "PATCH",
@@ -297,7 +316,7 @@ export function TareasClient() {
               {o.label}
             </Button>
           ))}
-        {equipo.length > 0 && (
+        {admin && equipo.length > 0 && (
           <div role="group" aria-label="Filtrar por responsable" className="ml-1 inline-flex items-center gap-2 border-l border-border pl-3 text-[13px]">
             <span className="text-text-3">Responsable</span>
             <span className="flex -space-x-1">
@@ -361,8 +380,9 @@ export function TareasClient() {
       </div>
 
       {abierto && (
-        <Ficha titulo={editando ? "Editar tarea" : "Nueva tarea"}>
+        <Ficha titulo={soloLectura ? "Visita de otra persona (solo lectura)" : editando ? "Editar tarea" : "Nueva tarea"}>
           <form onSubmit={guardar} className={grilla}>
+            <fieldset disabled={soloLectura} className="contents">
             <Campo label="Qué hay que hacer" className="sm:col-span-2">
               <Input
                 value={form.titulo}
@@ -397,7 +417,7 @@ export function TareasClient() {
                 onChange={(e) => setForm({ ...form, fecha: e.target.value })}
               />
             </Campo>
-            {equipo.length > 0 && (
+            {admin && equipo.length > 0 && (
               <Campo label="Responsable">
                 <Select
                   value={form.responsableId}
@@ -447,14 +467,17 @@ export function TareasClient() {
                 placeholder="Lo que hay que tener a mano cuando se haga"
               />
             </Campo>
+            </fieldset>
             <Acciones error={error}>
-              <Button type="submit" size="sm">
-                Guardar
-              </Button>
+              {!soloLectura && (
+                <Button type="submit" size="sm">
+                  Guardar
+                </Button>
+              )}
               <Button type="button" size="sm" variant="ghost" onClick={() => setAbierto(false)}>
-                Cancelar
+                {soloLectura ? "Cerrar" : "Cancelar"}
               </Button>
-              {editando && (
+              {editando && !soloLectura && (
                 <Button type="button" size="sm" variant="outline" onClick={() => void eliminar()}>
                   Eliminar
                 </Button>

@@ -12,6 +12,7 @@ import {
   TemplateError,
   templateErrorStatus,
 } from "@/server/whatsapp/templates";
+import { alcanceDe, noEncontrado, puedeVerContacto } from "@/server/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,7 @@ const bodySchema = z.object({
  */
 export const POST = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
+  if (!(await puedeVerContacto(alcanceDe(session), id))) return noEncontrado("Ese contacto");
   const contact = await getContactById(session.organizationId, id);
   if (!contact) return apiError(404, "not_found", "Contacto no encontrado");
   if (!contact.phone && !contact.waIdentity) {

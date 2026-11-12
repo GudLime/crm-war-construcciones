@@ -8,6 +8,7 @@ import {
   retryMeetingLink,
 } from "@/server/agenda/service";
 import { bookingErrorResponse } from "@/server/agenda/http";
+import { alcanceDe, prohibido, puedeEditarReunion } from "@/server/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ const patchSchema = z.discriminatedUnion("action", [
 export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   if (!agendaEnabled()) return agendaDisabledResponse();
   const { id } = await ctx.params;
+  if (!(await puedeEditarReunion(alcanceDe(session), id))) return prohibido("Esa visita es de otra persona: la podés ver, no cambiar");
   const body = await parseBody(req, patchSchema);
   if (!body.ok) return body.response;
 

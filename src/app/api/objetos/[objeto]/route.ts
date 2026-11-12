@@ -1,4 +1,4 @@
-import { parseBody, withAuth } from "@/lib/api";
+import { parseBody, withAdmin, withAuth } from "@/lib/api";
 import { canConfigure } from "@/lib/auth/roles";
 import { aDto, describirObjeto, entradaSchema, padreDeParametro, respuestaDeError } from "@/server/motor/api";
 import { cargarMotor } from "@/server/motor/metadatos";
@@ -48,7 +48,7 @@ export const GET = withAuth(async (session, req: Request, ctx: Params) => {
   }
 });
 
-export const POST = withAuth(async (session, req: Request, ctx: Params) => {
+export const POST = withAdmin(async (session, req: Request, ctx: Params) => {
   const { objeto: clave } = await ctx.params;
   const body = await parseBody(req, entradaSchema);
   if (!body.ok) return body.response;

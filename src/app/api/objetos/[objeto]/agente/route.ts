@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAdmin } from "@/lib/api";
 import { canConfigure } from "@/lib/auth/roles";
 import { describirObjeto } from "@/server/motor/api";
 import { cambiarVisibilidadAgente } from "@/server/motor/agente";
@@ -26,7 +26,7 @@ const cambioSchema = z
     message: "Nada para cambiar",
   });
 
-export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
+export const PATCH = withAdmin(async (session, req: Request, ctx: Params) => {
   if (!canConfigure(session.role)) {
     return apiError(403, "forbidden", "Solo quien administra decide qué ve el agente");
   }

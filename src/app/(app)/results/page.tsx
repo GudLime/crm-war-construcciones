@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionOrNull } from "@/lib/auth/session";
+import { esAdmin } from "@/lib/auth/roles";
 import { todayInTz } from "@/lib/time/slots";
 import { getBranding } from "@/server/branding";
 import { agendaEnabled } from "@/server/agenda/flag";
@@ -31,6 +32,7 @@ export default async function ResultsPage() {
       agenda={agendaEnabled()}
       today={todayInTz(new Date(), timezone)}
       timezone={timezone}
+      admin={esAdmin(session.role)}
     />
   );
 }

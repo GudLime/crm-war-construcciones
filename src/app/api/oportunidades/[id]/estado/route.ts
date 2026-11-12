@@ -3,6 +3,7 @@ import { apiError, parseBody, withAuth } from "@/lib/api";
 import { VALORES_ESTADO_OPORTUNIDAD, VALORES_MOTIVO, type EstadoOportunidad } from "@/lib/ventas";
 import { cambiarEstadoOportunidad } from "@/server/oportunidad-historial";
 import { avisarConversaciones } from "@/server/oportunidades";
+import { alcanceDe, noEncontrado, puedeVerOportunidad } from "@/server/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ const schema = z.object({
 /** War — Cambiar el estado desde la barra de avance: pasa por el historial. */
 export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
+  if (!(await puedeVerOportunidad(alcanceDe(session), id))) return noEncontrado("Esa oportunidad");
   const body = await parseBody(req, schema);
   if (!body.ok) return body.response;
   const fila = await cambiarEstadoOportunidad({

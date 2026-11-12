@@ -1,4 +1,4 @@
-import { asc, count, desc, eq, inArray, notInArray } from "drizzle-orm";
+import { asc, count, desc, eq, inArray, notInArray, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db";
 import { unidadesDeOportunidades } from "@/server/motor/interes";
@@ -206,6 +206,8 @@ export type OportunidadDto = {
   estado: EstadoOportunidad;
   tipo: TipoOportunidad | null;
   motivoCierre: string | null;
+  /** 0050 — Usuario responsable (id), o null. */
+  responsableId: string | null;
   valorCents: number | null;
   moneda: string | null;
   /** 068 — Todos los edificios de interés (el `edificioId` de arriba es el principal). */
@@ -681,6 +683,7 @@ function aOportunidad(
     estado: fila.estado,
     tipo: fila.tipo,
     motivoCierre: fila.motivoCierre,
+    responsableId: fila.responsableUserId ?? null,
     valorCents: fila.valorCents,
     moneda: fila.moneda,
     edificios: interes.edificios,
@@ -719,7 +722,9 @@ async function formulariosDeOportunidades(
 export async function listarOportunidades(
   organizationId: string,
   /** Solo las abiertas o solo las cerradas de la lista (`ESTADOS_ABIERTOS_LISTA`); sin esto, todas. */
-  situacion?: Situacion
+  situacion?: Situacion,
+  /** Visibilidad por rol (`server/acceso.ts`): para el operador, solo las suyas. */
+  visibles?: SQL
 ): Promise<OportunidadDto[]> {
   const deSituacion =
     situacion === "abiertas"
@@ -738,7 +743,7 @@ export async function listarOportunidades(
     .leftJoin(schema.contact, eq(schema.contact.id, schema.oportunidad.contactId))
     .leftJoin(schema.edificio, eq(schema.edificio.id, schema.oportunidad.edificioId))
     .leftJoin(schema.departamento, eq(schema.departamento.id, schema.oportunidad.departamentoId))
-    .where(scoped(schema.oportunidad.organizationId, organizationId, deSituacion))
+    .where(scoped(schema.oportunidad.organizationId, organizationId, deSituacion, visibles))
     // War: lo que tuvo movimiento del interesado (formulario o WhatsApp) arriba.
     .orderBy(desc(schema.oportunidad.ultimaInteraccion), desc(schema.oportunidad.updatedAt));
   const ids = filas.map((f) => f.op.id);
@@ -975,7 +980,9 @@ function aTarea(
 
 export async function listarTareas(
   organizationId: string,
-  estado?: EstadoTarea
+  estado?: EstadoTarea,
+  /** Visibilidad por rol (`server/acceso.ts`). */
+  visibles?: SQL
 ): Promise<TareaDto[]> {
   const filas = await getDb()
     .select({
@@ -996,7 +1003,8 @@ export async function listarTareas(
       scoped(
         schema.tareaVenta.organizationId,
         organizationId,
-        estado ? eq(schema.tareaVenta.estado, estado) : undefined
+        estado ? eq(schema.tareaVenta.estado, estado) : undefined,
+        visibles
       )
     )
     .orderBy(asc(schema.tareaVenta.fecha), desc(schema.tareaVenta.createdAt));

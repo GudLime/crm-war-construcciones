@@ -12,6 +12,7 @@ import {
   RESPONSABLE_SIN,
   RESPONSABLE_YO,
   VISTAS_DE_FABRICA,
+  vistasDeFabrica,
   cumpleFiltros,
   difiereDe,
   limpiarFiltros,
@@ -73,13 +74,16 @@ export function useVistas<F extends FilaFiltrable>({
 }) {
   const [guardadas, setGuardadas] = useState<VistaDto[]>([]);
   const [yo, setYo] = useState<string | null>(null);
+  /** Un admin ve todo y puede filtrar por responsable; un operador, solo lo suyo. */
+  const [admin, setAdmin] = useState(false);
+  const fabrica = useMemo(() => vistasDeFabrica(admin), [admin]);
   // Por defecto, «Abiertas»: las cerradas no se cargan hasta que se piden.
   const [activa, setActiva] = useState<string>(VISTAS_DE_FABRICA[0]!.id);
   const [filtros, setFiltros] = useState<Filtros>(VISTAS_DE_FABRICA[0]!.filtros);
   const [lista, setLista] = useState(false);
 
-  const vistas = useMemo(() => [...VISTAS_DE_FABRICA, ...guardadas], [guardadas]);
-  const vista = vistas.find((v) => v.id === activa) ?? VISTAS_DE_FABRICA[0]!;
+  const vistas = useMemo(() => [...fabrica, ...guardadas], [fabrica, guardadas]);
+  const vista = vistas.find((v) => v.id === activa) ?? fabrica[0]!;
 
   const aplicar = useCallback(
     (v: VistaDto) => {
@@ -97,9 +101,10 @@ export function useVistas<F extends FilaFiltrable>({
   const cargar = useCallback(async () => {
     const r = await fetch("/api/vistas?pagina=oportunidades").catch(() => null);
     if (!r?.ok) return null;
-    const d = (await r.json()) as { vistas: VistaDto[]; ultima: string | null; yo: string };
+    const d = (await r.json()) as { vistas: VistaDto[]; ultima: string | null; yo: string; admin?: boolean };
     setGuardadas(d.vistas);
     setYo(d.yo);
+    setAdmin(d.admin === true);
     return d;
   }, []);
 
@@ -108,11 +113,15 @@ export function useVistas<F extends FilaFiltrable>({
     void (async () => {
       const d = await cargar();
       setLista(true);
-      if (!d?.ultima) return;
-      const v = [...VISTAS_DE_FABRICA, ...d.vistas].find((x) => x.id === d.ultima);
-      if (v && v.id !== VISTAS_DE_FABRICA[0]!.id) {
+      if (!d) return;
+      const propias = vistasDeFabrica(d.admin === true);
+      const v = d.ultima ? [...propias, ...d.vistas].find((x) => x.id === d.ultima) : undefined;
+      if (v && v.id !== propias[0]!.id) {
         setActiva(v.id);
         aplicar(v);
+      } else {
+        // La de fábrica del admin arranca con «yo + sin asignar».
+        setFiltros(propias[0]!.filtros);
       }
     })();
   }, [cargar, aplicar]);
@@ -173,7 +182,7 @@ export function useVistas<F extends FilaFiltrable>({
     const res = await fetch(`/api/vistas/${v.id}`, { method: "DELETE" }).catch(() => null);
     if (!res?.ok && res?.status !== 204) return;
     setGuardadas((g) => g.filter((x) => x.id !== v.id));
-    if (activa === v.id) elegir(VISTAS_DE_FABRICA[0]!);
+    if (activa === v.id) elegir(fabrica[0]!);
   }
 
   const visibles = useMemo(() => filas.filter((f) => cumpleFiltros(f, filtros, yo)), [filas, filtros, yo]);
@@ -191,6 +200,7 @@ export function useVistas<F extends FilaFiltrable>({
     filtros,
     setFiltros,
     yo,
+    admin,
     visibles,
     contar,
     elegir,
@@ -350,7 +360,7 @@ export function BarraDeFiltros({
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-[13px]">
-      {equipo.length > 0 && (
+      {v.admin && equipo.length > 0 && (
         <div role="group" aria-label="Filtrar por responsable" className="mr-1 inline-flex items-center gap-2 border-r border-border pr-3">
           <span className="text-text-3">Responsable</span>
           <span className="flex -space-x-1">
