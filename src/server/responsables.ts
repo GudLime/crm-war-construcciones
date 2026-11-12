@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
+import { ASIGNAR_A_IA } from "@/lib/asignacion";
 
 /** 0050 — Responsable de la oportunidad: los usuarios del equipo. */
 
@@ -37,12 +38,24 @@ export function responsableDeTexto(texto: string | null | undefined, equipo: Res
   return null;
 }
 
+/** `userId` = una persona del equipo, `"ia"` = el agente (0051) o `null` = nadie. */
 export async function cambiarResponsable(organizationId: string, oportunidadId: string, userId: string | null): Promise<boolean> {
-  if (userId && !(await listarResponsables(organizationId)).some((r) => r.userId === userId)) return false;
+  const ia = userId === ASIGNAR_A_IA;
+  if (userId && !ia && !(await listarResponsables(organizationId)).some((r) => r.userId === userId)) return false;
   const [fila] = await getDb()
     .update(schema.oportunidad)
-    .set({ responsableUserId: userId, updatedAt: new Date() })
+    .set({ responsableUserId: ia ? null : userId, responsableIa: ia, updatedAt: new Date() })
     .where(and(eq(schema.oportunidad.organizationId, organizationId), eq(schema.oportunidad.id, oportunidadId)))
     .returning({ id: schema.oportunidad.id });
   return Boolean(fila);
+}
+
+/** 0051 — Cómo se llama el agente de IA (Agente → nombre), para mostrarlo como responsable. */
+export async function nombreDelAgente(organizationId: string): Promise<string> {
+  const [p] = await getDb()
+    .select({ name: schema.agentProfile.name })
+    .from(schema.agentProfile)
+    .where(eq(schema.agentProfile.organizationId, organizationId))
+    .limit(1);
+  return p?.name?.trim() || "Asistente";
 }

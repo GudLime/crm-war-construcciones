@@ -426,7 +426,11 @@ export function OportunidadDetalleClient() {
                   </Fila>
                   {/* 0050 — Responsable de la oportunidad (define quién la ve). */}
                   <Fila icono={UserRound} titulo="Responsable">
-                    <ElegirResponsable oportunidadId={op.id} actual={op.responsableId} onCambio={cargar} />
+                    <ElegirResponsable
+                      oportunidadId={op.id}
+                      actual={op.responsableIa ? "ia" : op.responsableId}
+                      onCambio={cargar}
+                    />
                   </Fila>
                   {op.cerradaAt && (
                     <Fila icono={Flag} titulo="Cerrada">
@@ -546,17 +550,26 @@ function ElegirResponsable({
 }) {
   const [equipo, setEquipo] = useState<{ userId: string; nombre: string }[] | null>(null);
   const [admin, setAdmin] = useState(false);
+  const [agente, setAgente] = useState("Asistente");
   useEffect(() => {
     void fetch("/api/oportunidades/responsables")
       .then((r) => (r.ok ? r.json() : { responsables: [] }))
-      .then((d: { responsables: { userId: string; nombre: string }[]; admin?: boolean }) => {
+      .then((d: { responsables: { userId: string; nombre: string }[]; admin?: boolean; agente?: string }) => {
         setEquipo(d.responsables);
         setAdmin(d.admin === true);
+        if (d.agente) setAgente(d.agente);
       })
       .catch(() => setEquipo([]));
   }, []);
   if (!equipo) return <SinDato texto="…" />;
   const inicial = (userId: string) => {
+    if (userId === "ia") {
+      return (
+        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-brand-soft text-brand-ink">
+          <Sparkles className="size-3" />
+        </span>
+      );
+    }
     const n = equipo.find((r) => r.userId === userId)?.nombre;
     return n ? (
       <span className="grid size-5 shrink-0 place-items-center rounded-full bg-brand-soft text-[10px] font-bold text-brand-ink">
@@ -565,7 +578,7 @@ function ElegirResponsable({
     ) : null;
   };
   if (!admin) {
-    const nombre = equipo.find((r) => r.userId === actual)?.nombre;
+    const nombre = actual === "ia" ? `${agente} (IA)` : equipo.find((r) => r.userId === actual)?.nombre;
     return nombre ? (
       <span className="flex items-center gap-2">
         {actual && inicial(actual)}
@@ -591,6 +604,7 @@ function ElegirResponsable({
       aria-label="Responsable"
     >
       <option value="">Sin responsable</option>
+      <option value="ia">{agente} (IA)</option>
       {equipo.map((r) => (
         <option key={r.userId} value={r.userId}>
           {r.nombre}

@@ -33,6 +33,7 @@ import {
 import { seReabre, textoSinRespuesta } from "@/lib/ventas-ajustes";
 import { publish } from "@/server/events/bus";
 import { ajustarInteres } from "@/server/motor/interes";
+import { asignarLeadDeMeta } from "@/server/asignacion";
 import { VentasError } from "@/server/ventas";
 
 /**
@@ -469,8 +470,26 @@ export async function sumarInteres(
   ambientes: readonly number[],
   tipologiasUnidad: readonly string[] = []
 ): Promise<void> {
+  // 0051 — Si es su primer edificio, puede tocarle a alguien (asignación automática).
+  const primerEdificio = edificioIds.length > 0 && !(await tieneEdificios(organizationId, oportunidadId));
   await insertarInteres(organizationId, oportunidadId, edificioIds, ambientes, tipologiasUnidad);
   await ajustarInteres(organizationId, oportunidadId, { podar: false });
+  if (primerEdificio) await asignarLeadDeMeta(organizationId, oportunidadId);
+}
+
+async function tieneEdificios(organizationId: string, oportunidadId: string): Promise<boolean> {
+  const [f] = await getDb()
+    .select({ id: schema.oportunidadEdificio.edificioId })
+    .from(schema.oportunidadEdificio)
+    .where(
+      scoped(
+        schema.oportunidadEdificio.organizationId,
+        organizationId,
+        eq(schema.oportunidadEdificio.oportunidadId, oportunidadId)
+      )
+    )
+    .limit(1);
+  return Boolean(f);
 }
 
 async function insertarInteres(

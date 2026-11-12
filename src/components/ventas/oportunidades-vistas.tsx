@@ -378,13 +378,22 @@ export function VistaOportunidades({
   useEffect(() => {
     void fetch("/api/oportunidades/responsables")
       .then((r) => (r.ok ? r.json() : { responsables: [] }))
-      .then((d: { responsables: { userId: string; nombre: string }[] }) =>
-        setEquipo(new Map(d.responsables.map((r) => [r.userId, r.nombre])))
+      .then((d: { responsables: { userId: string; nombre: string }[]; agente?: string }) =>
+        // 0051 — «ia» = la lleva el agente.
+        setEquipo(new Map([["ia", `${d.agente ?? "Asistente"} (IA)`], ...d.responsables.map((r) => [r.userId, r.nombre] as [string, string])]))
       )
       .catch(() => undefined);
   }, []);
   const conResponsable = useMemo<Fila[]>(
-    () => filas.map((o) => ({ ...o, responsableNombre: o.responsableId ? (equipo.get(o.responsableId) ?? null) : null })),
+    () =>
+      filas.map((o) => ({
+        ...o,
+        responsableNombre: o.responsableIa
+          ? (equipo.get("ia") ?? null)
+          : o.responsableId
+            ? (equipo.get(o.responsableId) ?? null)
+            : null,
+      })),
     [filas, equipo]
   );
   const ordenadas = useMemo(() => ordenar(conResponsable, pref.orden), [conResponsable, pref.orden]);
