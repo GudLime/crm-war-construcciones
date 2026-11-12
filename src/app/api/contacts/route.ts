@@ -10,6 +10,7 @@ import { explicarMotivoTelefono, normalizarTelefono } from "@/lib/telefono";
 import { digitsOnly, normalizeText } from "@/lib/search";
 import { serializeContact } from "@/server/contacts";
 import { createLeadForContact } from "@/server/inbox/lead-activity";
+import { alcanceDe, contactoVisible } from "@/server/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -86,7 +87,9 @@ export const GET = withAuth(async (session, req: Request) => {
         schema.contact.organizationId,
         session.organizationId,
         search,
-        stageContactIds ? inArray(schema.contact.id, stageContactIds) : undefined
+        stageContactIds ? inArray(schema.contact.id, stageContactIds) : undefined,
+        // Visibilidad por rol: el operador ve los contactos de sus oportunidades.
+        contactoVisible(alcanceDe(session), schema.contact.id)
       )
     )
     .orderBy(desc(schema.contact.updatedAt))

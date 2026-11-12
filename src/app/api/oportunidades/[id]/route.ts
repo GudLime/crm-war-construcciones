@@ -1,10 +1,11 @@
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAdmin, withAuth } from "@/lib/api";
 import {
   borrarOportunidad,
   editarOportunidad,
   oportunidadSchema,
   VentasError,
 } from "@/server/ventas";
+import { alcanceDe, noEncontrado, puedeVerOportunidad } from "@/server/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,7 @@ type Params = { params: Promise<{ id: string }> };
 
 export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
+  if (!(await puedeVerOportunidad(alcanceDe(session), id))) return noEncontrado("Esa oportunidad");
   const body = await parseBody(req, oportunidadSchema);
   if (!body.ok) return body.response;
   try {
@@ -24,7 +26,7 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   }
 });
 
-export const DELETE = withAuth(async (session, _req: Request, ctx: Params) => {
+export const DELETE = withAdmin(async (session, _req: Request, ctx: Params) => {
   const { id } = await ctx.params;
   try {
     await borrarOportunidad(session.organizationId, id);

@@ -1,5 +1,6 @@
 import { requireSession, UnauthorizedError } from "@/lib/auth/session";
 import { subscribe } from "@/server/events/bus";
+import { alcanceDe, filtroDeEventos } from "@/server/acceso";
 
 /**
  * Canal SSE de la bandeja (contrato sse.md).
@@ -37,12 +38,19 @@ export async function GET(req: Request) {
 
       send(`: conectado\n\n`);
 
+      // Visibilidad por rol: el operador recibe solo lo de sus conversaciones.
+      const puede = filtroDeEventos(alcanceDe(session));
       const unsubscribe = subscribe(organizationId, (event) => {
-        send(
-          `event: ${event.type}\n` +
-            `id: ${Date.now()}\n` +
-            `data: ${JSON.stringify(event.data)}\n\n`
-        );
+        void puede(event)
+          .then((ok) => {
+            if (!ok) return;
+            send(
+              `event: ${event.type}\n` +
+                `id: ${Date.now()}\n` +
+                `data: ${JSON.stringify(event.data)}\n\n`
+            );
+          })
+          .catch(() => undefined);
       });
 
       const heartbeat = setInterval(() => send(`: ping\n\n`), HEARTBEAT_MS);

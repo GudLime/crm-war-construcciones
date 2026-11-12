@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAdmin, withAuth } from "@/lib/api";
 import { recalcularTodos } from "@/server/motor/interes";
 import { exportarUnidadesCsv, importarUnidadesCsv, VentasError } from "@/server/ventas";
 
@@ -40,7 +40,7 @@ const bodySchema = z.object({
  * Importa la lista de precios: crea las unidades nuevas y actualiza las que
  * cambiaron. Primero se llama con `aplicar: false` para la vista previa.
  */
-export const POST = withAuth(async (session, req: Request, ctx: Params) => {
+export const POST = withAdmin(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
   const body = await parseBody(req, bodySchema);
   if (!body.ok) return body.response;

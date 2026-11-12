@@ -7,6 +7,7 @@ import {
   parienteSchema,
   quitarPariente,
 } from "@/server/datos-contacto";
+import { alcanceDe, noEncontrado, puedeVerContacto } from "@/server/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ type Params = { params: Promise<{ id: string }> };
 /** War — Sumar un pariente `{ contactId, relacion? }`; se ve desde los dos contactos. */
 export const POST = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
+  if (!(await puedeVerContacto(alcanceDe(session), id))) return noEncontrado("Ese contacto");
   const body = await parseBody(req, parienteSchema);
   if (!body.ok) return body.response;
   try {
@@ -29,6 +31,7 @@ export const POST = withAuth(async (session, req: Request, ctx: Params) => {
 /** Quitar el vínculo `{ contactId }`. */
 export const DELETE = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
+  if (!(await puedeVerContacto(alcanceDe(session), id))) return noEncontrado("Ese contacto");
   const body = await parseBody(req, z.object({ contactId: z.string().min(1).max(40) }));
   if (!body.ok) return body.response;
   try {

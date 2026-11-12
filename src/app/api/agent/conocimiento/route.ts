@@ -1,5 +1,5 @@
 import { asc, eq } from "drizzle-orm";
-import { apiError, withAuth } from "@/lib/api";
+import { apiError, withAdmin } from "@/lib/api";
 import { canConfigure } from "@/lib/auth/roles";
 import { getDb, schema } from "@/lib/db";
 import { renderKb } from "@/server/ai/prompts";
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  * cual le llega hoy y, con `?simular=edificio,unidad`, cómo quedaría si esos
  * objetos estuvieran visibles, sin prenderlos.
  */
-export const GET = withAuth(async (session, req: Request) => {
+export const GET = withAdmin(async (session, req: Request) => {
   if (!canConfigure(session.role)) {
     return apiError(403, "forbidden", "Solo quien administra ve lo que lee el agente");
   }

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiError, withAuth } from "@/lib/api";
+import { apiError, withAdmin } from "@/lib/api";
 import { ArchivoError, subirArchivo } from "@/server/motor/archivos";
 import { cargarMotor } from "@/server/motor/metadatos";
 
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  */
 const tipoSchema = z.enum(["imagen", "video", "documento"]);
 
-export const POST = withAuth(async (session, req: Request) => {
+export const POST = withAdmin(async (session, req: Request) => {
   const form = await req.formData().catch(() => null);
   const archivo = form?.get("archivo");
   const tipo = tipoSchema.safeParse(form?.get("tipo"));

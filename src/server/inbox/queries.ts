@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, sql } from "drizzle-orm";
+import { and, desc, eq, gt, sql, type SQL } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { isWindowOpen, replyWindow, windowRemainingMs } from "@/server/inbox/window";
@@ -41,7 +41,9 @@ function aAnuncioDeLista(
 
 export async function listConversations(
   organizationId: string,
-  since?: Date
+  since?: Date,
+  /** Visibilidad por rol / filtro por responsable (`server/acceso.ts`). */
+  visibles?: SQL
 ): Promise<ConversationDto[]> {
   const db = getDb();
   // 064 — `organization_id` primero: es la primera columna de
@@ -81,7 +83,8 @@ export async function listConversations(
         schema.conversation.organizationId,
         organizationId,
         eq(schema.conversation.isTest, false),
-        since ? gt(schema.conversation.updatedAt, since) : undefined
+        since ? gt(schema.conversation.updatedAt, since) : undefined,
+        visibles
       )
     )
     .orderBy(desc(sql`coalesce(${schema.conversation.lastMessageAt}, ${schema.conversation.createdAt})`));

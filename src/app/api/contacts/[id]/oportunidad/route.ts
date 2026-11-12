@@ -12,6 +12,7 @@ import {
   estadoComercialDelContacto,
 } from "@/server/oportunidades";
 import { VentasError } from "@/server/ventas";
+import { alcanceDe, noEncontrado, puedeVerContacto } from "@/server/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ type Params = { params: Promise<{ id: string }> };
  */
 export const GET = withAuth(async (session, _req: Request, ctx: Params) => {
   const { id } = await ctx.params;
+  if (!(await puedeVerContacto(alcanceDe(session), id))) return noEncontrado("Ese contacto");
   const estado = await estadoComercialDelContacto(session.organizationId, id);
   if (!estado) return apiError(404, "not_found", "Contacto no encontrado");
   return Response.json(estado);
@@ -31,6 +33,7 @@ export const GET = withAuth(async (session, _req: Request, ctx: Params) => {
 /** Abre una oportunidad nueva (solo para un Lead sin otra abierta). */
 export const POST = withAuth(async (session, _req: Request, ctx: Params) => {
   const { id } = await ctx.params;
+  if (!(await puedeVerContacto(alcanceDe(session), id))) return noEncontrado("Ese contacto");
   try {
     await abrirOportunidad(session.organizationId, id, {
       fuente: "persona",
@@ -62,6 +65,7 @@ const patchSchema = z.object({
 /** Lo que una persona cambia desde el chat: etapa, cierre e interés. */
 export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
+  if (!(await puedeVerContacto(alcanceDe(session), id))) return noEncontrado("Ese contacto");
   const body = await parseBody(req, patchSchema);
   if (!body.ok) return body.response;
   if (!(await motivoValido(session.organizationId, body.data.motivoCierre))) {

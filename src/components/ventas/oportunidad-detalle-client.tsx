@@ -424,7 +424,7 @@ export function OportunidadDetalleClient() {
                   <Fila icono={Tag} titulo="Tipo">
                     {op.tipo ? etiqueta(TIPOS_OPORTUNIDAD, op.tipo) : <SinDato />}
                   </Fila>
-                  {/* War — Responsable de la oportunidad. */}
+                  {/* 0050 — Responsable de la oportunidad (define quién la ve). */}
                   <Fila icono={UserRound} titulo="Responsable">
                     <ElegirResponsable oportunidadId={op.id} actual={op.responsableId} onCambio={cargar} />
                   </Fila>
@@ -534,7 +534,7 @@ export function OportunidadDetalleClient() {
   );
 }
 
-/** War — Responsable de la oportunidad: el equipo, con su inicial. */
+/** Solo un admin la asigna; los demás ven el nombre. */
 function ElegirResponsable({
   oportunidadId,
   actual,
@@ -545,10 +545,14 @@ function ElegirResponsable({
   onCambio: () => void | Promise<void>;
 }) {
   const [equipo, setEquipo] = useState<{ userId: string; nombre: string }[] | null>(null);
+  const [admin, setAdmin] = useState(false);
   useEffect(() => {
     void fetch("/api/oportunidades/responsables")
       .then((r) => (r.ok ? r.json() : { responsables: [] }))
-      .then((d: { responsables: { userId: string; nombre: string }[] }) => setEquipo(d.responsables))
+      .then((d: { responsables: { userId: string; nombre: string }[]; admin?: boolean }) => {
+        setEquipo(d.responsables);
+        setAdmin(d.admin === true);
+      })
       .catch(() => setEquipo([]));
   }, []);
   if (!equipo) return <SinDato texto="…" />;
@@ -560,6 +564,17 @@ function ElegirResponsable({
       </span>
     ) : null;
   };
+  if (!admin) {
+    const nombre = equipo.find((r) => r.userId === actual)?.nombre;
+    return nombre ? (
+      <span className="flex items-center gap-2">
+        {actual && inicial(actual)}
+        {nombre}
+      </span>
+    ) : (
+      <SinDato texto="Sin responsable" />
+    );
+  }
   return (
     <Select
       value={actual ?? ""}

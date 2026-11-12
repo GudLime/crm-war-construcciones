@@ -4,6 +4,7 @@ import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { ensureAssetAvailable, leerAdjunto } from "@/server/whatsapp/media";
 import { mediaResponseHeaders } from "@/server/whatsapp/media-headers";
+import { alcanceDe, noEncontrado, puedeVerAdjunto } from "@/server/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ type Params = { params: Promise<{ assetId: string }> };
  */
 export const GET = withAuth(async (session, _req: Request, ctx: Params) => {
   const { assetId } = await ctx.params;
+  if (!(await puedeVerAdjunto(alcanceDe(session), assetId))) return noEncontrado("Ese adjunto");
   if (!/^[\w.-]{1,64}$/.test(assetId)) {
     return apiError(422, "invalid", "assetId inválido");
   }

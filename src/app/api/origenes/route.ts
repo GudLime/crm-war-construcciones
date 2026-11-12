@@ -1,4 +1,4 @@
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAdmin, withAuth } from "@/lib/api";
 import { canConfigure } from "@/lib/auth/roles";
 import {
   crearOrigen,
@@ -25,7 +25,7 @@ export const GET = withAuth(async (session, req: Request) => {
 });
 
 /** Crear: solo quien configura. */
-export const POST = withAuth(async (session, req: Request) => {
+export const POST = withAdmin(async (session, req: Request) => {
   if (!canConfigure(session.role)) {
     return apiError(403, "forbidden", "Solo quien administra crea orígenes");
   }
@@ -41,7 +41,7 @@ export const POST = withAuth(async (session, req: Request) => {
 });
 
 /** Reordenar: `{ ids }` en el orden en que se ven. Solo quien configura. */
-export const PUT = withAuth(async (session, req: Request) => {
+export const PUT = withAdmin(async (session, req: Request) => {
   if (!canConfigure(session.role)) {
     return apiError(403, "forbidden", "Solo quien administra ordena los orígenes");
   }

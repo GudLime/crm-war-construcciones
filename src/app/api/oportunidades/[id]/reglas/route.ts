@@ -2,6 +2,7 @@ import { z } from "zod";
 import { parseBody, withAuth } from "@/lib/api";
 import { respuestaDeError } from "@/server/motor/api";
 import { aplicarRegla, reglasPendientes } from "@/server/motor/oportunidad";
+import { alcanceDe, noEncontrado, puedeVerOportunidad } from "@/server/acceso";
 
 /**
  * 070 — Reglas de etapa con más de un candidato: la pantalla pregunta cuáles.
@@ -20,6 +21,7 @@ const cuerpoSchema = z.object({
 
 export const GET = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
+  if (!(await puedeVerOportunidad(alcanceDe(session), id))) return noEncontrado("Esa oportunidad");
   const etapa = new URL(req.url).searchParams.get("etapa") ?? "";
   try {
     return Response.json({ pendientes: etapa ? await reglasPendientes(session.organizationId, id, etapa) : [] });
@@ -30,6 +32,7 @@ export const GET = withAuth(async (session, req: Request, ctx: Params) => {
 
 export const POST = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
+  if (!(await puedeVerOportunidad(alcanceDe(session), id))) return noEncontrado("Esa oportunidad");
   const body = await parseBody(req, cuerpoSchema);
   if (!body.ok) return body.response;
   try {

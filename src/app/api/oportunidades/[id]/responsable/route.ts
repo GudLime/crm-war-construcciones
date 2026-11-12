@@ -1,13 +1,13 @@
 import { z } from "zod";
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAdmin } from "@/lib/api";
 import { cambiarResponsable } from "@/server/responsables";
 
 export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
 
-/** War — Cambiar el responsable `{ userId }` (`null` lo saca). */
-export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
+/** Cambiar el responsable `{ userId }` (`null` lo saca). Solo el admin reparte. */
+export const PATCH = withAdmin(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
   const body = await parseBody(req, z.object({ userId: z.string().min(1).max(60).nullable() }));
   if (!body.ok) return body.response;
