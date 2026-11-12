@@ -92,6 +92,21 @@ export type VentanaPorCerrar = {
   cierraAt: string;
 };
 
+/** Inicio · Tu semana: los números de esta semana (desde el lunes) y los de la anterior al mismo punto. */
+export type MetricasSemana = {
+  /** Asignadas en el período. */
+  nuevas: number;
+  /** De esas, cuántas ya tuvieron primer contacto. */
+  contactadas: number;
+  /** Mediana de segundos desde que entró hasta el primer contacto (de los primeros contactos del período). */
+  primerContactoSeg: number | null;
+  visitas: number;
+  reservas: number;
+  perdidas: number;
+};
+
+export type SemanaDto = { desde: string; actual: MetricasSemana; anterior: MetricasSemana };
+
 export type InicioDto = {
   usuario: { id: string; nombre: string };
   /** Nombre del agente de IA configurado (Agente → nombre). */
@@ -106,7 +121,52 @@ export type InicioDto = {
   calientes: OportunidadDeInicio[];
   visitas: VisitaDeHoy[];
   ventanas: VentanaPorCerrar[];
+  semana: SemanaDto;
+  /** Quién mira (el id de la sesión), aunque esté viendo el Inicio de otra persona. */
+  sesion: string;
+  /** «Ver como» (solo admin): el equipo, para elegir de quién es el Inicio. */
+  equipo: { userId: string; nombre: string }[];
 };
+
+/** % entero, o null sin base. */
+export function porcentaje(parte: number, total: number): number | null {
+  return total > 0 ? Math.round((parte / total) * 100) : null;
+}
+
+/** «12 min», «3 h», «2 días» para una duración en segundos. */
+export function duracion(seg: number | null): string {
+  if (seg == null) return "—";
+  const min = Math.round(seg / 60);
+  if (min < 60) return `${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h} h`;
+  const d = Math.round(h / 24);
+  return d === 1 ? "1 día" : `${d} días`;
+}
+
+/**
+ * Cómo cambió un número respecto de la semana anterior. `mejorSiSube` dice si
+ * subir es bueno (visitas) o malo (perdidas, tiempo al primer contacto).
+ */
+export function tendencia(
+  actual: number | null,
+  anterior: number | null,
+  mejorSiSube: boolean
+): { sentido: "sube" | "baja" | "igual"; bueno: boolean | null } {
+  if (actual == null || anterior == null || actual === anterior) return { sentido: "igual", bueno: null };
+  const sube = actual > anterior;
+  return { sentido: sube ? "sube" : "baja", bueno: sube === mejorSiSube };
+}
+
+/**
+ * Los links de las tarjetas para otra persona («Ver como»): el responsable va
+ * con su id en vez de «me».
+ */
+export function linksPara(userId: string | null): typeof LINKS_INICIO {
+  if (!userId) return LINKS_INICIO;
+  const cambiar = (href: string) => href.replace("responsable=me", `responsable=${encodeURIComponent(userId)}`);
+  return Object.fromEntries(Object.entries(LINKS_INICIO).map(([k, v]) => [k, cambiar(v)])) as typeof LINKS_INICIO;
+}
 
 /** Faltando menos que esto, la ventana se marca en rojo. */
 export const VENTANA_URGENTE_MIN = 120;

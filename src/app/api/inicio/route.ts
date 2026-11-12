@@ -7,6 +7,7 @@ import {
   leadsCalientes,
   nuevasParaVos,
   tuDia,
+  tuSemana,
   ventanasPorCerrar,
   visitasDeHoy,
 } from "@/server/inicio";
@@ -29,7 +30,7 @@ export const GET = withAuth(async (session, req: Request) => {
   const equipo = await listarResponsables(org);
   const persona = equipo.find((m) => m.userId === userId);
   if (!persona) return apiError(404, "not_found", "Esa persona no es del equipo");
-  const [contadores, agente, derivadas, dia, nuevas, calientes, visitas, ventanas] = await Promise.all([
+  const [contadores, agente, derivadas, dia, nuevas, calientes, visitas, ventanas, semana] = await Promise.all([
     contadoresDeInicio(org, userId),
     nombreDelAgente(org),
     derivadasSinTomar(org),
@@ -38,6 +39,7 @@ export const GET = withAuth(async (session, req: Request) => {
     leadsCalientes(org, userId),
     visitasDeHoy(org, userId),
     ventanasPorCerrar(org, userId),
+    tuSemana(org, userId),
   ]);
   const dto: InicioDto = {
     usuario: { id: userId, nombre: persona.nombre },
@@ -50,6 +52,9 @@ export const GET = withAuth(async (session, req: Request) => {
     calientes,
     visitas,
     ventanas,
+    semana,
+    sesion: session.userId,
+    equipo: admin ? equipo : [],
   };
   return Response.json(dto);
 });
