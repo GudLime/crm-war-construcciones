@@ -2,7 +2,13 @@ import { and, asc, count, desc, eq, gte, inArray, isNull, lt, min, ne, or, sql, 
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { ESTADOS_ABIERTOS_LISTA } from "@/lib/ventas";
-import { motivoDeDerivacion, type DerivadaDto, type InicioContadores, type ItemDelDia } from "@/lib/inicio";
+import {
+  motivoDeDerivacion,
+  type DerivadaDto,
+  type InicioContadores,
+  type ItemDelDia,
+  type OportunidadDeInicio,
+} from "@/lib/inicio";
 import { addDaysISO, todayInTz, zonedWallClockToUtc } from "@/lib/time/slots";
 import { businessTimezone } from "@/server/analytics/period";
 
@@ -237,7 +243,7 @@ export async function tomarDerivada(
   const op = schema.oportunidad;
   const [oportunidad] = await db
     .update(op)
-    .set({ responsableUserId: userId, responsableIa: false, updatedAt: ahora })
+    .set({ responsableUserId: userId, responsableIa: false, responsableDesde: ahora, updatedAt: ahora })
     .where(
       and(
         eq(
@@ -343,4 +349,125 @@ export async function marcarTareaHecha(organizationId: string, tareaId: string, 
     .where(scoped(t.organizationId, organizationId, eq(t.id, tareaId), ...(admin ? [] : [eq(t.responsableUserId, userId)])))
     .returning({ id: t.id });
   return Boolean(f);
+}
+
+/** Lo que muestra una fila de oportunidad en Inicio (nombre, edificio, unidad…). */
+function columnasDeOportunidad(organizationId: string) {
+  const op = schema.oportunidad;
+  return {
+    id: op.id,
+    nombre: op.nombre,
+    tipo: op.tipo,
+    origen: op.origen,
+    estadoDesde: op.estadoDesde,
+    asignadaDesde: sql<string>`to_char(coalesce(${op.responsableDesde}, ${op.createdAt}), 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`,
+    contactId: op.contactId,
+    edificio: sql<{ nombre: string; color: string | null } | null>`(
+      select json_build_object('nombre', e.nombre, 'color', e.color)
+      from ${schema.edificio} e
+      where e.id = coalesce(${op.edificioId}, (
+        select oe.edificio_id from ${schema.oportunidadEdificio} oe
+        where oe.organization_id = ${organizationId} and oe.oportunidad_id = ${op.id}
+        limit 1
+      ))
+    )`,
+    ambientes: sql<number[] | null>`(
+      select array_agg(a.ambientes order by a.ambientes) from ${schema.oportunidadAmbiente} a
+      where a.organization_id = ${organizationId} and a.oportunidad_id = ${op.id}
+    )`,
+    unidad: sql<string | null>`(select d.unidad from ${schema.departamento} d where d.id = ${op.departamentoId})`,
+  };
+}
+
+type FilaOp = {
+  id: string;
+  nombre: string;
+  tipo: string | null;
+  origen: string | null;
+  estadoDesde: Date;
+  asignadaDesde: string;
+  edificio: { nombre: string; color: string | null } | null;
+  ambientes: number[] | null;
+  unidad: string | null;
+};
+
+function aOportunidadDeInicio(f: FilaOp): OportunidadDeInicio {
+  return {
+    id: f.id,
+    nombre: f.nombre,
+    tipo: f.tipo,
+    origen: f.origen,
+    edificio: f.edificio ?? null,
+    ambientes: f.ambientes ?? [],
+    unidad: f.unidad,
+    asignadaDesde: new Date(f.asignadaDesde).toISOString(),
+    visitoDesde: f.estadoDesde.toISOString(),
+    proximoPaso: null,
+  };
+}
+
+/** Nuevas para vos: asignadas y sin primer contacto, de la asignación más vieja a la más nueva. */
+export async function nuevasParaVos(organizationId: string, userId: string, limite = 5): Promise<OportunidadDeInicio[]> {
+  const op = schema.oportunidad;
+  const filas = await getDb()
+    .select(columnasDeOportunidad(organizationId))
+    .from(op)
+    .where(
+      scoped(op.organizationId, organizationId, eq(op.responsableUserId, userId), inArray(op.estado, ABIERTAS), isNull(op.primerContactoAt))
+    )
+    .orderBy(sql`coalesce(${op.responsableDesde}, ${op.createdAt}) asc`)
+    .limit(limite);
+  return filas.map(aOportunidadDeInicio);
+}
+
+/**
+ * Leads calientes: abiertas en Visitó de quien mira. Al lado, el próximo paso
+ * (la tarea para hacer o la cita futura más cercana). Primero las que no
+ * tienen próximo paso; después, la visita más vieja primero.
+ */
+export async function leadsCalientes(
+  organizationId: string,
+  userId: string,
+  limite = 5,
+  ahora = new Date()
+): Promise<OportunidadDeInicio[]> {
+  const op = schema.oportunidad;
+  const t = schema.tareaVenta;
+  const b = schema.booking;
+  const filas = await getDb()
+    .select({
+      ...columnasDeOportunidad(organizationId),
+      tarea: sql<{ titulo: string; tipo: string; at: string } | null>`(
+        select json_build_object('titulo', t.titulo, 'tipo', t.tipo, 'at', to_char(t.fecha, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))
+        from ${t} t
+        where t.organization_id = ${organizationId}
+          and t.estado = 'realizar'
+          and t.fecha >= ${ahora.toISOString()}::timestamp
+          and (t.oportunidad_id = ${op.id} or (${op.contactId} is not null and t.contact_id = ${op.contactId}))
+        order by t.fecha asc limit 1
+      )`,
+      cita: sql<{ at: string } | null>`(
+        select json_build_object('at', to_char(b.scheduled_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))
+        from ${b} b
+        where b.organization_id = ${organizationId}
+          and b.kind = 'session' and b.status = 'agendada' and b.is_test = false
+          and b.scheduled_at >= ${ahora.toISOString()}::timestamp
+          and ${op.contactId} is not null and b.contact_id = ${op.contactId}
+        order by b.scheduled_at asc limit 1
+      )`,
+    })
+    .from(op)
+    .where(scoped(op.organizationId, organizationId, eq(op.responsableUserId, userId), eq(op.estado, "visito")))
+    .orderBy(asc(op.estadoDesde))
+    .limit(200);
+  const lista = filas.map((f) => {
+    const base = aOportunidadDeInicio(f);
+    const tarea = f.tarea ? { tipo: f.tarea.tipo, titulo: f.tarea.titulo, at: new Date(f.tarea.at).toISOString() } : null;
+    const cita = f.cita ? { tipo: "visita", titulo: "Visita", at: new Date(f.cita.at).toISOString() } : null;
+    const proximo = [tarea, cita].filter((x): x is NonNullable<typeof x> => Boolean(x)).sort((x, y) => x.at.localeCompare(y.at))[0];
+    return { ...base, proximoPaso: proximo ?? null };
+  });
+  // Sin próximo paso arriba; dentro de cada grupo, la visita más vieja primero (ya viene así).
+  lista.sort((x, y) => Number(Boolean(x.proximoPaso)) - Number(Boolean(y.proximoPaso)));
+  return lista.slice(0, limite);
 }
