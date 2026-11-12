@@ -229,6 +229,8 @@ export type OportunidadDto = {
   sinRespuesta: string | null;
   /** War — cumple el umbral de Ajustes → Ventas en modo «sugerir el cierre». */
   paraCerrar: boolean;
+  /** Inicio — cuándo se le escribió por primera vez (ISO), o null. */
+  primerContactoAt: string | null;
   createdAt: string;
 };
 
@@ -699,6 +701,7 @@ function aOportunidad(
     sinRespuesta: abierta ? textoSinRespuesta(fila) : null,
     paraCerrar:
       abierta && ajustes?.sinRespuestaModo === "sugerir" && cumpleSilencio(fila, ajustes, new Date()),
+    primerContactoAt: fila.primerContactoAt?.toISOString() ?? null,
     createdAt: fila.createdAt.toISOString(),
   };
 }

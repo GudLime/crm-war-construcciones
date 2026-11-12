@@ -20,7 +20,7 @@ describe("barra lateral agrupada", () => {
     const groups = appNavGroups({ role: "admin" });
     expect(groups.map((g) => g.title)).toEqual(["Trabajo", "Ventas", "Agente", undefined]);
     expect(labels(groups)).toEqual([
-      ["Bandeja", "Pipeline", "Contactos"],
+      ["Inicio", "Bandeja", "Pipeline", "Contactos"],
       ["Edificios", "Oportunidades", "Tareas"],
       ["Guía de inicio", "Agente", "Laboratorio"],
       ["Resultados"],
@@ -30,12 +30,13 @@ describe("barra lateral agrupada", () => {
   it("el operador (miembro) no ve Pipeline, Agente ni Laboratorio", () => {
     const groups = appNavGroups({ role: "member" });
     expect(groups.map((g) => g.title)).toEqual(["Trabajo", "Ventas", undefined]);
-    expect(labels(groups)).toEqual([["Bandeja", "Contactos"], ["Edificios", "Oportunidades", "Tareas"], ["Resultados"]]);
+    expect(labels(groups)).toEqual([["Inicio", "Bandeja", "Contactos"], ["Edificios", "Oportunidades", "Tareas"], ["Resultados"]]);
   });
 
   it("AGENDA añade Citas al final de Trabajo", () => {
     const [trabajo] = appNavGroups({ agenda: true, role: "owner" });
     expect(trabajo!.items.map((i) => i.label)).toEqual([
+      "Inicio",
       "Bandeja",
       "Pipeline",
       "Contactos",
