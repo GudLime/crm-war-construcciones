@@ -13,6 +13,7 @@ import {
   RESPONSABLE_YO,
   VISTAS_DE_FABRICA,
   vistasDeFabrica,
+  filtrosDeLaUrl,
   cumpleFiltros,
   difiereDe,
   limpiarFiltros,
@@ -34,7 +35,10 @@ import type { PreferenciasDeLista } from "./oportunidades-vistas";
 type Opcion = { value: string; label: string };
 export type Miembro = { userId: string; nombre: string };
 
-type Propiedad = "edificios" | "origenes" | "estados" | "unidades" | "paraCerrar";
+type Booleana = "paraCerrar" | "sinPrimerContacto";
+type Propiedad = "edificios" | "origenes" | "estados" | "unidades" | Booleana;
+/** Los filtros de sí/no: se agregan ya puestos y no tienen opciones. */
+const esBooleana = (p: Propiedad): p is Booleana => p === "paraCerrar" || p === "sinPrimerContacto";
 
 const NOMBRE_PROPIEDAD: Record<Propiedad, string> = {
   edificios: "Edificio",
@@ -42,6 +46,7 @@ const NOMBRE_PROPIEDAD: Record<Propiedad, string> = {
   estados: "Estado",
   unidades: "Unidad",
   paraCerrar: "Para cerrar",
+  sinPrimerContacto: "Sin primer contacto",
 };
 
 /** Cambia una propiedad de los filtros (undefined la quita). */
@@ -113,6 +118,17 @@ export function useVistas<F extends FilaFiltrable>({
     void (async () => {
       const d = await cargar();
       setLista(true);
+      // Inicio — Filtros que llegan por el link: un borrador sobre «Abiertas».
+      const temporales = filtrosDeLaUrl(new URLSearchParams(window.location.search));
+      if (temporales) {
+        setFiltros(temporales);
+        const url = new URL(window.location.href);
+        for (const k of ["responsable", "estado", "edificio", "origen", "sinPrimerContacto", "paraCerrar", "situacion"]) {
+          url.searchParams.delete(k);
+        }
+        window.history.replaceState(null, "", url.pathname + url.search);
+        return;
+      }
       if (!d) return;
       const propias = vistasDeFabrica(d.admin === true);
       const v = d.ultima ? [...propias, ...d.vistas].find((x) => x.id === d.ultima) : undefined;
@@ -325,14 +341,14 @@ export function BarraDeFiltros({
   const [abierta, setAbierta] = useState<Propiedad | null>(null);
   const f = v.filtros;
 
-  const opcionesDe: Record<Exclude<Propiedad, "paraCerrar">, Opcion[]> = {
+  const opcionesDe: Record<Exclude<Propiedad, Booleana>, Opcion[]> = {
     edificios: opciones.edificios,
     origenes: opciones.origenes,
     estados: ESTADOS_OPORTUNIDAD.map((e) => ({ value: e.value, label: e.label })),
     unidades: opciones.unidades,
   };
   const activas = (Object.keys(NOMBRE_PROPIEDAD) as Propiedad[]).filter((p) =>
-    p === "paraCerrar" ? f.paraCerrar === true : f[p] !== undefined
+    esBooleana(p) ? f[p] === true : f[p] !== undefined
   );
   const agregables = (Object.keys(NOMBRE_PROPIEDAD) as Propiedad[]).filter((p) => !activas.includes(p));
   const responsables = f.responsables ?? [];
@@ -351,7 +367,7 @@ export function BarraDeFiltros({
       : `${responsables.length} responsables`;
 
   function valorDe(p: Propiedad): string {
-    if (p === "paraCerrar") return "Sí";
+    if (esBooleana(p)) return "Sí";
     const elegidos = f[p] ?? [];
     if (!elegidos.length) return "cualquiera";
     const labels = elegidos.map((x) => opcionesDe[p].find((o) => o.value === x)?.label ?? x);
@@ -456,7 +472,7 @@ export function BarraDeFiltros({
 
       {activas.map((p) => (
         <span key={p} className="inline-flex items-center rounded-full border border-border bg-card">
-          {p === "paraCerrar" ? (
+          {esBooleana(p) ? (
             <span className="pl-3 pr-1">
               {NOMBRE_PROPIEDAD[p]}: <strong className="font-semibold">Sí</strong>
             </span>
@@ -478,8 +494,8 @@ export function BarraDeFiltros({
               )}
               className="max-h-80 overflow-y-auto"
             >
-              {opcionesDe[p as Exclude<Propiedad, "paraCerrar">].map((o) => {
-                const elegidos = (f[p as Exclude<Propiedad, "paraCerrar">] ?? []) as string[];
+              {opcionesDe[p as Exclude<Propiedad, Booleana>].map((o) => {
+                const elegidos = (f[p as Exclude<Propiedad, Booleana>] ?? []) as string[];
                 const on = elegidos.includes(o.value);
                 return (
                   <MenuItem
@@ -493,7 +509,7 @@ export function BarraDeFiltros({
                   </MenuItem>
                 );
               })}
-              {opcionesDe[p as Exclude<Propiedad, "paraCerrar">].length === 0 && <p className="px-2 py-1.5 text-text-3">No hay opciones</p>}
+              {opcionesDe[p as Exclude<Propiedad, Booleana>].length === 0 && <p className="px-2 py-1.5 text-text-3">No hay opciones</p>}
             </Menu>
           )}
           <button
@@ -541,7 +557,7 @@ export function BarraDeFiltros({
                   icono={<Filter className="size-3.5" />}
                   onClick={() => {
                     cerrar();
-                    if (p === "paraCerrar") v.setFiltros({ ...f, paraCerrar: true });
+                    if (esBooleana(p)) v.setFiltros(con(f, p, true));
                     else {
                       v.setFiltros(con(f, p, []));
                       setAbierta(p);

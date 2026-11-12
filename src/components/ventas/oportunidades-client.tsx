@@ -172,6 +172,18 @@ export function OportunidadesClient() {
     })();
   }, []);
 
+  // Inicio — `?nueva=1` (el botón «Nueva oportunidad» de Inicio) abre el alta.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("nueva") !== "1") return;
+    url.searchParams.delete("nueva");
+    window.history.replaceState(null, "", url.pathname + url.search);
+    setEditando(null);
+    setForm(vacio);
+    setError(null);
+    setAbierto(true);
+  }, []);
+
   // War — `?editar=<id>` (el botón Editar de la página de la oportunidad).
   useEffect(() => {
     if (!listo) return;

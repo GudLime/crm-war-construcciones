@@ -74,9 +74,9 @@ describe("/onboarding", () => {
 });
 
 describe("la raíz", () => {
-  it("sin sesión sigue yendo a la Bandeja (que manda al login)", async () => {
+  it("sin sesión va al Inicio (que manda al login)", async () => {
     getSessionOrNull.mockResolvedValue(null);
-    await expect(Home()).rejects.toThrow("redirect:/inbox");
+    await expect(Home()).rejects.toThrow("redirect:/inicio");
     expect(guideFirst).not.toHaveBeenCalled();
   });
 
@@ -87,9 +87,9 @@ describe("la raíz", () => {
     expect(guideFirst).toHaveBeenCalledWith(owner);
   });
 
-  it("con todo listo y el agente encendido, a la Bandeja como siempre", async () => {
+  it("con todo listo y el agente encendido, al Inicio del vendedor", async () => {
     getSessionOrNull.mockResolvedValue(owner);
     guideFirst.mockResolvedValue(false);
-    await expect(Home()).rejects.toThrow("redirect:/inbox");
+    await expect(Home()).rejects.toThrow("redirect:/inicio");
   });
 });
