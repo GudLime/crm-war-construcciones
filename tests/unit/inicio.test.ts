@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { fechaLarga, hace, LINKS_INICIO, saludo } from "@/lib/inicio";
+import { fechaLarga, hace, LINKS_INICIO, motivoDeDerivacion, saludo } from "@/lib/inicio";
+import { resumenDelHandoff } from "@/server/bot/handoff";
 import { filtrosDeLaUrl } from "@/lib/vistas";
 
 describe("Inicio del vendedor", () => {
@@ -42,5 +43,27 @@ describe("filtros temporales por link (Oportunidades)", () => {
   it("se pueden pedir las cerradas o todas", () => {
     expect(de("/oportunidades?situacion=cerradas")).toEqual({ situacion: "cerradas" });
     expect(de("/oportunidades?responsable=me&situacion=todas")).toEqual({ responsables: ["yo"] });
+  });
+});
+
+describe("motivo de una derivación", () => {
+  it("traduce el código y elige el color", () => {
+    expect(motivoDeDerivacion("cliente", null)).toEqual({ texto: "Quiere hablar con una persona", tono: "rojo" });
+    expect(motivoDeDerivacion("modelo", null).tono).toBe("ambar");
+    expect(motivoDeDerivacion(null, null)).toEqual({ texto: "Necesita una persona", tono: "ambar" });
+  });
+
+  it("si el agente dejó un resumen, va ese texto; hablar de reservar va en color de marca", () => {
+    expect(motivoDeDerivacion("modelo", "Quiere reservar la 3B")).toEqual({ texto: "Quiere reservar la 3B", tono: "marca" });
+    expect(motivoDeDerivacion("cliente", "Pide hablar con Sebastián").tono).toBe("rojo");
+  });
+});
+
+describe("resumen del handoff", () => {
+  it("guarda el resumen o un motivo libre; un código conocido solo no deja texto", () => {
+    expect(resumenDelHandoff("  Quiere señar  ", "cliente")).toBe("Quiere señar");
+    expect(resumenDelHandoff(undefined, "quiere ver la unidad")).toBe("quiere ver la unidad");
+    expect(resumenDelHandoff(undefined, "cliente")).toBeNull();
+    expect(resumenDelHandoff(undefined, undefined)).toBeNull();
   });
 });

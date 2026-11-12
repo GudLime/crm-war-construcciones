@@ -135,7 +135,7 @@ function textoTemporal(f: Temporal): string {
 const GUARDADO = "tareas.vista.v1";
 
 /** El ícono de cada tipo, en un cuadradito de color. */
-function IconoTipo({ tipo }: { tipo: string }) {
+export function IconoTipo({ tipo }: { tipo: string }) {
   const estilo: Record<string, string> = {
     mensaje: "bg-success-tint text-success-text",
     llamada: "bg-info-tint text-info-text",
@@ -184,8 +184,18 @@ export function TareasClient() {
   const delLink = useRef<ReturnType<typeof leerTemporal> | null>(null);
   const [temporal, setTemporal] = useState<Temporal | null>(null);
   useEffect(() => {
-    const l = leerTemporal(new URLSearchParams(window.location.search));
+    const params = new URLSearchParams(window.location.search);
+    const l = leerTemporal(params);
     delLink.current = l;
+    // Inicio — «+ Agregar tarea» llega con `?nueva=1`.
+    if (params.get("nueva") === "1") {
+      setEditando(null);
+      setSoloLectura(false);
+      setForm({ ...vacio });
+      setError(null);
+      setAbierto(true);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
     if (l.estado) setFiltro(l.estado);
     if (l.temporal) setTemporal(l.temporal);
     if (l.estado || l.temporal || l.responsableYo) window.history.replaceState(null, "", window.location.pathname);
