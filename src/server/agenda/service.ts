@@ -89,6 +89,8 @@ export async function createSessionBooking(input: {
   /** Camino manual del operador. */
   contactId?: string | null;
   notes?: string | null;
+  /** 0054 — Quién la confirma al cargarla (una persona a mano). Sin esto, nace sin confirmar. */
+  confirmadaPor?: string | null;
   /**
    * true ⇒ exige que el instante figure entre los ofrecidos a la conversación
    * (agente/bot). El operador elige de la disponibilidad que está viendo, así
@@ -198,6 +200,9 @@ export async function createSessionBooking(input: {
         connector: settings.connector,
         isTest,
         notes: input.notes ?? null,
+        ...(input.confirmadaPor
+          ? { confirmadaAt: new Date(), confirmadaPorUserId: input.confirmadaPor }
+          : {}),
       })
       .returning();
     booking = inserted[0]!;

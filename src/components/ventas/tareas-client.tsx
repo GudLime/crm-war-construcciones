@@ -72,6 +72,8 @@ const FILTROS: { value: FiltroEstado; label: string }[] = [
 ];
 
 const SIN = "sin";
+/** 0054 — Los tipos que ahora son citas de la Agenda. */
+const ES_CITA = new Set<string>(["visita", "reunion"]);
 
 /**
  * Inicio — Filtros temporales que llegan por el link
@@ -494,12 +496,22 @@ export function TareasClient() {
             </Campo>
             <Campo label="Tipo">
               <Select value={form.tipo} onValueChange={(tipo) => setForm({ ...form, tipo })}>
-                {TIPOS_TAREA.map((o) => (
+                {/* 0054 — Visita y Reunión son citas (Agenda): ya no se crean como tarea. */}
+                {TIPOS_TAREA.filter((o) => !ES_CITA.has(o.value) || o.value === form.tipo).map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
                 ))}
               </Select>
+              {!ES_CITA.has(form.tipo) && (
+                <span className="text-[11px] text-text-3">
+                  Las visitas y reuniones se agendan en{" "}
+                  <Link href="/bookings" className="underline">
+                    Citas
+                  </Link>
+                  .
+                </span>
+              )}
             </Campo>
             <Campo label="Estado">
               <Select value={form.estado} onValueChange={(estado) => setForm({ ...form, estado })}>
