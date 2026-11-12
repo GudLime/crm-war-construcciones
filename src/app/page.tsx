@@ -7,10 +7,10 @@ export const dynamic = "force-dynamic";
 /**
  * La raíz decide a dónde se entra (issue #86): mientras falte un paso de la
  * guía de inicio o el agente siga apagado, a `/onboarding`; con todo listo,
- * a la Bandeja como siempre. Sin sesión, `/inbox` manda al login.
+ * al Inicio del vendedor. Sin sesión, `/inicio` manda al login.
  */
 export default async function Home() {
   const session = await getSessionOrNull();
   if (session && (await guideFirst(session))) redirect("/onboarding");
-  redirect("/inbox");
+  redirect("/inicio");
 }

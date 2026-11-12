@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   CalendarDays,
   ChevronDown,
@@ -12,6 +12,7 @@ import {
   Rows3,
   Send,
   Users,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
@@ -71,6 +72,66 @@ const FILTROS: { value: FiltroEstado; label: string }[] = [
 ];
 
 const SIN = "sin";
+
+/**
+ * Inicio — Filtros temporales que llegan por el link
+ * (`/tareas?responsable=me&estado=realizar&tipo=visita,reunion&desde=hoy&hasta=hoy`).
+ * No se guardan: se ven arriba con una ✕ para sacarlos.
+ */
+type Temporal = { tipos: string[]; desde: string | null; hasta: string | null };
+
+/** «hoy» o AAAA-MM-DD → AAAA-MM-DD (en la hora de quien mira). */
+function diaDe(valor: string | null): string | null {
+  if (!valor) return null;
+  if (valor === "hoy") return diaLocal(new Date());
+  return /^\d{4}-\d{2}-\d{2}$/.test(valor) ? valor : null;
+}
+
+function diaLocal(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function leerTemporal(params: URLSearchParams): {
+  estado: FiltroEstado | null;
+  responsableYo: boolean;
+  temporal: Temporal | null;
+} {
+  const estado = params.get("estado");
+  const tipos = (params.get("tipo") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  const desde = diaDe(params.get("desde"));
+  const hasta = diaDe(params.get("hasta"));
+  return {
+    estado: FILTROS.some((f) => f.value === estado) ? (estado as FiltroEstado) : null,
+    responsableYo: params.get("responsable") === "me" || params.get("responsable") === "yo",
+    temporal: tipos.length || desde || hasta ? { tipos, desde, hasta } : null,
+  };
+}
+
+function cumpleTemporal(t: { tipo: string; fecha: string | null }, f: Temporal): boolean {
+  if (f.tipos.length && !f.tipos.includes(t.tipo)) return false;
+  if (f.desde || f.hasta) {
+    if (!t.fecha) return false;
+    const dia = diaLocal(new Date(t.fecha));
+    if (f.desde && dia < f.desde) return false;
+    if (f.hasta && dia > f.hasta) return false;
+  }
+  return true;
+}
+
+function textoTemporal(f: Temporal): string {
+  const partes: string[] = [];
+  if (f.tipos.length) {
+    partes.push(f.tipos.map((x) => TIPOS_TAREA.find((o) => o.value === x)?.label ?? x).join(" y "));
+  }
+  const hoy = diaLocal(new Date());
+  const fecha = (d: string) => (d === hoy ? "hoy" : d.split("-").reverse().join("/"));
+  if (f.desde && f.hasta && f.desde === f.hasta) partes.push(fecha(f.desde));
+  else if (f.desde && f.hasta) partes.push(`del ${fecha(f.desde)} al ${fecha(f.hasta)}`);
+  else if (f.hasta) partes.push(`hasta ${fecha(f.hasta)}`);
+  else if (f.desde) partes.push(`desde ${fecha(f.desde)}`);
+  return partes.join(" · ");
+}
 const GUARDADO = "tareas.vista.v1";
 
 /** El ícono de cada tipo, en un cuadradito de color. */
@@ -119,6 +180,16 @@ export function TareasClient() {
   const [admin, setAdmin] = useState(false);
   /** Las visitas de otra persona se ven pero no se cambian. */
   const [soloLectura, setSoloLectura] = useState(false);
+  /** Inicio — Lo que llegó por el link (se lee una vez, al entrar). */
+  const delLink = useRef<ReturnType<typeof leerTemporal> | null>(null);
+  const [temporal, setTemporal] = useState<Temporal | null>(null);
+  useEffect(() => {
+    const l = leerTemporal(new URLSearchParams(window.location.search));
+    delLink.current = l;
+    if (l.estado) setFiltro(l.estado);
+    if (l.temporal) setTemporal(l.temporal);
+    if (l.estado || l.temporal || l.responsableYo) window.history.replaceState(null, "", window.location.pathname);
+  }, []);
   const [forma, setForma] = useState<FormaDeVer>("lista");
   const [agrupar, setAgrupar] = useState(true);
   const [plegados, setPlegados] = useState<Partial<Record<GrupoTarea, boolean>>>({});
@@ -176,7 +247,9 @@ export function TareasClient() {
         setEquipo(d.equipo);
         setAdmin(d.admin === true);
         // El admin arranca viendo lo suyo y lo sin asignar; puede cambiarlo.
-        if (d.admin === true) setResponsables([d.yo, SIN]);
+        // Desde Inicio («responsable=me»), solo lo suyo.
+        if (delLink.current?.responsableYo) setResponsables([d.yo]);
+        else if (d.admin === true) setResponsables([d.yo, SIN]);
       }
     })();
   }, []);
@@ -273,7 +346,9 @@ export function TareasClient() {
 
   const ahora = useMemo(() => new Date(), [filas]); // eslint-disable-line react-hooks/exhaustive-deps
   const deResponsable = filas.filter(
-    (t) => !responsables.length || responsables.includes(t.responsableId ?? SIN)
+    (t) =>
+      (!responsables.length || responsables.includes(t.responsableId ?? SIN)) &&
+      (!temporal || cumpleTemporal(t, temporal))
   );
   const visibles = forma === "pipeline" || filtro === "todas" ? deResponsable : deResponsable.filter((t) => t.estado === filtro);
   const grupos: Grupo[] = agrupar
@@ -316,6 +391,21 @@ export function TareasClient() {
               {o.label}
             </Button>
           ))}
+        {temporal && (
+          <span className="inline-flex items-center rounded-full border border-border bg-card text-[13px]">
+            <span className="pl-3 pr-1">
+              Filtro: <strong className="font-semibold">{textoTemporal(temporal)}</strong>
+            </span>
+            <button
+              type="button"
+              aria-label="Quitar el filtro"
+              onClick={() => setTemporal(null)}
+              className="grid size-7 place-items-center rounded-r-full text-text-3 hover:bg-accent hover:text-foreground"
+            >
+              <X className="size-3.5" />
+            </button>
+          </span>
+        )}
         {admin && equipo.length > 0 && (
           <div role="group" aria-label="Filtrar por responsable" className="ml-1 inline-flex items-center gap-2 border-l border-border pl-3 text-[13px]">
             <span className="text-text-3">Responsable</span>
