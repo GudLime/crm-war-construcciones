@@ -396,3 +396,13 @@ persona, solo admin). Spec: proyecto «CRM War Construcciones» →
   primero; `oportunidad.responsable_desde`, 0053) y **Leads calientes** (en
   Visitó, con el próximo paso: la tarea o cita futura más cercana; primero las
   que no tienen). Máximo 5 por bloque, con link a Oportunidades filtrada.
+- **Visitas de hoy (0054)**: Visita y Reunión son la misma cita (`booking`). Las
+  agenda una persona (nacen confirmadas por ella) o el agente (nacen sin
+  confirmar); «Confirmar» (`POST /api/bookings/[id]/confirmar`) guarda
+  `confirmada_at` y `confirmada_por_user_id` y no le manda nada al cliente. Las
+  tareas de tipo Visita o Reunión que ya existían se pasan a citas desde Ajustes
+  → Ventas (no corre solo; las que chocan con otra cita o no tienen fecha
+  quedan). Tareas ya no ofrece esos tipos.
+- **Ventana de 24 h por cerrar**: chats de WhatsApp de mis contactos donde el
+  último mensaje es del cliente, nadie respondió y la ventana cierra en menos de
+  12 h.

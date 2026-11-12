@@ -10,6 +10,7 @@ import { useEvents } from "@/components/use-events";
 import { Derivadas } from "./derivadas";
 import { LeadsCalientes, NuevasParaVos, useIconosDeOrigen } from "./oportunidades-de-inicio";
 import { TuDia } from "./tu-dia";
+import { VentanasPorCerrar, VisitasDeHoy } from "./visitas-de-hoy";
 import { DERIVADA_URGENTE_MIN, LINKS_INICIO, fechaLarga, hace, saludo, type InicioDto } from "@/lib/inicio";
 
 /** La hora (0–23) en la zona del negocio. */
@@ -181,16 +182,21 @@ export function InicioClient() {
             tono="success"
             numero={c.visitasHoy}
             contexto={
-              c.proximaVisita
-                ? `Próxima: ${horaCorta(c.proximaVisita.at, c.zona)}${c.proximaVisita.contacto ? ` · ${c.proximaVisita.contacto}` : ""}`
-                : c.visitasHoy > 0
-                  ? "No quedan más por hoy"
-                  : "Sin visitas para hoy"
+              [
+                c.proximaVisita
+                  ? `Próxima: ${horaCorta(c.proximaVisita.at, c.zona)}${c.proximaVisita.contacto ? ` · ${c.proximaVisita.contacto}` : ""}`
+                  : c.visitasHoy > 0
+                    ? "No quedan más por hoy"
+                    : "Sin visitas para hoy",
+                c.visitasSinConfirmar > 0 ? `${c.visitasSinConfirmar} sin confirmar` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")
             }
             boton={{
-              texto: "Revisar en Tareas",
+              texto: "Ver la agenda",
               href: LINKS_INICIO.visitas,
-              filtro: `Responsable ${yo} · Visitas y reuniones · hoy`,
+              filtro: "Citas · hoy",
             }}
           />
           <Tarjeta
@@ -243,7 +249,9 @@ export function InicioClient() {
             />
           </div>
           <div className="space-y-[var(--hueco)]">
+            <VisitasDeHoy visitas={datos.visitas} agente={datos.agente} zona={c.zona} onCambio={() => void cargar()} />
             <TuDia items={datos.tuDia} zona={c.zona} onCambio={() => void cargar()} />
+            <VentanasPorCerrar ventanas={datos.ventanas} />
           </div>
         </div>
       )}

@@ -912,6 +912,13 @@ export const booking = pgTable(
     linkPending: boolean("link_pending").notNull().default(false),
     /** Conversación del Laboratorio: jamás llama a un conector real. */
     isTest: boolean("is_test").notNull().default(false),
+    /**
+     * 0054 — Visita y Reunión son la misma cita: se agenda a mano o la agenda
+     * el agente, y una persona la confirma (no le avisa nada al cliente). Las
+     * del agente nacen sin confirmar; las manuales, confirmadas por quien las carga.
+     */
+    confirmadaAt: timestamp("confirmada_at"),
+    confirmadaPorUserId: text("confirmada_por_user_id").references(() => user.id, { onDelete: "set null" }),
     notes: text("notes"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
