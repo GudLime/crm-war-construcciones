@@ -24,3 +24,16 @@ export function toHandoffReason(raw: string | undefined | null): HandoffReason {
     ? (v as HandoffReason)
     : "modelo";
 }
+
+/**
+ * 0052 — El texto que ve el vendedor en Inicio: el resumen del agente o, si
+ * mandó un motivo fuera del catálogo («quiere reservar»), ese texto. Null si
+ * no dijo nada más que un código conocido.
+ */
+export function resumenDelHandoff(summary: string | undefined | null, reason: string | undefined | null): string | null {
+  const s = summary?.trim();
+  if (s) return s.slice(0, 500);
+  const r = reason?.trim() ?? "";
+  if (!r || (HANDOFF_REASONS as readonly string[]).includes(r.toLowerCase())) return null;
+  return r.slice(0, 500);
+}

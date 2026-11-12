@@ -368,6 +368,10 @@ export async function pasarAHumano(
       aiEnabled: false,
       handoffAt: ahora,
       handoffReason: "error",
+      // 0052 — Una derivación nueva vuelve a ser del equipo.
+      tomadaPorUserId: null,
+      tomadaAt: null,
+      handoffResumen: null,
       updatedAt: ahora,
     })
     .where(

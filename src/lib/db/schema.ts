@@ -401,6 +401,14 @@ export const conversation = pgTable(
         "manual_reply",
       ],
     }),
+    /** 0052 — Lo que el agente dijo al derivar (resumen del motivo), si lo dijo. */
+    handoffResumen: text("handoff_resumen"),
+    /**
+     * 0052 — Quién del equipo tomó la derivación y cuándo. Una derivación es del
+     * equipo hasta que alguien la toma (Inicio); quien la toma ve el chat.
+     */
+    tomadaPorUserId: text("tomada_por_user_id").references(() => user.id, { onDelete: "set null" }),
+    tomadaAt: timestamp("tomada_at"),
     lastInboundAt: timestamp("last_inbound_at"),
     lastMessageAt: timestamp("last_message_at"),
     unreadCount: integer("unread_count").notNull().default(0),
@@ -413,6 +421,7 @@ export const conversation = pgTable(
       .on(t.organizationId, t.contactId)
       .where(sql`${t.isTest} = false`),
     index("conversation_org_last_idx").on(t.organizationId, t.lastMessageAt),
+    index("conversation_org_handoff_idx").on(t.organizationId, t.handoffAt),
   ]
 );
 
