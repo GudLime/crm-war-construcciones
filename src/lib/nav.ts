@@ -3,6 +3,7 @@ import {
   CalendarDays,
   ChartColumn,
   FlaskConical,
+  House,
   Inbox,
   Kanban,
   ListChecks,
@@ -68,6 +69,8 @@ export function appNavGroups({
   // el Laboratorio (son de quien administra).
   const admin = canConfigure(role);
   const trabajo: NavItem[] = [
+    // Inicio del vendedor: lo primero que se ve al entrar.
+    { href: "/inicio", label: "Inicio", icon: House },
     { href: "/inbox", label: "Bandeja", icon: Inbox, badge: true },
     ...(admin ? [{ href: "/pipeline", label: "Pipeline", icon: Kanban }] : []),
     { href: "/contacts", label: "Contactos", icon: Users },

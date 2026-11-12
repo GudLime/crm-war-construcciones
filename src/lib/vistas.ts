@@ -25,6 +25,8 @@ export const filtrosSchema = z
     /** 0049 — Unidades de interés (ids). */
     unidades: z.array(z.string().min(1).max(60)).max(50).optional(),
     paraCerrar: z.boolean().optional(),
+    /** Inicio — asignadas y todavía sin primer contacto. */
+    sinPrimerContacto: z.boolean().optional(),
     /** Abiertas (Recibido…Visitó) o cerradas (Reservó, Compró, Perdido, No calificado). */
     situacion: z.enum(["abiertas", "cerradas"]).optional(),
   })
@@ -90,6 +92,36 @@ export function vistasDeFabrica(admin: boolean): VistaDto[] {
   );
 }
 
+/**
+ * Inicio — Filtros temporales que llegan por el link (`/oportunidades?responsable=yo&estado=visito`).
+ * Se aplican como «Cambios sin guardar»: no pisan la última vista de la persona.
+ * Sin ninguno reconocido, null. Por defecto miran las abiertas.
+ */
+export function filtrosDeLaUrl(params: URLSearchParams): Filtros | null {
+  const lista = (clave: string) =>
+    (params.get(clave) ?? "")
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
+  const si = (clave: string) => params.get(clave) === "1" || params.get(clave) === "true";
+  const f: Filtros = {};
+  const responsables = lista("responsable").map((r) => (r === "me" ? RESPONSABLE_YO : r));
+  if (responsables.length) f.responsables = responsables.slice(0, 50);
+  const estados = lista("estado");
+  if (estados.length) f.estados = estados.slice(0, 20);
+  const edificios = lista("edificio");
+  if (edificios.length) f.edificios = edificios.slice(0, 100);
+  const origenes = lista("origen");
+  if (origenes.length) f.origenes = origenes.slice(0, 100);
+  if (si("sinPrimerContacto")) f.sinPrimerContacto = true;
+  if (si("paraCerrar")) f.paraCerrar = true;
+  if (Object.keys(f).length === 0 && !params.has("situacion")) return null;
+  const situacion = params.get("situacion");
+  if (situacion !== "todas") f.situacion = situacion === "cerradas" ? "cerradas" : "abiertas";
+  const ok = filtrosSchema.safeParse(f);
+  return ok.success ? ok.data : null;
+}
+
 /** Qué hay que pedirle al servidor para una vista: solo abiertas, solo cerradas o todas. */
 export function situacionACargar(filtros: Filtros): "abiertas" | "cerradas" | "todas" {
   return filtros.situacion ?? "todas";
@@ -105,6 +137,8 @@ export type FilaFiltrable = {
   unidades: readonly { id: string }[];
   paraCerrar: boolean;
   responsableId?: string | null;
+  /** Inicio — cuándo se le escribió por primera vez (ISO), o null. */
+  primerContactoAt?: string | null;
 };
 
 const vacio = (a: readonly unknown[] | undefined) => !a || a.length === 0;
@@ -112,6 +146,7 @@ const vacio = (a: readonly unknown[] | undefined) => !a || a.length === 0;
 export function cumpleFiltros(f: FilaFiltrable, filtros: Filtros, yo: string | null): boolean {
   if (filtros.situacion && situacionDe(f.estado) !== filtros.situacion) return false;
   if (filtros.paraCerrar && !f.paraCerrar) return false;
+  if (filtros.sinPrimerContacto && f.primerContactoAt) return false;
   if (!vacio(filtros.estados) && !filtros.estados!.includes(f.estado)) return false;
   if (!vacio(filtros.origenes) && !filtros.origenes!.includes(f.origen ?? "")) return false;
   if (!vacio(filtros.edificios)) {
