@@ -142,6 +142,8 @@ export const oportunidad = pgTable(
     responsableUserId: text("responsable_user_id").references(() => user.id, { onDelete: "set null" }),
     /** 0051 — La lleva el agente de IA (no una persona). Solo el admin la ve. */
     responsableIa: boolean("responsable_ia").notNull().default(false),
+    /** 0053 — Desde cuándo la lleva quien la lleva (Inicio: «asignada hace X»). */
+    responsableDesde: timestamp("responsable_desde"),
     valorCents: integer("valor_cents"),
     moneda: text("moneda"),
     /**

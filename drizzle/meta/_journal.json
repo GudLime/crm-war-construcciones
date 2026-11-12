@@ -435,6 +435,13 @@
       "when": 1793930400000,
       "tag": "0052_derivadas_tomadas",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1793941200000,
+      "tag": "0053_responsable_desde",
+      "breakpoints": true
     }
   ]
 }

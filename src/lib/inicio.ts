@@ -51,6 +51,24 @@ export type ItemDelDia = {
   edificio: string | null;
 };
 
+/** Una oportunidad en las listas de Inicio (Nuevas para vos, Leads calientes). */
+export type OportunidadDeInicio = {
+  id: string;
+  nombre: string;
+  /** venta, alquiler o inmobiliaria. */
+  tipo: string | null;
+  origen: string | null;
+  edificio: { nombre: string; color: string | null } | null;
+  ambientes: number[];
+  unidad: string | null;
+  /** Desde cuándo la lleva (o desde que se creó). */
+  asignadaDesde: string;
+  /** En Leads calientes: desde cuándo está en Visitó. */
+  visitoDesde: string;
+  /** En Leads calientes: la tarea o cita futura más cercana, o null. */
+  proximoPaso: { tipo: string; titulo: string; at: string } | null;
+};
+
 export type InicioDto = {
   usuario: { id: string; nombre: string };
   /** Nombre del agente de IA configurado (Agente → nombre). */
@@ -61,6 +79,8 @@ export type InicioDto = {
   /** Del equipo, sin tomar (máx. 5). */
   derivadas: DerivadaDto[];
   tuDia: ItemDelDia[];
+  nuevas: OportunidadDeInicio[];
+  calientes: OportunidadDeInicio[];
 };
 
 const MOTIVOS: Record<string, { texto: string; tono: TonoMotivo }> = {
