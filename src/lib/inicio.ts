@@ -23,6 +23,34 @@ export type InicioContadores = {
   calientes: number;
 };
 
+/** El chip del motivo: rojo si pidió una persona, ámbar para dudas, marca para intención de compra. */
+export type TonoMotivo = "rojo" | "ambar" | "marca";
+
+export type DerivadaDto = {
+  conversationId: string;
+  canal: string;
+  contacto: { id: string; nombre: string };
+  /** El edificio de su oportunidad abierta, si tiene. */
+  edificio: { nombre: string; color: string | null } | null;
+  motivo: { texto: string; tono: TonoMotivo };
+  /** Lo último que escribió el cliente. */
+  ultimoMensaje: string | null;
+  /** Desde cuándo espera (el handoff). */
+  esperaDesde: string;
+};
+
+/** Una fila de «Tu día»: una tarea (se tilda) o una cita (no). */
+export type ItemDelDia = {
+  clase: "tarea" | "cita";
+  id: string;
+  at: string;
+  vencida: boolean;
+  titulo: string;
+  tipo: string;
+  contacto: string | null;
+  edificio: string | null;
+};
+
 export type InicioDto = {
   usuario: { id: string; nombre: string };
   /** Nombre del agente de IA configurado (Agente → nombre). */
@@ -30,7 +58,29 @@ export type InicioDto = {
   /** Solo un admin puede mirar el Inicio de otra persona. */
   admin: boolean;
   contadores: InicioContadores;
+  /** Del equipo, sin tomar (máx. 5). */
+  derivadas: DerivadaDto[];
+  tuDia: ItemDelDia[];
 };
+
+const MOTIVOS: Record<string, { texto: string; tono: TonoMotivo }> = {
+  cliente: { texto: "Quiere hablar con una persona", tono: "rojo" },
+  hostilidad: { texto: "Se puso agresivo", tono: "rojo" },
+  modelo: { texto: "Pregunta fuera de lo que sabe el agente", tono: "ambar" },
+  error: { texto: "El agente tuvo un problema", tono: "ambar" },
+  ventana: { texto: "Se cerró la ventana de 24 h", tono: "ambar" },
+};
+
+/**
+ * El motivo para el vendedor: el resumen del agente si lo dejó; si no, el
+ * código traducido. Hablar de reservar, señar o comprar va en tinte de marca.
+ */
+export function motivoDeDerivacion(codigo: string | null, resumen: string | null): { texto: string; tono: TonoMotivo } {
+  const base = MOTIVOS[codigo ?? ""] ?? { texto: "Necesita una persona", tono: "ambar" as const };
+  const texto = resumen?.trim() || base.texto;
+  const compra = /reserv|señ|sen[ae]r|compr|cerrar (la )?operaci/i.test(texto);
+  return { texto, tono: compra ? "marca" : base.tono };
+}
 
 /** Pasado este tiempo, una derivación que espera se marca en rojo. */
 export const DERIVADA_URGENTE_MIN = 30;
@@ -81,4 +131,5 @@ export const LINKS_INICIO = {
   tareas: "/tareas?responsable=me&estado=realizar&hasta=hoy",
   visitas: "/tareas?responsable=me&estado=todas&tipo=visita,reunion&desde=hoy&hasta=hoy",
   calientes: "/oportunidades?responsable=me&estado=visito",
+  derivadas: "/inbox?derivadas=1",
 } as const;

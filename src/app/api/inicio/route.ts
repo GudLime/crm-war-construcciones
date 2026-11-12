@@ -1,7 +1,7 @@
 import { apiError, withAuth } from "@/lib/api";
 import { esAdmin } from "@/lib/auth/roles";
 import type { InicioDto } from "@/lib/inicio";
-import { contadoresDeInicio } from "@/server/inicio";
+import { contadoresDeInicio, derivadasSinTomar, tuDia } from "@/server/inicio";
 import { listarResponsables, nombreDelAgente } from "@/server/responsables";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,19 @@ export const GET = withAuth(async (session, req: Request) => {
   const equipo = await listarResponsables(org);
   const persona = equipo.find((m) => m.userId === userId);
   if (!persona) return apiError(404, "not_found", "Esa persona no es del equipo");
-  const [contadores, agente] = await Promise.all([contadoresDeInicio(org, userId), nombreDelAgente(org)]);
-  const dto: InicioDto = { usuario: { id: userId, nombre: persona.nombre }, agente, admin, contadores };
+  const [contadores, agente, derivadas, dia] = await Promise.all([
+    contadoresDeInicio(org, userId),
+    nombreDelAgente(org),
+    derivadasSinTomar(org),
+    tuDia(org, userId),
+  ]);
+  const dto: InicioDto = {
+    usuario: { id: userId, nombre: persona.nombre },
+    agente,
+    admin,
+    contadores,
+    derivadas,
+    tuDia: dia,
+  };
   return Response.json(dto);
 });

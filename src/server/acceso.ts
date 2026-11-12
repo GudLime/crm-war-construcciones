@@ -37,15 +37,23 @@ export function oportunidadVisible(a: Alcance): SQL | undefined {
   return a.admin ? undefined : eq(schema.oportunidad.responsableUserId, a.userId);
 }
 
-/** Contactos visibles: los que tienen alguna oportunidad suya. `col` = la columna con el id del contacto. */
+/**
+ * Contactos visibles: los que tienen alguna oportunidad suya, o una
+ * conversación cuya derivación tomó (0052). `col` = la columna con el id del contacto.
+ */
 export function contactoVisible(a: Alcance, col: AnyPgColumn): SQL | undefined {
   if (a.admin) return undefined;
-  return sql`exists (
+  return sql`(exists (
     select 1 from ${schema.oportunidad} o
     where o.organization_id = ${a.organizationId}
       and o.contact_id = ${col}
       and o.responsable_user_id = ${a.userId}
-  )`;
+  ) or exists (
+    select 1 from ${schema.conversation} cv
+    where cv.organization_id = ${a.organizationId}
+      and cv.contact_id = ${col}
+      and cv.tomada_por_user_id = ${a.userId}
+  ))`;
 }
 
 /**
@@ -113,7 +121,21 @@ export async function puedeVerContacto(a: Alcance, contactId: string | null | un
       )
     )
     .limit(1);
-  return Boolean(f);
+  if (f) return true;
+  // 0052 — O una conversación suya que tomó desde Inicio.
+  const [tomada] = await getDb()
+    .select({ id: schema.conversation.id })
+    .from(schema.conversation)
+    .where(
+      scoped(
+        schema.conversation.organizationId,
+        a.organizationId,
+        eq(schema.conversation.contactId, contactId),
+        eq(schema.conversation.tomadaPorUserId, a.userId)
+      )
+    )
+    .limit(1);
+  return Boolean(tomada);
 }
 
 export async function contactoDeConversacion(organizationId: string, conversationId: string): Promise<string | null> {
@@ -173,7 +195,13 @@ export async function contactosVisibles(a: Alcance): Promise<Set<string> | null>
         isNotNull(schema.oportunidad.contactId)
       )
     );
-  return new Set(filas.map((f) => f.contactId!).filter(Boolean));
+  const tomadas = await getDb()
+    .selectDistinct({ contactId: schema.conversation.contactId })
+    .from(schema.conversation)
+    .where(
+      scoped(schema.conversation.organizationId, a.organizationId, eq(schema.conversation.tomadaPorUserId, a.userId))
+    );
+  return new Set([...filas.map((f) => f.contactId), ...tomadas.map((f) => f.contactId)].filter((x): x is string => Boolean(x)));
 }
 
 

@@ -4,7 +4,7 @@ import { getDb, schema } from "@/lib/db";
 import { apiError, parseBody } from "@/lib/api";
 import { requireBotKey, resolveInstanceOrg } from "@/server/bot/auth";
 import { publish } from "@/server/events/bus";
-import { toHandoffReason } from "@/server/bot/handoff";
+import { resumenDelHandoff, toHandoffReason } from "@/server/bot/handoff";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +15,8 @@ const bodySchema = z.object({
    * (ver `server/bot/handoff`). Un motivo raro no puede costar el handoff.
    */
   reason: z.string().optional(),
+  /** 0052 — Resumen del motivo para el vendedor («Quiere reservar la 3B»). Opcional. */
+  summary: z.string().max(500).optional(),
 });
 
 /**
@@ -61,6 +63,11 @@ export async function POST(req: Request) {
         aiEnabled: false,
         handoffAt: new Date(),
         handoffReason: toHandoffReason(body.data.reason),
+        // 0052 — El resumen que deja el agente; si no, el motivo en texto libre.
+        handoffResumen: resumenDelHandoff(body.data.summary, body.data.reason),
+        // Una derivación nueva es del equipo hasta que alguien la toma.
+        tomadaPorUserId: null,
+        tomadaAt: null,
         updatedAt: new Date(),
       })
       .where(eq(schema.conversation.id, conv.id));

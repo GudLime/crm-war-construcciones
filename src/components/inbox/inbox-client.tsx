@@ -51,6 +51,8 @@ const isWideEnoughForPanel = () =>
 
 /** Lo que ve un admin al abrir la Bandeja: lo suyo y lo que nadie lleva. */
 const RESPONSABLE_POR_DEFECTO = "yo,sin";
+/** Inicio — Solo las derivaciones de la IA que nadie tomó. */
+const DERIVADAS = "derivadas";
 
 export function InboxClient({
   channels,
@@ -124,20 +126,32 @@ export function InboxClient({
       })
       .catch(() => undefined);
   }, []);
+  // Inicio — `/inbox?derivadas=1` abre en las derivaciones de la IA sin tomar.
+  const derivadasParam = useSearchParams().get("derivadas");
+  useEffect(() => {
+    if (derivadasParam === "1") setResponsable(DERIVADAS);
+  }, [derivadasParam]);
   const opcionesResponsable = useMemo(
-    () => [
-      { value: RESPONSABLE_POR_DEFECTO, label: "Míos y sin asignar" },
-      { value: "yo", label: "Solo míos" },
-      { value: "todos", label: "De todo el equipo" },
-      ...equipo.miembros.map((m) => ({ value: m.userId, label: `De ${m.nombre}` })),
-    ],
-    [equipo.miembros]
+    () =>
+      equipo.admin
+        ? [
+            { value: RESPONSABLE_POR_DEFECTO, label: "Míos y sin asignar" },
+            { value: "yo", label: "Solo míos" },
+            { value: "todos", label: "De todo el equipo" },
+            ...equipo.miembros.map((m) => ({ value: m.userId, label: `De ${m.nombre}` })),
+            { value: DERIVADAS, label: "Derivadas sin tomar" },
+          ]
+        : [
+            { value: RESPONSABLE_POR_DEFECTO, label: "Mis chats" },
+            { value: DERIVADAS, label: "Derivadas sin tomar" },
+          ],
+    [equipo.admin, equipo.miembros]
   );
 
   const refetchConversations = useCallback(async () => {
-    const res = await fetch(`/api/conversations?responsable=${encodeURIComponent(responsable)}`).catch(
-      () => null
-    );
+    const consulta =
+      responsable === DERIVADAS ? "derivadas=1" : `responsable=${encodeURIComponent(responsable)}`;
+    const res = await fetch(`/api/conversations?${consulta}`).catch(() => null);
     if (!res?.ok) return;
     const data = (await res.json()) as { conversations: ConversationDto[] };
     setConversations(data.conversations);
@@ -464,11 +478,7 @@ export function InboxClient({
           selectedId={selectedId}
           onSelect={select}
           onSeeded={() => void refetchConversations()}
-          responsable={
-            equipo.admin
-              ? { valor: responsable, opciones: opcionesResponsable, onChange: setResponsable }
-              : undefined
-          }
+          responsable={{ valor: responsable, opciones: opcionesResponsable, onChange: setResponsable }}
         />
       </section>
 
