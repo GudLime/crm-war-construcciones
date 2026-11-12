@@ -83,7 +83,7 @@ beforeEach(() => {
   mocks.ensure.mockResolvedValue({ fetchStatus: "available" });
   mocks.sendMedia.mockResolvedValue({ messageId: "msg_nuevo" });
   mocks.sendText.mockResolvedValue({ messageId: "msg_nuevo" });
-  mocks.session.mockResolvedValue({ organizationId: "org_a" });
+  mocks.session.mockResolvedValue({ organizationId: "org_a", userId: "u_admin", role: "owner" });
   mocks.conversation.mockResolvedValue({ conversation: { channel: "whatsapp", isTest: false } });
 });
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiError, parseBody, withAdmin } from "@/lib/api";
+import { apiError, parseBody, withAdmin, withAuth } from "@/lib/api";
 import { canConfigure } from "@/lib/auth/roles";
 import { getEnv } from "@/lib/env";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -28,7 +28,8 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
-export const GET = withAdmin(async (session) => {
+// Un miembro recibe solo que no puede (la pantalla le explica por qué).
+export const GET = withAuth(async (session) => {
   const cfg = embeddedConfig();
   if (!cfg.ready) return new Response(null, { status: 404 });
   const canManage = canConfigure(session.role);
