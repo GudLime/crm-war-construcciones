@@ -286,3 +286,20 @@ Dónde vive: `src/server/acceso.ts` (las reglas: condiciones SQL para listas y
 chequeos `puedeVer…` para cada ruta), `withAdmin` en `src/lib/api.ts` para la
 configuración, y `esAdmin` en `src/lib/auth/roles.ts`. Una oportunidad creada a
 mano queda a cargo de quien la crea.
+
+## Asignación automática de leads de Meta (0051)
+
+Ajustes → Ventas → «Asignación automática de leads de Meta». **Apagada por
+defecto.** Encendida, cada edificio se mapea a una persona del equipo o al
+agente de IA (`"ia"`). Cuando una oportunidad de Meta (origen Meta Ads,
+Facebook o Instagram) recibe su **primer edificio** —un formulario de Make o la
+IA que anota el interés— y no tiene responsable, queda a cargo del destino de
+ese edificio. Lo que no está mapeado queda sin asignar (lo ve solo el admin).
+Nunca pisa una asignación hecha.
+
+- `oportunidad.responsable_ia`: la lleva el agente (sin persona: solo la ve el
+  admin). En la página de la oportunidad, el admin puede elegir «<Agente> (IA)».
+- `ventas_ajustes.asignacion_activa` y `asignacion_por_edificio` (jsonb).
+- Código: `src/lib/asignacion.ts` (reglas puras), `src/server/asignacion.ts`
+  (`asignarLeadDeMeta`, llamada desde `sumarInteres`),
+  `GET/PUT /api/settings/ventas/asignacion`.

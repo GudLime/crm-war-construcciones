@@ -208,6 +208,8 @@ export type OportunidadDto = {
   motivoCierre: string | null;
   /** 0050 — Usuario responsable (id), o null. */
   responsableId: string | null;
+  /** 0051 — La lleva el agente de IA. */
+  responsableIa: boolean;
   valorCents: number | null;
   moneda: string | null;
   /** 068 — Todos los edificios de interés (el `edificioId` de arriba es el principal). */
@@ -684,6 +686,7 @@ function aOportunidad(
     tipo: fila.tipo,
     motivoCierre: fila.motivoCierre,
     responsableId: fila.responsableUserId ?? null,
+    responsableIa: fila.responsableIa ?? false,
     valorCents: fila.valorCents,
     moneda: fila.moneda,
     edificios: interes.edificios,
