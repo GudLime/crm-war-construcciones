@@ -1,4 +1,5 @@
 import { AsignacionAutomatica } from "@/components/settings/asignacion-automatica";
+import { ConvertirVisitas } from "@/components/settings/convertir-visitas";
 import { VentasAjustesClient } from "@/components/settings/ventas-ajustes-client";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,7 @@ export default function VentasSettingsPage() {
     <div className="max-w-3xl space-y-6">
       <VentasAjustesClient />
       <AsignacionAutomatica />
+      <ConvertirVisitas />
     </div>
   );
 }

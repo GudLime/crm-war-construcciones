@@ -8,6 +8,8 @@ import {
   type InicioContadores,
   type ItemDelDia,
   type OportunidadDeInicio,
+  type VentanaPorCerrar,
+  type VisitaDeHoy,
 } from "@/lib/inicio";
 import { addDaysISO, todayInTz, zonedWallClockToUtc } from "@/lib/time/slots";
 import { businessTimezone } from "@/server/analytics/period";
@@ -95,7 +97,7 @@ export async function contadoresDeInicio(
       ),
     // Citas de hoy de contactos con oportunidades mías.
     db
-      .select({ id: b.id, at: b.scheduledAt, contacto: schema.contact.name })
+      .select({ id: b.id, at: b.scheduledAt, contacto: schema.contact.name, confirmadaAt: b.confirmadaAt })
       .from(b)
       .leftJoin(schema.contact, eq(schema.contact.id, b.contactId))
       .where(
@@ -151,6 +153,7 @@ export async function contadoresDeInicio(
     tareasHoy: Number(tareas[0]?.n ?? 0),
     tareasVencidas: Number(vencidas[0]?.n ?? 0),
     visitasHoy: visitas.length,
+    visitasSinConfirmar: citas.filter((v) => !v.confirmadaAt).length,
     proximaVisita: proxima ? { at: proxima.at.toISOString(), contacto: proxima.contacto ?? null } : null,
     derivadas: Number(derivadas[0]?.n ?? 0),
     derivadaMasViejaAt: masVieja ? new Date(masVieja).toISOString() : null,
@@ -470,4 +473,108 @@ export async function leadsCalientes(
   // Sin próximo paso arriba; dentro de cada grupo, la visita más vieja primero (ya viene así).
   lista.sort((x, y) => Number(Boolean(x.proximoPaso)) - Number(Boolean(y.proximoPaso)));
   return lista.slice(0, limite);
+}
+
+/** Visitas de hoy: las citas de hoy de contactos de quien mira (no canceladas), por hora. */
+export async function visitasDeHoy(organizationId: string, userId: string, ahora = new Date()): Promise<VisitaDeHoy[]> {
+  const tz = await businessTimezone(organizationId);
+  const hoy = todayInTz(ahora, tz);
+  const inicioHoy = zonedWallClockToUtc(hoy, "00:00", tz) ?? ahora;
+  const inicioManana = zonedWallClockToUtc(addDaysISO(hoy, 1), "00:00", tz) ?? ahora;
+  const b = schema.booking;
+  const filas = await getDb()
+    .select({
+      id: b.id,
+      at: b.scheduledAt,
+      contacto: schema.contact.name,
+      conversationId: b.conversationId,
+      source: b.source,
+      estado: b.status,
+      confirmadaAt: b.confirmadaAt,
+      oportunidad: sql<{ edificio: string | null; color: string | null; unidad: string | null } | null>`(
+        select json_build_object('edificio', e.nombre, 'color', e.color, 'unidad', d.unidad)
+        from ${schema.oportunidad} o
+        left join ${schema.edificio} e on e.id = o.edificio_id
+        left join ${schema.departamento} d on d.id = o.departamento_id
+        where o.organization_id = ${organizationId} and o.contact_id = ${b.contactId}
+        order by (o.responsable_user_id = ${userId}) desc nulls last, o.ultima_interaccion desc
+        limit 1
+      )`,
+    })
+    .from(b)
+    .leftJoin(schema.contact, eq(schema.contact.id, b.contactId))
+    .where(
+      scoped(
+        b.organizationId,
+        organizationId,
+        eq(b.kind, "session"),
+        ne(b.status, "cancelada"),
+        eq(b.isTest, false),
+        gte(b.scheduledAt, inicioHoy),
+        lt(b.scheduledAt, inicioManana),
+        contactoDe(organizationId, userId, b.contactId)
+      )
+    )
+    .orderBy(asc(b.scheduledAt))
+    .limit(20);
+  return filas.map((f) => ({
+    id: f.id,
+    at: f.at.toISOString(),
+    contacto: f.contacto,
+    conversationId: f.conversationId,
+    edificio: f.oportunidad?.edificio ? { nombre: f.oportunidad.edificio, color: f.oportunidad.color } : null,
+    unidad: f.oportunidad?.unidad ?? null,
+    source: f.source,
+    estado: f.estado,
+    confirmada: Boolean(f.confirmadaAt),
+  }));
+}
+
+/**
+ * Ventana de 24 h por cerrar: chats de WhatsApp de contactos de quien mira
+ * donde el último mensaje es del cliente, nadie le respondió y la ventana
+ * cierra en menos de 12 h. Primero las que cierran antes.
+ */
+export async function ventanasPorCerrar(
+  organizationId: string,
+  userId: string,
+  limite = 5,
+  ahora = new Date()
+): Promise<VentanaPorCerrar[]> {
+  const c = schema.conversation;
+  const hace24 = new Date(ahora.getTime() - 24 * 3_600_000).toISOString();
+  const hace12 = new Date(ahora.getTime() - 12 * 3_600_000).toISOString();
+  const filas = await getDb()
+    .select({ id: c.id, contacto: schema.contact.name, lastInboundAt: c.lastInboundAt })
+    .from(c)
+    .innerJoin(schema.contact, eq(schema.contact.id, c.contactId))
+    .where(
+      scoped(
+        c.organizationId,
+        organizationId,
+        eq(c.channel, "whatsapp"),
+        eq(c.isTest, false),
+        sql`${c.lastInboundAt} > ${hace24}::timestamp`,
+        sql`${c.lastInboundAt} <= ${hace12}::timestamp`,
+        sql`exists (
+          select 1 from ${schema.oportunidad} o
+          where o.organization_id = ${organizationId}
+            and o.contact_id = ${c.contactId}
+            and o.responsable_user_id = ${userId}
+        )`,
+        sql`not exists (
+          select 1 from ${schema.message} m
+          where m.conversation_id = ${c.id}
+            and m.direction = 'out'
+            and m.created_at > ${c.lastInboundAt}
+        )`
+      )
+    )
+    .orderBy(asc(c.lastInboundAt))
+    .limit(limite);
+  return filas.map((f) => ({
+    conversationId: f.id,
+    contacto: f.contacto,
+    cierraAt: new Date(f.lastInboundAt!.getTime() + 24 * 3_600_000).toISOString(),
+  }));
 }
