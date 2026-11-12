@@ -6,6 +6,7 @@ import { listBookings, listBookingsInRange } from "@/server/agenda/queries";
 import { getSettings } from "@/server/agenda/settings";
 import { createBlock, createSessionBooking } from "@/server/agenda/service";
 import { bookingErrorResponse, bookingPayload } from "@/server/agenda/http";
+import { alcanceDe, prohibido, puedeVerContacto } from "@/server/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,12 @@ export const POST = withAuth(async (session, req: Request) => {
   const body = await parseBody(req, postSchema);
   if (!body.ok) return body.response;
 
+  // Visibilidad por rol: el operador agenda solo para sus contactos y no bloquea la agenda.
+  const alcance = alcanceDe(session);
+  if (!alcance.admin) {
+    if (body.data.kind === "block") return prohibido("Solo un admin bloquea horarios");
+    if (!(await puedeVerContacto(alcance, body.data.contactId))) return prohibido("Ese contacto no es tuyo");
+  }
   try {
     if (body.data.kind === "block") {
       const block = await createBlock({

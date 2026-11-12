@@ -1,4 +1,4 @@
-import { parseBody, withAuth } from "@/lib/api";
+import { parseBody, withAdmin, withAuth } from "@/lib/api";
 import type { ObjetoDto, RegistroDto } from "@/lib/motor/dto";
 import { aDto, describirObjeto, entradaSchema, respuestaDeError } from "@/server/motor/api";
 import { recalcularPorRegistro } from "@/server/motor/interes";
@@ -74,7 +74,7 @@ export const GET = withAuth(async (session, _req: Request, ctx: Params) => {
   }
 });
 
-export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
+export const PATCH = withAdmin(async (session, req: Request, ctx: Params) => {
   const { objeto: clave, id } = await ctx.params;
   const body = await parseBody(req, entradaSchema);
   if (!body.ok) return body.response;
@@ -92,7 +92,7 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   }
 });
 
-export const DELETE = withAuth(async (session, req: Request, ctx: Params) => {
+export const DELETE = withAdmin(async (session, req: Request, ctx: Params) => {
   const { objeto: clave, id } = await ctx.params;
   const modo = new URL(req.url).searchParams.get("modo") === "cascada" ? "cascada" : "soltar";
   try {

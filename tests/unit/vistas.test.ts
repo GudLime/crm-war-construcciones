@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { cumpleFiltros, difiereDe, filtrosSchema, limpiarFiltros, type FilaFiltrable } from "@/lib/vistas";
+import {
+  cumpleFiltros,
+  difiereDe,
+  filtrosSchema,
+  limpiarFiltros,
+  VISTAS_DE_FABRICA,
+  vistasDeFabrica,
+  type FilaFiltrable,
+} from "@/lib/vistas";
 
 /** Rediseño (D5, D7) — vistas guardadas y filtros de Oportunidades (lo puro). */
 
@@ -78,5 +86,18 @@ describe("abiertas y cerradas", () => {
   it("la situación se guarda y se compara como cualquier filtro", () => {
     expect(limpiarFiltros({ situacion: "cerradas", estados: [] })).toEqual({ situacion: "cerradas" });
     expect(filtrosSchema.safeParse({ situacion: "otra" }).success).toBe(false);
+  });
+});
+
+describe("vistas de fábrica según el rol", () => {
+  it("un operador las recibe sin filtro de responsable (el servidor ya le da solo lo suyo)", () => {
+    expect(vistasDeFabrica(false)).toEqual(VISTAS_DE_FABRICA);
+  });
+
+  it("un admin arranca con lo suyo y lo sin asignar; «Todas» muestra todo el equipo", () => {
+    const v = vistasDeFabrica(true);
+    expect(v.map((x) => x.id)).toEqual(VISTAS_DE_FABRICA.map((x) => x.id));
+    expect(v.find((x) => x.id === "abiertas")?.filtros).toEqual({ situacion: "abiertas", responsables: ["yo", "sin"] });
+    expect(v.find((x) => x.id === "todas")?.filtros).toEqual({});
   });
 });

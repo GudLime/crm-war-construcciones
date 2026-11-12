@@ -1,4 +1,4 @@
-import { withAuth } from "@/lib/api";
+import { withAdmin } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { urlSaludCerebro } from "@/server/brains/config";
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
  * interruptor y los avisos `sin_cerebro` y `apagado` (036). Ver
  * `server/bot/status.ts`.
  */
-export const GET = withAuth(async (session) => {
+export const GET = withAdmin(async (session) => {
   const db = getDb();
   const [rows, health, aiConfigured, dispatch] = await Promise.all([
     db

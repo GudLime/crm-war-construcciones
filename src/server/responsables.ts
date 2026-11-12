@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 
-/** War — Responsable de la oportunidad: los usuarios del equipo. */
+/** 0050 — Responsable de la oportunidad: los usuarios del equipo. */
 
 export type ResponsableDto = { userId: string; nombre: string };
 

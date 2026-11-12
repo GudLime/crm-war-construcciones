@@ -414,6 +414,13 @@
       "when": 1793898120000,
       "tag": "war_0009_mis_oportunidades_abiertas",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1793908800000,
+      "tag": "0050_oportunidad_responsable",
+      "breakpoints": true
     }
   ]
 }

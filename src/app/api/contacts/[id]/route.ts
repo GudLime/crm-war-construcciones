@@ -17,6 +17,7 @@ import {
   anuncioDelContacto,
   repararImagenSiFalta,
 } from "@/server/attribution/store";
+import { alcanceDe, noEncontrado, puedeVerContacto } from "@/server/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ type Params = { params: Promise<{ id: string }> };
 
 export const GET = withAuth(async (session, _req: Request, ctx: Params) => {
   const { id } = await ctx.params;
+  if (!(await puedeVerContacto(alcanceDe(session), id))) return noEncontrado("Ese contacto");
   const contact = await getContactById(session.organizationId, id);
   if (!contact) return apiError(404, "not_found", "Contacto no encontrado");
   const [stageRow, anuncio] = await Promise.all([
@@ -74,6 +76,7 @@ const patchSchema = z.object({
 
 export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
+  if (!(await puedeVerContacto(alcanceDe(session), id))) return noEncontrado("Ese contacto");
   const body = await parseBody(req, patchSchema);
   if (!body.ok) return body.response;
 

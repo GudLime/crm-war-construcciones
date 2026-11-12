@@ -77,6 +77,19 @@ export const VISTAS_DE_FABRICA: VistaDto[] = [
   deFabrica("todas", "Todas", {}),
 ];
 
+/**
+ * Las pestañas de fábrica según quién mira. Un admin ve todo, así que por
+ * defecto arranca con lo suyo y lo sin asignar (para no perder leads nuevos);
+ * «Todas» sigue mostrando las de todo el equipo. Un operador ya recibe solo lo
+ * suyo del servidor: sus pestañas no filtran por responsable.
+ */
+export function vistasDeFabrica(admin: boolean): VistaDto[] {
+  if (!admin) return VISTAS_DE_FABRICA;
+  return VISTAS_DE_FABRICA.map((v) =>
+    v.id === "todas" ? v : { ...v, filtros: { ...v.filtros, responsables: [RESPONSABLE_YO, RESPONSABLE_SIN] } }
+  );
+}
+
 /** Qué hay que pedirle al servidor para una vista: solo abiertas, solo cerradas o todas. */
 export function situacionACargar(filtros: Filtros): "abiertas" | "cerradas" | "todas" {
   return filtros.situacion ?? "todas";

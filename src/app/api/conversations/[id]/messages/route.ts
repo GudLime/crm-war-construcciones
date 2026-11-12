@@ -8,6 +8,7 @@ import { getConversation, listMessages } from "@/server/inbox/queries";
 import { serializeMessage } from "@/server/inbox/ingest";
 import { resolverCitas } from "@/server/inbox/quotes";
 import { SendError, sendStructured, sendText } from "@/server/inbox/send";
+import { alcanceDe, noEncontrado, puedeVerConversacion } from "@/server/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ type Params = { params: Promise<{ id: string }> };
 
 export const GET = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
+  if (!(await puedeVerConversacion(alcanceDe(session), id))) return noEncontrado("Esa conversación");
   const row = await getConversation(session.organizationId, id);
   if (!row) return apiError(404, "not_found", "Conversación no encontrada");
 
@@ -97,6 +99,7 @@ const SEND_ERROR_STATUS: Record<SendError["code"], number> = {
 
 export const POST = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
+  if (!(await puedeVerConversacion(alcanceDe(session), id))) return noEncontrado("Esa conversación");
   const body = await parseBody(req, sendSchema);
   if (!body.ok) return body.response;
 

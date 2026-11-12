@@ -1,4 +1,4 @@
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAdmin } from "@/lib/api";
 import { canConfigure } from "@/lib/auth/roles";
 import { ajustesVentasSchema } from "@/lib/ventas-ajustes";
 import { guardarAjustesVentas, leerAjustesVentas } from "@/server/oportunidad-historial";
@@ -6,7 +6,7 @@ import { guardarAjustesVentas, leerAjustesVentas } from "@/server/oportunidad-hi
 export const dynamic = "force-dynamic";
 
 /** War — Ajustes → Ventas: los lee cualquiera del equipo. */
-export const GET = withAuth(async (session) => {
+export const GET = withAdmin(async (session) => {
   return Response.json({
     ajustes: await leerAjustesVentas(session.organizationId),
     puedeEditar: canConfigure(session.role),
@@ -14,7 +14,7 @@ export const GET = withAuth(async (session) => {
 });
 
 /** Los cambia solo quien administra. */
-export const PUT = withAuth(async (session, req: Request) => {
+export const PUT = withAdmin(async (session, req: Request) => {
   if (!canConfigure(session.role)) {
     return apiError(403, "forbidden", "Solo quien administra cambia estos ajustes");
   }

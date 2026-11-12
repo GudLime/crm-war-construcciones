@@ -1,4 +1,4 @@
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAdmin } from "@/lib/api";
 import { recalcularPorRegistro } from "@/server/motor/interes";
 import {
   borrarDepartamento,
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
 
-export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
+export const PATCH = withAdmin(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
   const body = await parseBody(req, departamentoSchema);
   if (!body.ok) return body.response;
@@ -26,7 +26,7 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   }
 });
 
-export const DELETE = withAuth(async (session, _req: Request, ctx: Params) => {
+export const DELETE = withAdmin(async (session, _req: Request, ctx: Params) => {
   const { id } = await ctx.params;
   try {
     await borrarDepartamento(session.organizationId, id);

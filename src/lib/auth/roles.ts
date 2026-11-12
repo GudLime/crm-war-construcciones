@@ -12,3 +12,14 @@
 export function canConfigure(role: string | null | undefined): boolean {
   return role === "owner" || role === "admin";
 }
+
+/**
+ * Visibilidad por rol: el admin (`owner` o `admin`) ve y edita todo; el
+ * operador (`member`) ve solo lo que tiene asignado — sus oportunidades, los
+ * chats y contactos de esas oportunidades, sus tareas y sus Resultados — y,
+ * de todos, solo en lectura: las visitas (Agenda y tareas de tipo Visita) y
+ * los edificios. Ver `server/acceso.ts`.
+ */
+export function esAdmin(role: string | null | undefined): boolean {
+  return canConfigure(role);
+}

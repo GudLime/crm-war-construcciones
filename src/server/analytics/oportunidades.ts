@@ -37,7 +37,11 @@ function lotes<T>(lista: T[]): T[][] {
   return out;
 }
 
-async function cohorte(organizationId: string, period: ResolvedPeriod): Promise<OportunidadParaEstadisticas[]> {
+async function cohorte(
+  organizationId: string,
+  period: ResolvedPeriod,
+  visibles?: SQL
+): Promise<OportunidadParaEstadisticas[]> {
   const filas = await getDb()
     .select({
       id: schema.oportunidad.id,
@@ -54,7 +58,8 @@ async function cohorte(organizationId: string, period: ResolvedPeriod): Promise<
         gte(schema.oportunidad.createdAt, period.start),
         lt(schema.oportunidad.createdAt, period.end),
         // Una oportunidad sin contacto (cargada a mano) cuenta; una del Laboratorio, no.
-        sql`(${schema.oportunidad.contactId} is null or ${notLabContact(schema.oportunidad.contactId)})`
+        sql`(${schema.oportunidad.contactId} is null or ${notLabContact(schema.oportunidad.contactId)})`,
+        visibles
       )
     );
   return filas.map((f) => ({ ...f, estado: f.estado as EstadoOportunidad }));
@@ -200,9 +205,11 @@ async function tableroDeLaConfiguracion(): Promise<{ bloques: BloqueEstadisticas
 export async function estadisticasOportunidades(
   organizationId: string,
   period: ResolvedPeriod,
-  pedido: { verPor?: string | null; filtros: Record<string, string[]> }
+  pedido: { verPor?: string | null; filtros: Record<string, string[]> },
+  /** Visibilidad por rol: el operador mide solo sus oportunidades. */
+  visibles?: SQL
 ): Promise<EstadisticasOportunidadesDto> {
-  const [ops, tablero] = await Promise.all([cohorte(organizationId, period), tableroDeLaConfiguracion()]);
+  const [ops, tablero] = await Promise.all([cohorte(organizationId, period, visibles), tableroDeLaConfiguracion()]);
   const ids = ops.map((o) => o.id);
   const [movs, delMotor] = await Promise.all([
     movimientos(organizationId, ids),

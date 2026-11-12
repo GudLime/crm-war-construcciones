@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAdmin, withAuth } from "@/lib/api";
 import { canConfigure } from "@/lib/auth/roles";
 import { getEnv } from "@/lib/env";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -28,6 +28,7 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
+// Un miembro recibe solo que no puede (la pantalla le explica por qué).
 export const GET = withAuth(async (session) => {
   const cfg = embeddedConfig();
   if (!cfg.ready) return new Response(null, { status: 404 });
@@ -57,7 +58,7 @@ const inputSchema = z.object({
   modo: z.enum(["normal", "coexistencia"]).default("normal"),
 });
 
-export const POST = withAuth(async (session, req: Request) => {
+export const POST = withAdmin(async (session, req: Request) => {
   if (!embeddedConfig().ready) return new Response(null, { status: 404 });
   if (!canConfigure(session.role)) {
     return apiError(403, "forbidden", "Solo quien administra la cuenta puede conectar WhatsApp.");

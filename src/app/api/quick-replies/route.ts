@@ -1,4 +1,4 @@
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAdmin, withAuth } from "@/lib/api";
 import { canConfigure } from "@/lib/auth/roles";
 import {
   crearRespuesta,
@@ -19,7 +19,7 @@ export const GET = withAuth(async (session) => {
 });
 
 /** Crear: solo quien configura. */
-export const POST = withAuth(async (session, req: Request) => {
+export const POST = withAdmin(async (session, req: Request) => {
   if (!canConfigure(session.role)) {
     return apiError(403, "forbidden", "Solo quien administra crea respuestas rápidas");
   }
