@@ -392,3 +392,7 @@ persona, solo admin). Spec: proyecto «CRM War Construcciones» →
   del motivo. La Bandeja filtra con `?derivadas=1`.
 - **Tu día**: tareas para hacer (vencidas arriba) y citas de hoy; tildar una
   tarea la pasa a Listo (`POST /api/tareas/[id]/hecha`).
+- **Nuevas para vos** (asignadas y sin primer contacto, la asignación más vieja
+  primero; `oportunidad.responsable_desde`, 0053) y **Leads calientes** (en
+  Visitó, con el próximo paso: la tarea o cita futura más cercana; primero las
+  que no tienen). Máximo 5 por bloque, con link a Oportunidades filtrada.

@@ -8,6 +8,7 @@ import { Pagina } from "@/components/ventas/ui";
 import { cn } from "@/lib/utils";
 import { useEvents } from "@/components/use-events";
 import { Derivadas } from "./derivadas";
+import { LeadsCalientes, NuevasParaVos, useIconosDeOrigen } from "./oportunidades-de-inicio";
 import { TuDia } from "./tu-dia";
 import { DERIVADA_URGENTE_MIN, LINKS_INICIO, fechaLarga, hace, saludo, type InicioDto } from "@/lib/inicio";
 
@@ -123,6 +124,7 @@ export function InicioClient() {
   }, [cargar]);
   useEvents({ onConversationUpdated: recargarPronto, onBookingUpdated: recargarPronto });
 
+  const iconos = useIconosDeOrigen();
   const c = datos?.contadores;
   const nombre = datos?.usuario.nombre.trim().split(/\s+/)[0] ?? "";
   const titulo = c ? `${saludo(horaEn(c.zona))}${nombre ? `, ${nombre}` : ""}` : "Inicio";
@@ -230,6 +232,14 @@ export function InicioClient() {
               total={c.derivadas}
               agente={datos.agente}
               onCambio={() => void cargar()}
+            />
+            <NuevasParaVos lista={datos.nuevas} total={c.nuevas} href={LINKS_INICIO.nuevas} iconos={iconos} />
+            <LeadsCalientes
+              lista={datos.calientes}
+              total={c.calientes}
+              href={LINKS_INICIO.calientes}
+              iconos={iconos}
+              zona={c.zona}
             />
           </div>
           <div className="space-y-[var(--hueco)]">

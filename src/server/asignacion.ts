@@ -124,7 +124,7 @@ export async function asignarLeadDeMeta(organizationId: string, oportunidadId: s
       destino === ASIGNAR_A_IA ? { responsableIa: true } : { responsableUserId: destino };
     const hecho = await db
       .update(schema.oportunidad)
-      .set({ ...cambios, updatedAt: new Date() })
+      .set({ ...cambios, responsableDesde: new Date(), updatedAt: new Date() })
       .where(sinNadie)
       .returning({ id: schema.oportunidad.id });
     return hecho.length ? destino : null;
