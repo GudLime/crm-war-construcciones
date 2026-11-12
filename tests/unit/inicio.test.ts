@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fechaLarga, hace, LINKS_INICIO, motivoDeDerivacion, saludo } from "@/lib/inicio";
+import { fechaLarga, hace, LINKS_INICIO, motivoDeDerivacion, quedan, saludo } from "@/lib/inicio";
 import { resumenDelHandoff } from "@/server/bot/handoff";
 import { filtrosDeLaUrl } from "@/lib/vistas";
 
@@ -65,5 +65,14 @@ describe("resumen del handoff", () => {
     expect(resumenDelHandoff(undefined, "quiere ver la unidad")).toBe("quiere ver la unidad");
     expect(resumenDelHandoff(undefined, "cliente")).toBeNull();
     expect(resumenDelHandoff(undefined, undefined)).toBeNull();
+  });
+});
+
+describe("ventana de 24 h", () => {
+  it("dice cuánto queda", () => {
+    const ahora = new Date("2026-11-12T15:00:00Z");
+    expect(quedan("2026-11-12T18:20:00Z", ahora)).toBe("quedan 3 h 20 min");
+    expect(quedan("2026-11-12T15:45:00Z", ahora)).toBe("quedan 45 min");
+    expect(quedan("2026-11-12T14:00:00Z", ahora)).toBe("quedan 0 min");
   });
 });

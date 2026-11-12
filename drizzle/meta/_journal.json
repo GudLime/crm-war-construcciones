@@ -379,6 +379,13 @@
       "when": 1793941200000,
       "tag": "0053_responsable_desde",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1793952000000,
+      "tag": "0054_cita_confirmada",
+      "breakpoints": true
     }
   ]
 }

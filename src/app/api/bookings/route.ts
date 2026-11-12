@@ -101,6 +101,8 @@ export const POST = withAuth(async (session, req: Request) => {
       startUtc: body.data.startUtc,
       notes: body.data.notes ?? null,
       source: "manual",
+      // 0054 — Una cita que carga una persona nace confirmada por ella.
+      confirmadaPor: session.userId,
       requireOffer: false,
     });
     return Response.json(
