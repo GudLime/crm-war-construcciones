@@ -11,13 +11,18 @@ import {
 
 export const dynamic = "force-dynamic";
 
-/** `?situacion=abiertas|cerradas` trae solo esas (la lista arranca en Abiertas). */
+/**
+ * `?situacion=abiertas|cerradas` trae solo esas (la lista arranca en Abiertas).
+ * `?origen=<nombre>`: la subpágina de un origen.
+ */
 export const GET = withAuth(async (session, req: Request) => {
-  const s = new URL(req.url).searchParams.get("situacion");
+  const params = new URL(req.url).searchParams;
+  const s = params.get("situacion");
+  const origen = params.get("origen")?.trim() || undefined;
   const situacion = s === "abiertas" || s === "cerradas" ? s : undefined;
   const [oportunidades, valorCalculado] = await Promise.all([
     // Visibilidad por rol: el operador recibe solo las suyas.
-    listarOportunidades(session.organizationId, situacion, oportunidadVisible(alcanceDe(session))),
+    listarOportunidades(session.organizationId, situacion, oportunidadVisible(alcanceDe(session)), origen),
     // 0049 — Con interés encadenado, el Valor es el promedio de las unidades.
     valorEsCalculado(session.organizationId).catch(() => false),
   ]);

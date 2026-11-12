@@ -411,3 +411,14 @@ persona, solo admin). Spec: proyecto «CRM War Construcciones» →
   reservas (Reservó o Compró) y perdidas, de `oportunidad_evento`.
 - **Ver como** (solo admin): el Inicio de otra persona del equipo; los links
   abren las listas filtradas por esa persona.
+
+## Oportunidades por origen (subpáginas)
+
+En la barra lateral, «Oportunidades» despliega un hilo con **un ítem por
+origen** (Configuración → Orígenes, en su orden) con su ícono y cuántas
+abiertas tiene (`GET /api/oportunidades/por-origen`, una consulta agrupada; el
+operador cuenta solo las suyas). El hilo arranca abierto y se recuerda en el
+navegador. Cada ítem abre `/oportunidades/origen/[origenId]`: la misma página
+de Oportunidades con el origen fijo (`GET /api/oportunidades?origen=<nombre>`),
+miga «Oportunidades / Origen» y sin el filtro Origen en «+ Filtro». Las vistas
+guardadas son las mismas de la página general.

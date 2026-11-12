@@ -731,7 +731,9 @@ export async function listarOportunidades(
   /** Solo las abiertas o solo las cerradas de la lista (`ESTADOS_ABIERTOS_LISTA`); sin esto, todas. */
   situacion?: Situacion,
   /** Visibilidad por rol (`server/acceso.ts`): para el operador, solo las suyas. */
-  visibles?: SQL
+  visibles?: SQL,
+  /** Subpágina por origen: solo las que llegaron por este origen (nombre canónico). */
+  origen?: string
 ): Promise<OportunidadDto[]> {
   const deSituacion =
     situacion === "abiertas"
@@ -750,7 +752,15 @@ export async function listarOportunidades(
     .leftJoin(schema.contact, eq(schema.contact.id, schema.oportunidad.contactId))
     .leftJoin(schema.edificio, eq(schema.edificio.id, schema.oportunidad.edificioId))
     .leftJoin(schema.departamento, eq(schema.departamento.id, schema.oportunidad.departamentoId))
-    .where(scoped(schema.oportunidad.organizationId, organizationId, deSituacion, visibles))
+    .where(
+      scoped(
+        schema.oportunidad.organizationId,
+        organizationId,
+        deSituacion,
+        visibles,
+        origen ? eq(schema.oportunidad.origen, origen) : undefined
+      )
+    )
     // War: lo que tuvo movimiento del interesado (formulario o WhatsApp) arriba.
     .orderBy(desc(schema.oportunidad.ultimaInteraccion), desc(schema.oportunidad.updatedAt));
   const ids = filas.map((f) => f.op.id);
