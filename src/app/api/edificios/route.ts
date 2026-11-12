@@ -1,4 +1,4 @@
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAdmin, withAuth } from "@/lib/api";
 import { crearEdificio, edificioSchema, listarEdificios, VentasError } from "@/server/ventas";
 
 export const dynamic = "force-dynamic";
@@ -7,7 +7,7 @@ export const GET = withAuth(async (session) => {
   return Response.json({ edificios: await listarEdificios(session.organizationId) });
 });
 
-export const POST = withAuth(async (session, req: Request) => {
+export const POST = withAdmin(async (session, req: Request) => {
   const body = await parseBody(req, edificioSchema);
   if (!body.ok) return body.response;
   try {

@@ -64,9 +64,12 @@ export function appNavGroups({
   /** 070 — Los objetos personalizados del cliente (Edificio, Tratamiento…). */
   objetos?: ObjetoMenuDto[];
 }): NavGroup[] {
+  // Visibilidad por rol: el operador no ve el Pipeline de leads, el Agente ni
+  // el Laboratorio (son de quien administra).
+  const admin = canConfigure(role);
   const trabajo: NavItem[] = [
     { href: "/inbox", label: "Bandeja", icon: Inbox, badge: true },
-    { href: "/pipeline", label: "Pipeline", icon: Kanban },
+    ...(admin ? [{ href: "/pipeline", label: "Pipeline", icon: Kanban }] : []),
     { href: "/contacts", label: "Contactos", icon: Users },
   ];
   // Citas va después de Contactos: es el paso siguiente de un trato, no una
@@ -94,7 +97,7 @@ export function appNavGroups({
   return [
     { title: "Trabajo", items: trabajo },
     { title: "Ventas", items: ventas },
-    { title: "Agente", items: agente },
+    ...(admin ? [{ title: "Agente", items: agente }] : []),
     // 019 — Se mide al final: primero se atiende y se organiza.
     { items: [{ href: "/results", label: "Resultados", icon: ChartColumn }] },
   ];

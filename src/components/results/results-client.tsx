@@ -67,7 +67,10 @@ export function ResultsClient({
   agenda,
   today,
   timezone,
+  admin = true,
 }: {
+  /** Visibilidad por rol: el operador ve solo las estadísticas de sus oportunidades. */
+  admin?: boolean;
   currency: string;
   agenda: boolean;
   /** Hoy en la zona del negocio (`YYYY-MM-DD`), resuelto en el servidor. */
@@ -85,12 +88,13 @@ export function ResultsClient({
 
   useEffect(() => {
     const ctl = new AbortController();
+    if (!admin) return () => ctl.abort();
     const q = `from=${range.from}&to=${range.to}`;
     void cargar(`/api/analytics/sales?${q}`, setSales, ctl.signal);
     void cargar(`/api/analytics/ads?${q}`, setAds, ctl.signal);
     void cargar(`/api/analytics/bot?${q}`, setBot, ctl.signal);
     return () => ctl.abort();
-  }, [range]);
+  }, [range, admin]);
 
   // Paso 7 — Oportunidades: depende del rango y de «Ver por» / filtros.
   useEffect(() => {
@@ -105,9 +109,9 @@ export function ResultsClient({
   // La higiene describe el AHORA: no depende del rango elegido.
   useEffect(() => {
     const ctl = new AbortController();
-    void cargar("/api/analytics/hygiene", setHygiene, ctl.signal);
+    if (admin) void cargar("/api/analytics/hygiene", setHygiene, ctl.signal);
     return () => ctl.abort();
-  }, []);
+  }, [admin]);
 
   return (
     <div className="flex h-full flex-col">
@@ -123,10 +127,14 @@ export function ResultsClient({
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3 sm:p-6">
         <OportunidadesSection {...ops} consulta={consulta} onConsulta={setConsulta} />
-        <SalesSection {...sales} currency={currency} />
-        <AdsSection {...ads} />
-        <BotSection {...bot} agenda={agenda} />
-        <HygieneSection {...hygiene} currency={currency} />
+        {admin && (
+          <>
+            <SalesSection {...sales} currency={currency} />
+            <AdsSection {...ads} />
+            <BotSection {...bot} agenda={agenda} />
+            <HygieneSection {...hygiene} currency={currency} />
+          </>
+        )}
       </div>
     </div>
   );

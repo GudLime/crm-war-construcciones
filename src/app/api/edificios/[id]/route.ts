@@ -1,4 +1,4 @@
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAdmin, withAuth } from "@/lib/api";
 import {
   borrarEdificio,
   edificioSchema,
@@ -21,7 +21,7 @@ export const GET = withAuth(async (session, _req: Request, ctx: Params) => {
   }
 });
 
-export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
+export const PATCH = withAdmin(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
   const body = await parseBody(req, edificioSchema);
   if (!body.ok) return body.response;
@@ -33,7 +33,7 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   }
 });
 
-export const DELETE = withAuth(async (session, _req: Request, ctx: Params) => {
+export const DELETE = withAdmin(async (session, _req: Request, ctx: Params) => {
   const { id } = await ctx.params;
   try {
     await borrarEdificio(session.organizationId, id);

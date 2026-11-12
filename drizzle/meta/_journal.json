@@ -351,6 +351,13 @@
       "when": 1793898000000,
       "tag": "0049_relacion_interes",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1793908800000,
+      "tag": "0050_oportunidad_responsable",
+      "breakpoints": true
     }
   ]
 }

@@ -49,6 +49,9 @@ const PANEL_MEDIA_QUERY = "(min-width: 1280px)";
 const isWideEnoughForPanel = () =>
   typeof window !== "undefined" && window.matchMedia(PANEL_MEDIA_QUERY).matches;
 
+/** Lo que ve un admin al abrir la Bandeja: lo suyo y lo que nadie lleva. */
+const RESPONSABLE_POR_DEFECTO = "yo,sin";
+
 export function InboxClient({
   channels,
   canDelete = false,
@@ -104,15 +107,44 @@ export function InboxClient({
   // simultáneos pueden llegar a Meta en desorden.
   const sendQueue = useRef<Promise<unknown>>(Promise.resolve());
 
+  /**
+   * De quién son los chats que se ven. Un admin arranca con lo suyo y lo sin
+   * asignar y puede cambiarlo; a un operador el servidor le da solo lo suyo.
+   */
+  const [responsable, setResponsable] = useState(RESPONSABLE_POR_DEFECTO);
+  const [equipo, setEquipo] = useState<{ admin: boolean; miembros: { userId: string; nombre: string }[] }>({
+    admin: false,
+    miembros: [],
+  });
+  useEffect(() => {
+    void fetch("/api/equipo")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { equipo: { userId: string; nombre: string }[]; yo: string; admin?: boolean } | null) => {
+        if (d) setEquipo({ admin: d.admin === true, miembros: d.equipo.filter((m) => m.userId !== d.yo) });
+      })
+      .catch(() => undefined);
+  }, []);
+  const opcionesResponsable = useMemo(
+    () => [
+      { value: RESPONSABLE_POR_DEFECTO, label: "Míos y sin asignar" },
+      { value: "yo", label: "Solo míos" },
+      { value: "todos", label: "De todo el equipo" },
+      ...equipo.miembros.map((m) => ({ value: m.userId, label: `De ${m.nombre}` })),
+    ],
+    [equipo.miembros]
+  );
+
   const refetchConversations = useCallback(async () => {
-    const res = await fetch("/api/conversations").catch(() => null);
+    const res = await fetch(`/api/conversations?responsable=${encodeURIComponent(responsable)}`).catch(
+      () => null
+    );
     if (!res?.ok) return;
     const data = (await res.json()) as { conversations: ConversationDto[] };
     setConversations(data.conversations);
     lastFetchRef.current = new Date().toISOString();
     // 064 — El menú y Ctrl+K toman la lista de aquí en vez de pedir otra.
     publicarLista(data.conversations);
-  }, []);
+  }, [responsable]);
 
   // 064 — Los eventos en vivo recargan la lista juntos: una ráfaga de
   // mensajes es una petición, no una por evento, y nunca dos a la vez.
@@ -432,6 +464,11 @@ export function InboxClient({
           selectedId={selectedId}
           onSelect={select}
           onSeeded={() => void refetchConversations()}
+          responsable={
+            equipo.admin
+              ? { valor: responsable, opciones: opcionesResponsable, onChange: setResponsable }
+              : undefined
+          }
         />
       </section>
 

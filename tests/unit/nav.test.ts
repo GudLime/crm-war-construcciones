@@ -16,19 +16,25 @@ const labels = (groups: { items: { label: string }[] }[]) =>
   groups.map((g) => g.items.map((i) => i.label));
 
 describe("barra lateral agrupada", () => {
-  it("con todo apagado y como miembro: Trabajo, Ventas, Agente y Resultados", () => {
-    const groups = appNavGroups({ role: "member" });
+  it("con todo apagado y como admin: Trabajo, Ventas, Agente y Resultados", () => {
+    const groups = appNavGroups({ role: "admin" });
     expect(groups.map((g) => g.title)).toEqual(["Trabajo", "Ventas", "Agente", undefined]);
     expect(labels(groups)).toEqual([
       ["Bandeja", "Pipeline", "Contactos"],
       ["Edificios", "Oportunidades", "Tareas"],
-      ["Agente", "Laboratorio"],
+      ["Guía de inicio", "Agente", "Laboratorio"],
       ["Resultados"],
     ]);
   });
 
+  it("el operador (miembro) no ve Pipeline, Agente ni Laboratorio", () => {
+    const groups = appNavGroups({ role: "member" });
+    expect(groups.map((g) => g.title)).toEqual(["Trabajo", "Ventas", undefined]);
+    expect(labels(groups)).toEqual([["Bandeja", "Contactos"], ["Edificios", "Oportunidades", "Tareas"], ["Resultados"]]);
+  });
+
   it("AGENDA añade Citas al final de Trabajo", () => {
-    const [trabajo] = appNavGroups({ agenda: true, role: "member" });
+    const [trabajo] = appNavGroups({ agenda: true, role: "owner" });
     expect(trabajo!.items.map((i) => i.label)).toEqual([
       "Bandeja",
       "Pipeline",
@@ -44,8 +50,7 @@ describe("barra lateral agrupada", () => {
       expect(agente.items[0]).toMatchObject({ href: "/onboarding", label: "Guía de inicio" });
     }
     for (const role of ["member", null, undefined]) {
-      const agente = appNavGroups({ role }).find((g) => g.title === "Agente")!;
-      expect(agente.items.map((i) => i.href)).not.toContain("/onboarding");
+      expect(appNavGroups({ role }).find((g) => g.title === "Agente")).toBeUndefined();
     }
   });
 

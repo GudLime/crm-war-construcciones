@@ -1,4 +1,4 @@
-import { apiError, withAuth } from "@/lib/api";
+import { apiError, withAdmin, withAuth } from "@/lib/api";
 import { canConfigure } from "@/lib/auth/roles";
 import { sniffFaviconMime } from "@/lib/favicon";
 import { assetImagenOrigen, MAX_IMAGEN_ORIGEN_BYTES } from "@/lib/origenes";
@@ -42,7 +42,7 @@ export const GET = withAuth(async (session, req: Request, ctx: Params) => {
 });
 
 /** Subir: el cuerpo va crudo con su `content-type`. Solo quien configura. */
-export const PUT = withAuth(async (session, req: Request, ctx: Params) => {
+export const PUT = withAdmin(async (session, req: Request, ctx: Params) => {
   if (!canConfigure(session.role)) {
     return apiError(403, "forbidden", "Solo quien administra cambia los orígenes");
   }
@@ -69,7 +69,7 @@ export const PUT = withAuth(async (session, req: Request, ctx: Params) => {
 });
 
 /** Quitar la imagen y volver al ícono de la librería. */
-export const DELETE = withAuth(async (session, _req: Request, ctx: Params) => {
+export const DELETE = withAdmin(async (session, _req: Request, ctx: Params) => {
   if (!canConfigure(session.role)) {
     return apiError(403, "forbidden", "Solo quien administra cambia los orígenes");
   }

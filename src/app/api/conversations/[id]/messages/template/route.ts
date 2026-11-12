@@ -6,6 +6,7 @@ import {
   TemplateError,
   templateErrorStatus,
 } from "@/server/whatsapp/templates";
+import { alcanceDe, noEncontrado, puedeVerConversacion } from "@/server/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ const bodySchema = z.object({
 
 export const POST = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
+  if (!(await puedeVerConversacion(alcanceDe(session), id))) return noEncontrado("Esa conversación");
   const body = await parseBody(req, bodySchema);
   if (!body.ok) return body.response;
 

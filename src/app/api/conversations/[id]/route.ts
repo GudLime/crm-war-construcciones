@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAdmin, withAuth } from "@/lib/api";
 import { canConfigure } from "@/lib/auth/roles";
 import { newId } from "@/lib/db/ids";
 import { construirEventoOlvido } from "@/server/brains/contract";
@@ -7,6 +7,7 @@ import { avisarOlvido, type ResultadoOlvido } from "@/server/brains/deliver";
 import { publish } from "@/server/events/bus";
 import { eliminarConversacion } from "@/server/inbox/eliminar";
 import { serializeConversation, getConversation, updateConversation } from "@/server/inbox/queries";
+import { alcanceDe, noEncontrado, puedeVerConversacion } from "@/server/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ type Params = { params: Promise<{ id: string }> };
 
 export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
+  if (!(await puedeVerConversacion(alcanceDe(session), id))) return noEncontrado("Esa conversación");
   const body = await parseBody(req, patchSchema);
   if (!body.ok) return body.response;
 
@@ -53,7 +55,7 @@ const FECHA_DE_CITA = new Intl.DateTimeFormat("es-MX", { dateStyle: "long" });
  * Es irreversible en los dos casos, y por eso exige rol de configuración
  * (propietario o administrador) y no solo operar la bandeja.
  */
-export const DELETE = withAuth(async (session, req: Request, ctx: Params) => {
+export const DELETE = withAdmin(async (session, req: Request, ctx: Params) => {
   if (!canConfigure(session.role)) {
     return apiError(
       403,
@@ -62,6 +64,7 @@ export const DELETE = withAuth(async (session, req: Request, ctx: Params) => {
     );
   }
   const { id } = await ctx.params;
+  if (!(await puedeVerConversacion(alcanceDe(session), id))) return noEncontrado("Esa conversación");
   const alcance =
     new URL(req.url).searchParams.get("contacto") === "1" ? "contacto" : "hilo";
 

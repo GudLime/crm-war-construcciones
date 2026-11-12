@@ -1,6 +1,7 @@
 import { apiError, withAuth } from "@/lib/api";
 import { PeriodError, periodFromRequest } from "@/server/analytics/period";
 import { estadisticasOportunidades } from "@/server/analytics/oportunidades";
+import { alcanceDe, oportunidadVisible } from "@/server/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export const GET = withAuth(async (session, req: Request) => {
       await estadisticasOportunidades(session.organizationId, period, {
         verPor: url.searchParams.has("verPor") ? url.searchParams.get("verPor") : undefined,
         filtros,
-      })
+      }, oportunidadVisible(alcanceDe(session)))
     );
   } catch (err) {
     if (err instanceof PeriodError) return apiError(422, "invalid_period", err.message);

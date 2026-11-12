@@ -1,4 +1,4 @@
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAdmin } from "@/lib/api";
 import { canConfigure } from "@/lib/auth/roles";
 import { borrarOrigen, editarOrigen, OrigenError, origenSchema } from "@/server/origenes";
 
@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ id: string }> };
 
 /** War — Editar nombre e ícono. Renombrar arrastra a las oportunidades. */
-export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
+export const PATCH = withAdmin(async (session, req: Request, ctx: Params) => {
   if (!canConfigure(session.role)) {
     return apiError(403, "forbidden", "Solo quien administra edita orígenes");
   }
@@ -23,7 +23,7 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
 });
 
 /** Borrar: las oportunidades que lo tenían lo conservan como texto. */
-export const DELETE = withAuth(async (session, _req: Request, ctx: Params) => {
+export const DELETE = withAdmin(async (session, _req: Request, ctx: Params) => {
   if (!canConfigure(session.role)) {
     return apiError(403, "forbidden", "Solo quien administra borra orígenes");
   }

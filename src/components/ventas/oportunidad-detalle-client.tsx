@@ -422,6 +422,10 @@ export function OportunidadDetalleClient() {
                   <Fila icono={Tag} titulo="Tipo">
                     {op.tipo ? etiqueta(TIPOS_OPORTUNIDAD, op.tipo) : <SinDato />}
                   </Fila>
+                  {/* 0050 — Responsable de la oportunidad (define quién la ve). */}
+                  <Fila icono={UserRound} titulo="Responsable">
+                    <ElegirResponsable oportunidadId={op.id} actual={op.responsableId} onCambio={cargar} />
+                  </Fila>
                   {op.cerradaAt && (
                     <Fila icono={Flag} titulo="Cerrada">
                       {fecha(op.cerradaAt, false)}
@@ -525,6 +529,72 @@ export function OportunidadDetalleClient() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Solo un admin la asigna; los demás ven el nombre. */
+function ElegirResponsable({
+  oportunidadId,
+  actual,
+  onCambio,
+}: {
+  oportunidadId: string;
+  actual: string | null;
+  onCambio: () => void | Promise<void>;
+}) {
+  const [equipo, setEquipo] = useState<{ userId: string; nombre: string }[] | null>(null);
+  const [admin, setAdmin] = useState(false);
+  useEffect(() => {
+    void fetch("/api/oportunidades/responsables")
+      .then((r) => (r.ok ? r.json() : { responsables: [] }))
+      .then((d: { responsables: { userId: string; nombre: string }[]; admin?: boolean }) => {
+        setEquipo(d.responsables);
+        setAdmin(d.admin === true);
+      })
+      .catch(() => setEquipo([]));
+  }, []);
+  if (!equipo) return <SinDato texto="…" />;
+  const inicial = (userId: string) => {
+    const n = equipo.find((r) => r.userId === userId)?.nombre;
+    return n ? (
+      <span className="grid size-5 shrink-0 place-items-center rounded-full bg-brand-soft text-[10px] font-bold text-brand-ink">
+        {n.trim()[0]?.toUpperCase()}
+      </span>
+    ) : null;
+  };
+  if (!admin) {
+    const nombre = equipo.find((r) => r.userId === actual)?.nombre;
+    return nombre ? (
+      <span className="flex items-center gap-2">
+        {actual && inicial(actual)}
+        {nombre}
+      </span>
+    ) : (
+      <SinDato texto="Sin responsable" />
+    );
+  }
+  return (
+    <Select
+      value={actual ?? ""}
+      onValueChange={async (v) => {
+        await fetch(`/api/oportunidades/${oportunidadId}/responsable`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ userId: v || null }),
+        }).catch(() => null);
+        await onCambio();
+      }}
+      iconoDe={inicial}
+      className="h-7 w-auto min-w-[150px] rounded-full pl-1 pr-2 text-[13px]"
+      aria-label="Responsable"
+    >
+      <option value="">Sin responsable</option>
+      {equipo.map((r) => (
+        <option key={r.userId} value={r.userId}>
+          {r.nombre}
+        </option>
+      ))}
+    </Select>
   );
 }
 

@@ -263,3 +263,26 @@ una oportunidad, 200 si se sumó a una o si el `leadId` ya había entrado.
 - Lista y Mosaico van **por páginas** (25 / 50 / 100, se recuerda en el
   navegador); el Pipeline muestra 30 por columna con «Mostrar más». Los
   contactos del formulario se piden recién al abrirlo.
+
+## Visibilidad por rol (0050)
+
+Cada oportunidad tiene un **responsable** (`oportunidad.responsable_user_id`).
+Eso define quién ve qué, en todo el sistema:
+
+- **Admin** (`owner` o `admin`): ve y edita todo. Por defecto arranca viendo
+  **lo suyo y lo sin asignar** en Oportunidades, Bandeja y Tareas, y puede
+  cambiar a todo el equipo o a otra persona (pestaña «Todas», selector de la
+  Bandeja, filtro de responsable). Solo el admin asigna responsables, borra
+  oportunidades y chats, y entra a Ajustes, Pipeline, Agente y Laboratorio.
+- **Operador** (`member`): ve solo las oportunidades que tiene asignadas y, por
+  ellas, sus contactos, sus chats y sus tareas. Lo único de todos que ve son
+  las **visitas** (citas de la Agenda y tareas tipo Visita), en solo lectura.
+  Edificios los ve en solo lectura. En Resultados ve solo sus números de
+  oportunidades. Los chats sin oportunidad solo los ve el admin.
+- Lo que no puede ver responde **404**; lo que puede ver pero no cambiar, **403**.
+  El tiempo real (`/api/events`) filtra los eventos por persona.
+
+Dónde vive: `src/server/acceso.ts` (las reglas: condiciones SQL para listas y
+chequeos `puedeVer…` para cada ruta), `withAdmin` en `src/lib/api.ts` para la
+configuración, y `esAdmin` en `src/lib/auth/roles.ts`. Una oportunidad creada a
+mano queda a cargo de quien la crea.
