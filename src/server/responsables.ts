@@ -22,7 +22,12 @@ export async function cambiarResponsable(organizationId: string, oportunidadId: 
   if (userId && !ia && !(await listarResponsables(organizationId)).some((r) => r.userId === userId)) return false;
   const [fila] = await getDb()
     .update(schema.oportunidad)
-    .set({ responsableUserId: ia ? null : userId, responsableIa: ia, updatedAt: new Date() })
+    .set({
+      responsableUserId: ia ? null : userId,
+      responsableIa: ia,
+      responsableDesde: userId ? new Date() : null,
+      updatedAt: new Date(),
+    })
     .where(and(eq(schema.oportunidad.organizationId, organizationId), eq(schema.oportunidad.id, oportunidadId)))
     .returning({ id: schema.oportunidad.id });
   return Boolean(fila);
