@@ -369,3 +369,26 @@ Nunca pisa una asignación hecha.
 - Código: `src/lib/asignacion.ts` (reglas puras), `src/server/asignacion.ts`
   (`asignarLeadDeMeta`, llamada desde `sumarInteres`),
   `GET/PUT /api/settings/ventas/asignacion`.
+
+## Inicio del vendedor
+
+`/inicio` es la primera pantalla (la raíz redirige ahí) y el primer ítem del
+menú. Todo se calcula para quien mira (`GET /api/inicio?usuario=me`; otra
+persona, solo admin). Spec: proyecto «CRM War Construcciones» →
+`claude/inicio-vendedor.md`.
+
+- **Contadores**: Nuevas para vos, Tareas de hoy, Visitas de hoy, Derivadas por
+  la IA (del equipo) y Leads calientes. Los botones abren Oportunidades y Tareas
+  con filtros por query que entran como borrador («Cambios sin guardar»), sin
+  pisar la última vista: `?responsable=me&estado=…&sinPrimerContacto=1` y
+  `?tipo=…&desde=hoy&hasta=hoy`. `?nueva=1` abre el alta.
+- **Derivadas por la IA (0052)**: una conversación con handoff, IA pausada, sin
+  respuesta humana posterior y sin tomar le aparece a todo el equipo. «Tomar»
+  (`POST /api/inicio/derivadas/[id]/tomar`) guarda `conversation.tomada_por_user_id`
+  y `tomada_at`; quien la toma ve ese chat y su contacto, y si la oportunidad
+  abierta no tenía una persona a cargo (nadie o la IA), pasa a ser suya. Un
+  handoff nuevo o reactivar la IA la vuelve del equipo. El cerebro puede mandar
+  `summary` en `/api/bot/handoff` (se guarda en `handoff_resumen`) y es el texto
+  del motivo. La Bandeja filtra con `?derivadas=1`.
+- **Tu día**: tareas para hacer (vencidas arriba) y citas de hoy; tildar una
+  tarea la pasa a Listo (`POST /api/tareas/[id]/hecha`).

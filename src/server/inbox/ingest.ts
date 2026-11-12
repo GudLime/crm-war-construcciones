@@ -427,6 +427,10 @@ async function ingestManualEcho(
       aiEnabled: false,
       handoffAt: new Date(),
       handoffReason: "manual_reply",
+      // 0052 — Una derivación nueva vuelve a ser del equipo.
+      tomadaPorUserId: null,
+      tomadaAt: null,
+      handoffResumen: null,
       updatedAt: new Date(),
     })
     .where(

@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarDays, Flame, ListTodo, Plus, Sparkles, UserPlus, type LucideIcon } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Pagina } from "@/components/ventas/ui";
 import { cn } from "@/lib/utils";
+import { useEvents } from "@/components/use-events";
+import { Derivadas } from "./derivadas";
+import { TuDia } from "./tu-dia";
 import { DERIVADA_URGENTE_MIN, LINKS_INICIO, fechaLarga, hace, saludo, type InicioDto } from "@/lib/inicio";
 
 /** La hora (0–23) en la zona del negocio. */
@@ -111,6 +114,15 @@ export function InicioClient() {
     };
   }, [cargar]);
 
+  // Derivaciones nuevas o tomadas por otra persona entran por el bus en vivo
+  // (agrupadas: una ráfaga de eventos es una sola recarga).
+  const espera = useRef<number | null>(null);
+  const recargarPronto = useCallback(() => {
+    if (espera.current) window.clearTimeout(espera.current);
+    espera.current = window.setTimeout(() => void cargar(), 1500);
+  }, [cargar]);
+  useEvents({ onConversationUpdated: recargarPronto, onBookingUpdated: recargarPronto });
+
   const c = datos?.contadores;
   const nombre = datos?.usuario.nombre.trim().split(/\s+/)[0] ?? "";
   const titulo = c ? `${saludo(horaEn(c.zona))}${nombre ? `, ${nombre}` : ""}` : "Inicio";
@@ -190,6 +202,11 @@ export function InicioClient() {
                 : "Del equipo · ninguna esperando"
             }
             contextoUrgente={esperaMin > DERIVADA_URGENTE_MIN}
+            boton={{
+              texto: "Revisar en la Bandeja",
+              href: LINKS_INICIO.derivadas,
+              filtro: "Derivadas sin tomar",
+            }}
           />
           <Tarjeta
             titulo="Leads calientes"
@@ -203,6 +220,21 @@ export function InicioClient() {
               filtro: `Responsable ${yo} · Estado: Visitó`,
             }}
           />
+        </div>
+      )}
+      {c && datos && (
+        <div className="mt-[var(--hueco)] grid items-start gap-[var(--hueco)] lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-[var(--hueco)]">
+            <Derivadas
+              derivadas={datos.derivadas}
+              total={c.derivadas}
+              agente={datos.agente}
+              onCambio={() => void cargar()}
+            />
+          </div>
+          <div className="space-y-[var(--hueco)]">
+            <TuDia items={datos.tuDia} zona={c.zona} onCambio={() => void cargar()} />
+          </div>
         </div>
       )}
     </Pagina>

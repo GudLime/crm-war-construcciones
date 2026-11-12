@@ -209,6 +209,10 @@ export async function updateConversation(
   if (patch.reactivate) {
     set.handoffAt = null;
     set.handoffReason = null;
+    // 0052 — Con la IA de vuelta, deja de ser una derivación.
+    set.handoffResumen = null;
+    set.tomadaPorUserId = null;
+    set.tomadaAt = null;
     set.aiEnabled = patch.aiEnabled ?? true;
   }
   if (patch.markRead) set.unreadCount = 0;
