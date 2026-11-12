@@ -358,6 +358,13 @@
       "when": 1793908800000,
       "tag": "0050_oportunidad_responsable",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1793919600000,
+      "tag": "0051_asignacion_automatica",
+      "breakpoints": true
     }
   ]
 }
