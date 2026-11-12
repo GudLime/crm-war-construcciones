@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
 
-/** Cambiar el responsable `{ userId }` (`null` lo saca). Solo el admin reparte. */
+/** Cambiar el responsable `{ userId }` (`"ia"` = el agente; `null` lo saca). Solo el admin reparte. */
 export const PATCH = withAdmin(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
   const body = await parseBody(req, z.object({ userId: z.string().min(1).max(60).nullable() }));

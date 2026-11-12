@@ -140,6 +140,8 @@ export const oportunidad = pgTable(
     motivoCierre: text("motivo_cierre"),
     /** 0050 — Quién del equipo la lleva: define quién la ve (visibilidad por rol). */
     responsableUserId: text("responsable_user_id").references(() => user.id, { onDelete: "set null" }),
+    /** 0051 — La lleva el agente de IA (no una persona). Solo el admin la ve. */
+    responsableIa: boolean("responsable_ia").notNull().default(false),
     valorCents: integer("valor_cents"),
     moneda: text("moneda"),
     /**
@@ -473,6 +475,10 @@ export const ventasAjustes = pgTable("ventas_ajustes", {
   reaperturaDias: integer("reapertura_dias").notNull().default(120),
   /** War — Si la IA atiende sola las conversaciones nuevas (war_0005). */
   iaConversacionesNuevas: boolean("ia_conversaciones_nuevas").notNull().default(true),
+  /** 0051 — Asignar solos los leads de Meta según el edificio (apagado por defecto). */
+  asignacionActiva: boolean("asignacion_activa").notNull().default(false),
+  /** 0051 — Edificio → id de usuario o "ia". Lo que no está, queda sin asignar. */
+  asignacionPorEdificio: jsonb("asignacion_por_edificio").$type<Record<string, string>>().notNull().default({}),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 

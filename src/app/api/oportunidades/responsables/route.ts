@@ -1,6 +1,6 @@
 import { withAuth } from "@/lib/api";
 import { esAdmin } from "@/lib/auth/roles";
-import { listarResponsables } from "@/server/responsables";
+import { listarResponsables, nombreDelAgente } from "@/server/responsables";
 
 export const dynamic = "force-dynamic";
 
@@ -9,5 +9,7 @@ export const GET = withAuth(async (session) => {
   return Response.json({
     responsables: await listarResponsables(session.organizationId),
     admin: esAdmin(session.role),
+    /** 0051 — El agente de IA también puede llevar una oportunidad. */
+    agente: await nombreDelAgente(session.organizationId),
   });
 });
