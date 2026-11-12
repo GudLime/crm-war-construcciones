@@ -8,9 +8,12 @@ import {
   type InicioContadores,
   type ItemDelDia,
   type OportunidadDeInicio,
+  type MetricasSemana,
+  type SemanaDto,
   type VentanaPorCerrar,
   type VisitaDeHoy,
 } from "@/lib/inicio";
+import { startOfWeek } from "@/lib/time/calendar";
 import { addDaysISO, todayInTz, zonedWallClockToUtc } from "@/lib/time/slots";
 import { businessTimezone } from "@/server/analytics/period";
 
@@ -577,4 +580,68 @@ export async function ventanasPorCerrar(
     contacto: f.contacto,
     cierraAt: new Date(f.lastInboundAt!.getTime() + 24 * 3_600_000).toISOString(),
   }));
+}
+
+/** Los números de un período [desde, hasta) de quien mira. */
+async function metricas(organizationId: string, userId: string, desde: Date, hasta: Date): Promise<MetricasSemana> {
+  const d = desde.toISOString();
+  const h = hasta.toISOString();
+  const op = schema.oportunidad;
+  const ev = schema.oportunidadEvento;
+  const db = getDb();
+  const enRango = (col: SQL | typeof ev.occurredAt) => sql`${col} >= ${d}::timestamp and ${col} < ${h}::timestamp`;
+  const deQuien = sql`exists (select 1 from ${op} o where o.id = ${ev.oportunidadId} and o.responsable_user_id = ${userId})`;
+  const [asignadas, primer, avances, perdidas] = await Promise.all([
+    db
+      .select({
+        nuevas: count(),
+        contactadas: sql<number>`count(${op.primerContactoAt})`.mapWith(Number),
+      })
+      .from(op)
+      .where(
+        scoped(op.organizationId, organizationId, eq(op.responsableUserId, userId), enRango(sql`coalesce(${op.responsableDesde}, ${op.createdAt})`))
+      ),
+    db
+      .select({
+        mediana: sql<number | null>`percentile_cont(0.5) within group (order by ${ev.segundosEnEstadoAnterior})`.mapWith(
+          (v) => (v == null ? null : Number(v))
+        ),
+      })
+      .from(ev)
+      .where(scoped(ev.organizationId, organizationId, eq(ev.tipo, "primer_contacto"), enRango(ev.occurredAt), deQuien)),
+    db
+      .select({
+        visitas: sql<number>`count(distinct ${ev.oportunidadId}) filter (where ${ev.estadoHasta} = 'visito')`.mapWith(Number),
+        reservas: sql<number>`count(distinct ${ev.oportunidadId}) filter (where ${ev.estadoHasta} in ('reservo','compro'))`.mapWith(
+          Number
+        ),
+      })
+      .from(ev)
+      .where(scoped(ev.organizationId, organizationId, inArray(ev.tipo, ["estado", "cerrada"]), enRango(ev.occurredAt), deQuien)),
+    db
+      .select({ n: sql<number>`count(distinct ${ev.oportunidadId})`.mapWith(Number) })
+      .from(ev)
+      .where(scoped(ev.organizationId, organizationId, eq(ev.tipo, "cerrada"), eq(ev.resultado, "perdida"), enRango(ev.occurredAt), deQuien)),
+  ]);
+  return {
+    nuevas: Number(asignadas[0]?.nuevas ?? 0),
+    contactadas: Number(asignadas[0]?.contactadas ?? 0),
+    primerContactoSeg: primer[0]?.mediana ?? null,
+    visitas: avances[0]?.visitas ?? 0,
+    reservas: avances[0]?.reservas ?? 0,
+    perdidas: perdidas[0]?.n ?? 0,
+  };
+}
+
+/** Tu semana: desde el lunes hasta ahora, contra la semana anterior hasta el mismo punto. */
+export async function tuSemana(organizationId: string, userId: string, ahora = new Date()): Promise<SemanaDto> {
+  const tz = await businessTimezone(organizationId);
+  const lunes = startOfWeek(todayInTz(ahora, tz));
+  const desde = zonedWallClockToUtc(lunes, "00:00", tz) ?? ahora;
+  const semana = 7 * 86_400_000;
+  const [actual, anterior] = await Promise.all([
+    metricas(organizationId, userId, desde, ahora),
+    metricas(organizationId, userId, new Date(desde.getTime() - semana), new Date(ahora.getTime() - semana)),
+  ]);
+  return { desde: lunes, actual, anterior };
 }

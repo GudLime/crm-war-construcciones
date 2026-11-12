@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { fechaLarga, hace, LINKS_INICIO, motivoDeDerivacion, quedan, saludo } from "@/lib/inicio";
+import {
+  duracion,
+  fechaLarga,
+  hace,
+  LINKS_INICIO,
+  linksPara,
+  motivoDeDerivacion,
+  porcentaje,
+  quedan,
+  saludo,
+  tendencia,
+} from "@/lib/inicio";
 import { resumenDelHandoff } from "@/server/bot/handoff";
 import { filtrosDeLaUrl } from "@/lib/vistas";
 
@@ -74,5 +85,30 @@ describe("ventana de 24 h", () => {
     expect(quedan("2026-11-12T18:20:00Z", ahora)).toBe("quedan 3 h 20 min");
     expect(quedan("2026-11-12T15:45:00Z", ahora)).toBe("quedan 45 min");
     expect(quedan("2026-11-12T14:00:00Z", ahora)).toBe("quedan 0 min");
+  });
+});
+
+describe("Tu semana y Ver como", () => {
+  it("la flecha es buena o mala según el número", () => {
+    expect(tendencia(5, 3, true)).toEqual({ sentido: "sube", bueno: true });
+    expect(tendencia(5, 3, false)).toEqual({ sentido: "sube", bueno: false });
+    expect(tendencia(2, 3, false)).toEqual({ sentido: "baja", bueno: true });
+    expect(tendencia(3, 3, true)).toEqual({ sentido: "igual", bueno: null });
+    expect(tendencia(null, 3, true)).toEqual({ sentido: "igual", bueno: null });
+  });
+
+  it("porcentaje y duración", () => {
+    expect(porcentaje(3, 4)).toBe(75);
+    expect(porcentaje(0, 0)).toBeNull();
+    expect(duracion(null)).toBe("—");
+    expect(duracion(600)).toBe("10 min");
+    expect(duracion(3 * 3600)).toBe("3 h");
+    expect(duracion(2 * 86400)).toBe("2 días");
+  });
+
+  it("los links de otra persona llevan su id", () => {
+    expect(linksPara(null)).toBe(LINKS_INICIO);
+    expect(linksPara("usr_gloria").nuevas).toBe("/oportunidades?responsable=usr_gloria&sinPrimerContacto=1");
+    expect(linksPara("usr_gloria").visitas).toBe(LINKS_INICIO.visitas);
   });
 });

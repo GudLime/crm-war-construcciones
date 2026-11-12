@@ -4,14 +4,16 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarDays, Flame, ListTodo, Plus, Sparkles, UserPlus, type LucideIcon } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { Pagina } from "@/components/ventas/ui";
 import { cn } from "@/lib/utils";
 import { useEvents } from "@/components/use-events";
 import { Derivadas } from "./derivadas";
 import { LeadsCalientes, NuevasParaVos, useIconosDeOrigen } from "./oportunidades-de-inicio";
 import { TuDia } from "./tu-dia";
+import { TuSemana } from "./tu-semana";
 import { VentanasPorCerrar, VisitasDeHoy } from "./visitas-de-hoy";
-import { DERIVADA_URGENTE_MIN, LINKS_INICIO, fechaLarga, hace, saludo, type InicioDto } from "@/lib/inicio";
+import { DERIVADA_URGENTE_MIN, fechaLarga, hace, linksPara, saludo, type InicioDto } from "@/lib/inicio";
 
 /** La hora (0–23) en la zona del negocio. */
 function horaEn(zona: string): number {
@@ -93,15 +95,18 @@ export function InicioClient() {
   const [datos, setDatos] = useState<InicioDto | null>(null);
   const [error, setError] = useState(false);
 
+  /** «Ver como» (solo admin): de quién es el Inicio que se ve; null = el propio. */
+  const [verComo, setVerComo] = useState<string | null>(null);
+
   const cargar = useCallback(async () => {
-    const res = await fetch("/api/inicio?usuario=me").catch(() => null);
+    const res = await fetch(`/api/inicio?usuario=${encodeURIComponent(verComo ?? "me")}`).catch(() => null);
     if (!res?.ok) {
       setError(true);
       return;
     }
     setError(false);
     setDatos((await res.json()) as InicioDto);
-  }, []);
+  }, [verComo]);
 
   useEffect(() => {
     void cargar();
@@ -128,7 +133,12 @@ export function InicioClient() {
   const iconos = useIconosDeOrigen();
   const c = datos?.contadores;
   const nombre = datos?.usuario.nombre.trim().split(/\s+/)[0] ?? "";
-  const titulo = c ? `${saludo(horaEn(c.zona))}${nombre ? `, ${nombre}` : ""}` : "Inicio";
+  const titulo = !c
+    ? "Inicio"
+    : verComo
+      ? `Inicio de ${datos?.usuario.nombre ?? ""}`
+      : `${saludo(horaEn(c.zona))}${nombre ? `, ${nombre}` : ""}`;
+  const links = linksPara(verComo);
   const yo = datos?.usuario.nombre ?? "vos";
   const esperaMin = c?.derivadaMasViejaAt ? (Date.now() - Date.parse(c.derivadaMasViejaAt)) / 60_000 : 0;
 
@@ -137,10 +147,29 @@ export function InicioClient() {
       titulo={titulo}
       detalle={c ? fechaLarga(c.hoy) : undefined}
       accion={
-        <Link href="/oportunidades?nueva=1" className={buttonVariants({ size: "sm" })}>
-          <Plus className="h-4 w-4" strokeWidth={1.8} />
-          Nueva oportunidad
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {datos?.admin && datos.equipo.length > 1 && (
+            <Select
+              aria-label="Ver el Inicio de"
+              value={verComo ?? ""}
+              onValueChange={(v) => setVerComo(v || null)}
+              className="h-8 w-auto min-w-[170px] text-[13px]"
+            >
+              <option value="">Ver como: yo</option>
+              {datos.equipo
+                .filter((m) => m.userId !== datos.sesion)
+                .map((m) => (
+                  <option key={m.userId} value={m.userId}>
+                    Ver como: {m.nombre}
+                  </option>
+                ))}
+            </Select>
+          )}
+          <Link href="/oportunidades?nueva=1" className={buttonVariants({ size: "sm" })}>
+            <Plus className="h-4 w-4" strokeWidth={1.8} />
+            Nueva oportunidad
+          </Link>
+        </div>
       }
     >
       {error && !datos && <p className="text-sm text-text-3">No se pudo cargar el Inicio. Probá de nuevo en un rato.</p>}
@@ -155,7 +184,7 @@ export function InicioClient() {
             contexto="Asignadas a vos y sin primer contacto"
             boton={{
               texto: "Revisar en Oportunidades",
-              href: LINKS_INICIO.nuevas,
+              href: links.nuevas,
               filtro: `Responsable ${yo} · Sin primer contacto`,
             }}
           />
@@ -172,7 +201,7 @@ export function InicioClient() {
             contextoUrgente={c.tareasVencidas > 0}
             boton={{
               texto: "Revisar en Tareas",
-              href: LINKS_INICIO.tareas,
+              href: links.tareas,
               filtro: `Responsable ${yo} · Realizar · hasta hoy`,
             }}
           />
@@ -195,7 +224,7 @@ export function InicioClient() {
             }
             boton={{
               texto: "Ver la agenda",
-              href: LINKS_INICIO.visitas,
+              href: links.visitas,
               filtro: "Citas · hoy",
             }}
           />
@@ -212,7 +241,7 @@ export function InicioClient() {
             contextoUrgente={esperaMin > DERIVADA_URGENTE_MIN}
             boton={{
               texto: "Revisar en la Bandeja",
-              href: LINKS_INICIO.derivadas,
+              href: links.derivadas,
               filtro: "Derivadas sin tomar",
             }}
           />
@@ -224,7 +253,7 @@ export function InicioClient() {
             contexto="Ya visitaron y siguen abiertas"
             boton={{
               texto: "Revisar en Oportunidades",
-              href: LINKS_INICIO.calientes,
+              href: links.calientes,
               filtro: `Responsable ${yo} · Estado: Visitó`,
             }}
           />
@@ -239,11 +268,11 @@ export function InicioClient() {
               agente={datos.agente}
               onCambio={() => void cargar()}
             />
-            <NuevasParaVos lista={datos.nuevas} total={c.nuevas} href={LINKS_INICIO.nuevas} iconos={iconos} />
+            <NuevasParaVos lista={datos.nuevas} total={c.nuevas} href={links.nuevas} iconos={iconos} />
             <LeadsCalientes
               lista={datos.calientes}
               total={c.calientes}
-              href={LINKS_INICIO.calientes}
+              href={links.calientes}
               iconos={iconos}
               zona={c.zona}
             />
@@ -252,6 +281,7 @@ export function InicioClient() {
             <VisitasDeHoy visitas={datos.visitas} agente={datos.agente} zona={c.zona} onCambio={() => void cargar()} />
             <TuDia items={datos.tuDia} zona={c.zona} onCambio={() => void cargar()} />
             <VentanasPorCerrar ventanas={datos.ventanas} />
+            <TuSemana semana={datos.semana} />
           </div>
         </div>
       )}

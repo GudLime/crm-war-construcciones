@@ -97,6 +97,8 @@ function diaLocal(d: Date): string {
 function leerTemporal(params: URLSearchParams): {
   estado: FiltroEstado | null;
   responsableYo: boolean;
+  /** «Ver como» desde Inicio: el id de otra persona (solo lo aplica un admin). */
+  responsableId: string | null;
   temporal: Temporal | null;
 } {
   const estado = params.get("estado");
@@ -106,6 +108,8 @@ function leerTemporal(params: URLSearchParams): {
   return {
     estado: FILTROS.some((f) => f.value === estado) ? (estado as FiltroEstado) : null,
     responsableYo: params.get("responsable") === "me" || params.get("responsable") === "yo",
+    responsableId:
+      params.get("responsable") && !["me", "yo"].includes(params.get("responsable")!) ? params.get("responsable") : null,
     temporal: tipos.length || desde || hasta ? { tipos, desde, hasta } : null,
   };
 }
@@ -200,7 +204,7 @@ export function TareasClient() {
     }
     if (l.estado) setFiltro(l.estado);
     if (l.temporal) setTemporal(l.temporal);
-    if (l.estado || l.temporal || l.responsableYo) window.history.replaceState(null, "", window.location.pathname);
+    if (l.estado || l.temporal || l.responsableYo || l.responsableId) window.history.replaceState(null, "", window.location.pathname);
   }, []);
   const [forma, setForma] = useState<FormaDeVer>("lista");
   const [agrupar, setAgrupar] = useState(true);
@@ -261,6 +265,7 @@ export function TareasClient() {
         // El admin arranca viendo lo suyo y lo sin asignar; puede cambiarlo.
         // Desde Inicio («responsable=me»), solo lo suyo.
         if (delLink.current?.responsableYo) setResponsables([d.yo]);
+        else if (delLink.current?.responsableId && d.admin === true) setResponsables([delLink.current.responsableId]);
         else if (d.admin === true) setResponsables([d.yo, SIN]);
       }
     })();
