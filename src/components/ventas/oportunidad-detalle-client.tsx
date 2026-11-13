@@ -174,6 +174,16 @@ type IconoDeOrigen = Map<string, { icono: string; imagen: string | null }>;
 export function OportunidadDetalleClient() {
   const { id } = useParams<{ id: string }>();
   const [datos, setDatos] = useState<OportunidadDetalleDto | null>(null);
+  /** Los edificios para elegir el interés (también cuando todavía no tiene ninguno). */
+  const [catalogo, setCatalogo] = useState<{ id: string; nombre: string; color: string | null }[]>([]);
+  useEffect(() => {
+    void fetch("/api/edificios")
+      .then((r) => (r.ok ? r.json() : { edificios: [] }))
+      .then((d: { edificios: { id: string; nombre: string; color: string | null }[] }) =>
+        setCatalogo(d.edificios.map((e) => ({ id: e.id, nombre: e.nombre, color: e.color ?? null })))
+      )
+      .catch(() => undefined);
+  }, []);
   const [noExiste, setNoExiste] = useState(false);
   const [pestana, setPestana] = useState<Pestana>("timeline");
   const [error, setError] = useState<string | null>(null);
@@ -222,7 +232,7 @@ export function OportunidadDetalleClient() {
     await cargar();
   }
 
-  async function cambiarInteres(cambios: { ambientes?: number[] }) {
+  async function cambiarInteres(cambios: { ambientes?: number[]; edificioIds?: string[] }) {
     if (!datos?.contacto) return;
     setError(null);
     const res = await fetch(`/api/contacts/${datos.contacto.id}/oportunidad`, {
@@ -332,7 +342,27 @@ export function OportunidadDetalleClient() {
                     )}
                   </Fila>
                   <Fila icono={Building2} titulo="Interés">
-                    {edificios.length ? (
+                    {contacto && catalogo.length > 0 ? (
+                      // Se elige acá, tenga o no edificios todavía (la creada a mano arranca sin ninguno).
+                      <Select
+                        multiple
+                        values={edificios.map((e) => e.id)}
+                        onValuesChange={(ids) => void cambiarInteres({ edificioIds: ids })}
+                        placeholder="Elegí un edificio…"
+                        aria-label="Edificios de interés"
+                        iconoDe={(v) => {
+                          const color = catalogo.find((e) => e.id === v)?.color;
+                          return <span className="size-2.5 shrink-0 rounded-full" style={{ background: color ?? "var(--text-3)" }} />;
+                        }}
+                        className="h-auto min-h-7 w-auto max-w-full rounded-full px-2 py-0.5 text-[13px]"
+                      >
+                        {catalogo.map((e) => (
+                          <option key={e.id} value={e.id}>
+                            {e.nombre}
+                          </option>
+                        ))}
+                      </Select>
+                    ) : edificios.length ? (
                       edificios.map((e) => (
                         <PildoraEdificio key={e.id} nombre={e.nombre} color={e.color} href={`/edificios/${e.id}`} />
                       ))
