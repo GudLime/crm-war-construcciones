@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -95,10 +94,7 @@ function unidadesDeFiltro(filas: readonly OportunidadDto[]): { value: string; la
     .sort((a, b) => a.label.localeCompare(b.label, "es", { numeric: true }));
 }
 
-/** La subpágina de un origen: la misma página con ese origen fijo. */
-export type OrigenFijo = { id: string; nombre: string; icono: string; imagen: string | null };
-
-export function OportunidadesClient({ origen }: { origen?: OrigenFijo } = {}) {
+export function OportunidadesClient() {
   const moneda = useMoneda();
   const avisar = useAvisoGuardado();
   const [filas, setFilas] = useState<OportunidadDto[]>([]);
@@ -134,10 +130,7 @@ export function OportunidadesClient({ origen }: { origen?: OrigenFijo } = {}) {
 
   const cargar = useCallback(async () => {
     const res = await fetch(
-      `/api/oportunidades?${new URLSearchParams({
-        ...(situacion === "todas" ? {} : { situacion }),
-        ...(origen ? { origen: origen.nombre } : {}),
-      }).toString()}`
+      `/api/oportunidades${situacion === "todas" ? "" : `?situacion=${situacion}`}`
     ).catch(() => null);
     if (!res?.ok) return;
     const data = (await res.json()) as { oportunidades: OportunidadDto[]; valorCalculado?: boolean };
@@ -145,7 +138,7 @@ export function OportunidadesClient({ origen }: { origen?: OrigenFijo } = {}) {
     setCargadas(situacion);
     setValorCalculado(data.valorCalculado === true);
     setListo(true);
-  }, [situacion, origen]);
+  }, [situacion]);
 
   useEffect(() => {
     void cargar();
@@ -249,8 +242,7 @@ export function OportunidadesClient({ origen }: { origen?: OrigenFijo } = {}) {
 
   function abrirNueva() {
     setEditando(null);
-    // En la subpágina de un origen, la nueva arranca con ese origen.
-    setForm(origen ? { ...vacio, origen: origen.nombre } : vacio);
+    setForm(vacio);
     setError(null);
     setAbierto(true);
   }
@@ -314,31 +306,8 @@ export function OportunidadesClient({ origen }: { origen?: OrigenFijo } = {}) {
 
   return (
     <Pagina
-      titulo={
-        origen ? (
-          <span className="flex items-center gap-2.5">
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-subtle">
-              <OrigenIcono icono={origen.icono} imagen={origen.imagen} className="size-[18px]" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-[12px] font-medium text-text-3">
-                <Link href="/oportunidades" className="hover:text-foreground hover:underline">
-                  Oportunidades
-                </Link>{" "}
-                / Origen
-              </span>
-              <span className="block truncate">{origen.nombre}</span>
-            </span>
-          </span>
-        ) : (
-          "Oportunidades"
-        )
-      }
-      detalle={
-        origen
-          ? `${filas.length} ${cargadas === "abiertas" ? "abiertas " : cargadas === "cerradas" ? "cerradas " : ""}que llegaron por ${origen.nombre}. Los demás filtros siguen disponibles.`
-          : "De dónde llegó, a quién pertenece y qué edificio o departamento está mirando."
-      }
+      titulo="Oportunidades"
+      detalle="De dónde llegó, a quién pertenece y qué edificio o departamento está mirando."
       accion={
         <div className="flex flex-wrap items-center gap-2">
           <SelectorDeForma forma={pref.forma} onCambio={(forma) => setPref({ ...pref, forma })} />
@@ -516,7 +485,6 @@ export function OportunidadesClient({ origen }: { origen?: OrigenFijo } = {}) {
           <BarraDeFiltros
             v={vistas}
             equipo={equipo}
-            sinOrigen={Boolean(origen)}
             opciones={{
               edificios: edificios.map((e) => ({ value: e.id, label: e.nombre })),
               origenes: origenes.map((o) => ({ value: o.nombre, label: o.nombre })),
