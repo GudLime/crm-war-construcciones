@@ -50,9 +50,6 @@ import type { OrigenDto } from "@/lib/origenes";
 import { formatearTelefono } from "@/lib/telefono-formato";
 import { cn } from "@/lib/utils";
 import {
-  CAMINO_OPORTUNIDAD,
-  ESTADOS_OPORTUNIDAD,
-  MOTIVOS_CIERRE,
   TIPOS_CONTACTO,
   TIPOS_OPORTUNIDAD,
   TIPOS_TAREA,
@@ -68,6 +65,8 @@ import {
 } from "@/components/motor/oportunidad-objetos";
 import { OrigenIcono } from "./origen-icono";
 import { PildoraEdificio } from "./pildora-edificio";
+import { useVocabulario } from "@/components/vocabulario";
+import { enFrase, nombreEstado } from "@/lib/vocabulario";
 
 /**
  * La página de una oportunidad (ver GUDLIME.md → «Página de la oportunidad»).
@@ -173,6 +172,8 @@ type IconoDeOrigen = Map<string, { icono: string; imagen: string | null }>;
 
 export function OportunidadDetalleClient() {
   const { id } = useParams<{ id: string }>();
+  const voc = useVocabulario();
+  const singular = enFrase(voc.singular);
   const [datos, setDatos] = useState<OportunidadDetalleDto | null>(null);
   /** Los edificios para elegir el interés (también cuando todavía no tiene ninguno). */
   const [catalogo, setCatalogo] = useState<{ id: string; nombre: string; color: string | null }[]>([]);
@@ -251,9 +252,9 @@ export function OportunidadDetalleClient() {
   if (noExiste) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-        <p className="text-sm text-text-2">Esa oportunidad no existe (o se borró).</p>
+        <p className="text-sm text-text-2">Esa {singular} no existe (o se borró).</p>
         <Link href="/oportunidades" className="text-sm font-medium text-brand-ink hover:underline">
-          Volver a Oportunidades
+          Volver a {voc.plural}
         </Link>
       </div>
     );
@@ -292,7 +293,7 @@ export function OportunidadDetalleClient() {
           <div className="flex flex-wrap items-start gap-4">
             <Link
               href="/oportunidades"
-              aria-label="Volver a Oportunidades"
+              aria-label={`Volver a ${voc.plural}`}
               className="grid size-10 shrink-0 place-items-center rounded-full border border-border text-text-2 hover:bg-accent hover:text-foreground"
             >
               <ArrowLeft className="size-4" />
@@ -305,7 +306,7 @@ export function OportunidadDetalleClient() {
                 <h1 className="min-w-0 truncate text-[22px] font-bold tracking-tight">{op.nombre}</h1>
                 <Link
                   href={`/oportunidades?editar=${op.id}`}
-                  aria-label="Editar oportunidad"
+                  aria-label={`Editar ${singular}`}
                   title="Editar"
                   className="grid size-[30px] place-items-center rounded-md text-text-3 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
                 >
@@ -341,6 +342,8 @@ export function OportunidadDetalleClient() {
                       <SinDato />
                     )}
                   </Fila>
+                  {voc.inmobiliario && (
+                  <>
                   <Fila icono={Building2} titulo="Interés">
                     {contacto && catalogo.length > 0 ? (
                       // Se elige acá, tenga o no edificios todavía (la creada a mano arranca sin ninguno).
@@ -403,6 +406,8 @@ export function OportunidadDetalleClient() {
                       <SinDato />
                     )}
                   </Fila>
+                  </>
+                  )}
                   {interes && (
                     <Fila icono={DoorOpen} titulo={interes.nombre}>
                       <UnidadesDeInteres
@@ -418,7 +423,7 @@ export function OportunidadDetalleClient() {
                       <VinculoEnLinea vinculo={v} onGuardar={(ids) => objetos.guardarVinculo(v.relacion, ids)} />
                     </Fila>
                   ))}
-                  {!interes && !otrosVinculos.length && op.unidad && (
+                  {voc.inmobiliario && !interes && !otrosVinculos.length && op.unidad && (
                     <Fila icono={DoorOpen} titulo="Departamento">
                       <span className="inline-block rounded-full border border-border px-2.5 py-0.5 text-[12.5px]">
                         {op.unidad}
@@ -449,9 +454,11 @@ export function OportunidadDetalleClient() {
                   <Fila icono={Timer} titulo="En este estado">
                     desde {fechaExacta(op.estadoDesde)}
                   </Fila>
-                  <Fila icono={Tag} titulo="Tipo">
-                    {op.tipo ? etiqueta(TIPOS_OPORTUNIDAD, op.tipo) : <SinDato />}
-                  </Fila>
+                  {voc.inmobiliario && (
+                    <Fila icono={Tag} titulo="Tipo">
+                      {op.tipo ? etiqueta(TIPOS_OPORTUNIDAD, op.tipo) : <SinDato />}
+                    </Fila>
+                  )}
                   {/* 0050 — Responsable de la oportunidad (define quién la ve). */}
                   <Fila icono={UserRound} titulo="Responsable">
                     <ElegirResponsable
@@ -503,7 +510,7 @@ export function OportunidadDetalleClient() {
                 className="inline-flex items-center gap-2 underline-offset-2 hover:underline"
               >
                 <PildoraEdificio nombre={p.edificioNombre ?? p.nombre} color={p.edificioColor} />
-                {etiqueta(ESTADOS_OPORTUNIDAD, p.estado)}
+                {nombreEstado(voc, p.estado)}
               </Link>
             ))}
           </div>
@@ -685,14 +692,19 @@ function BarraDeAvance({
 }) {
   const [cerrando, setCerrando] = useState(false);
   const [motivoNuevo, setMotivoNuevo] = useState("");
-  const indice = CAMINO_OPORTUNIDAD.indexOf(estado);
-  const perdida = estado === "perdido" || estado === "no_calificado";
+  const voc = useVocabulario();
+  const camino = voc.camino;
+  // 071 — Los cierres que no están en el camino (Perdido, No calificado; en
+  // un restaurante, Cancelada y No vino), en el orden de la configuración.
+  const cierres = voc.cierres.filter((e) => !camino.includes(e));
+  const indice = camino.indexOf(estado);
+  const perdida = cierres.includes(estado) || estado === "perdido" || estado === "no_calificado";
 
   return (
     <div className="mt-5">
       {/* En pantallas angostas no se parte: se desplaza. */}
       <ol className="flex gap-1 overflow-x-auto pb-0.5" aria-label="Avance">
-        {CAMINO_OPORTUNIDAD.map((paso, i) => {
+        {camino.map((paso, i) => {
           const hecho = !perdida && indice >= 0 && i < indice;
           const actual = paso === estado;
           return (
@@ -711,7 +723,7 @@ function BarraDeAvance({
                 )}
               >
                 {(hecho || actual) && <Check className="size-3.5 shrink-0" />}
-                <span className="truncate">{etiqueta(ESTADOS_OPORTUNIDAD, paso)}</span>
+                <span className="truncate">{nombreEstado(voc, paso)}</span>
               </button>
             </li>
           );
@@ -730,7 +742,7 @@ function BarraDeAvance({
             )}
           >
             {perdida ? <X className="size-3.5 shrink-0" /> : <Flag className="size-3.5 shrink-0" />}
-            <span className="truncate">{perdida ? etiqueta(ESTADOS_OPORTUNIDAD, estado) : "Perdida"}</span>
+            <span className="truncate">{perdida ? nombreEstado(voc, estado) : voc.etiquetaCerrar}</span>
           </button>
         </li>
       </ol>
@@ -741,27 +753,23 @@ function BarraDeAvance({
             <p className="mb-1 text-[12px] font-medium text-text-2">Motivo</p>
             <Select value={motivoNuevo} onValueChange={setMotivoNuevo} className="w-full">
               <option value="">Sin motivo</option>
-              {MOTIVOS_CIERRE.map((m) => (
+              {voc.motivos.map((m) => (
                 <option key={m} value={m}>
                   {m}
                 </option>
               ))}
             </Select>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => void onCambiar("perdido", motivoNuevo || null).then(() => setCerrando(false))}
-          >
-            Perdido
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => void onCambiar("no_calificado", motivoNuevo || null).then(() => setCerrando(false))}
-          >
-            No calificado
-          </Button>
+          {cierres.map((cierre) => (
+            <Button
+              key={cierre}
+              size="sm"
+              variant="outline"
+              onClick={() => void onCambiar(cierre, motivoNuevo || null).then(() => setCerrando(false))}
+            >
+              {nombreEstado(voc, cierre)}
+            </Button>
+          ))}
         </div>
       )}
     </div>
@@ -849,6 +857,7 @@ function Timeline({
   contactId: string | null;
   onCambio: () => Promise<void>;
 }) {
+  const voc = useVocabulario();
   const [verProximos, setVerProximos] = useState(true);
   const [verHistorial, setVerHistorial] = useState(true);
   const [agregando, setAgregando] = useState(false);
@@ -944,9 +953,9 @@ function Timeline({
                   <History className="size-4" />
                 </span>
                 <div className="min-w-0 flex-1 text-[13.5px]">
-                  <p className="font-semibold">Oportunidad anterior: {anterior.edificioNombre ?? anterior.nombre}</p>
+                  <p className="font-semibold">{voc.singular} anterior: {anterior.edificioNombre ?? anterior.nombre}</p>
                   <p className="text-text-2">
-                    {etiqueta(ESTADOS_OPORTUNIDAD, anterior.estado)}
+                    {nombreEstado(voc, anterior.estado)}
                     {anterior.cerradaAt ? ` el ${fecha(anterior.cerradaAt, false)}` : ""}
                     {anterior.motivoCierre ? ` · motivo: ${anterior.motivoCierre}` : ""}
                   </p>
@@ -954,7 +963,7 @@ function Timeline({
                     href={`/oportunidades/${anterior.id}`}
                     className="text-[12.5px] font-medium text-brand-ink hover:underline"
                   >
-                    Ver esa oportunidad →
+                    Ver esa {enFrase(voc.singular)} →
                   </Link>
                 </div>
               </li>
@@ -1301,10 +1310,11 @@ function UltimosMensajes({
   conversacion: OportunidadDetalleDto["conversacion"];
   enChat: string | null;
 }) {
+  const voc = useVocabulario();
   return (
     <div className="space-y-4">
       {mensajes.length === 0 ? (
-        <p className="py-8 text-center text-sm text-text-3">No hay mensajes en esta oportunidad.</p>
+        <p className="py-8 text-center text-sm text-text-3">No hay mensajes en esta {enFrase(voc.singular)}.</p>
       ) : (
         <ul className="space-y-2 rounded-2xl bg-chat p-3">
           {mensajes.map((m) => {
@@ -1358,6 +1368,7 @@ function UltimosMensajes({
 /** El contacto, plegado: avatar, nombre, tipo y desde cuándo. Abierto suma teléfono, correo y anuncio. */
 function TarjetaContacto({ contacto }: { contacto: OportunidadDetalleDto["contacto"] }) {
   const [abierto, setAbierto] = useState(false);
+  const voc = useVocabulario();
   if (!contacto) {
     return (
       <section className={cn(TARJETA, "p-5")}>
@@ -1381,8 +1392,9 @@ function TarjetaContacto({ contacto }: { contacto: OportunidadDetalleDto["contac
           <span className="min-w-0 flex-1">
             <span className="block truncate font-semibold">{contacto.nombre}</span>
             <span className="block text-[12px] font-normal text-text-3">
-              {contacto.tipoContacto ? etiqueta(TIPOS_CONTACTO, contacto.tipoContacto) : "Sin clasificar"}
-              {` · desde ${fecha(contacto.creadoAt, false)}`}
+              {voc.inmobiliario &&
+                `${contacto.tipoContacto ? etiqueta(TIPOS_CONTACTO, contacto.tipoContacto) : "Sin clasificar"} · `}
+              {`desde ${fecha(contacto.creadoAt, false)}`}
             </span>
           </span>
           <ChevronDown className={cn("size-4 shrink-0 text-text-3 transition-transform", abierto && "rotate-180")} />

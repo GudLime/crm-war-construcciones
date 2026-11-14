@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiError, parseBody, withAuth } from "@/lib/api";
-import { VALORES_ESTADO_OPORTUNIDAD, VALORES_MOTIVO, type EstadoOportunidad } from "@/lib/ventas";
+import { VALORES_ESTADO_OPORTUNIDAD, type EstadoOportunidad } from "@/lib/ventas";
+import { revisarCambio } from "@/server/vocabulario";
 import { cambiarEstadoOportunidad } from "@/server/oportunidad-historial";
 import { avisarConversaciones } from "@/server/oportunidades";
 import { alcanceDe, noEncontrado, puedeVerOportunidad } from "@/server/acceso";
@@ -11,10 +12,8 @@ type Params = { params: Promise<{ id: string }> };
 
 const schema = z.object({
   estado: z.enum(VALORES_ESTADO_OPORTUNIDAD as [EstadoOportunidad, ...EstadoOportunidad[]]),
-  motivoCierre: z
-    .enum(VALORES_MOTIVO as unknown as [string, ...string[]])
-    .nullable()
-    .optional(),
+  /** 071 — Uno de los motivos de esta instancia (se revisa contra el vocabulario). */
+  motivoCierre: z.string().trim().min(1).max(80).nullable().optional(),
 });
 
 /** War — Cambiar el estado desde la barra de avance: pasa por el historial. */
@@ -23,6 +22,8 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   if (!(await puedeVerOportunidad(alcanceDe(session), id))) return noEncontrado("Esa oportunidad");
   const body = await parseBody(req, schema);
   if (!body.ok) return body.response;
+  const problema = await revisarCambio(session.organizationId, id, body.data);
+  if (problema) return apiError(422, "invalid_body", problema);
   const fila = await cambiarEstadoOportunidad({
     organizationId: session.organizationId,
     oportunidadId: id,

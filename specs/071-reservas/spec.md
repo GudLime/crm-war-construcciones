@@ -1,6 +1,6 @@
 # 071 — Reservas de restaurante por WhatsApp
 
-Estado: especificación · Primer cliente: Beba (pastificio, Villa Urquiza) · Repo: GudLime/gudlime-crm-service (núcleo) + GudLime/crm-beba (configuración)
+Estado: fase 2 hecha (vocabulario configurable) · Primer cliente: Beba (pastificio, Villa Urquiza) · Repo: GudLime/gudlime-crm-service (núcleo) + GudLime/crm-beba (configuración)
 
 ## Qué
 
@@ -149,7 +149,11 @@ cualquier otro, redirige a la plantilla de evento de Google Calendar
 1. Infraestructura: proyecto CRM Beba en Coolify, base, dominio
    `crm.beba.gudlime.com.ar`, backups. Conexión con el número de prueba y
    prueba de envío y recepción con un número real cuanto antes.
-2. Vocabulario configurable y apagar lo inmobiliario (núcleo).
+2. Vocabulario configurable y apagar lo inmobiliario (núcleo). **Hecho**:
+   bloque `oportunidad` e `inmobiliario` en `clientes/<cliente>.json`
+   (`src/lib/vocabulario.ts`, `src/server/vocabulario.ts`, `useVocabulario()`),
+   etapas y motivos revisados en la API, cierre por silencio apagable.
+   Pruebas: `tests/unit/vocabulario.test.ts` y `scripts/e2e-vocabulario.mjs`.
 3. Reservas: tablas, disponibilidad, Ajustes → Reservas y vista del día.
 4. WhatsApp: mensajes interactivos, id del botón en el despacho, API del
    cerebro, cerebro de reservas, calendario.

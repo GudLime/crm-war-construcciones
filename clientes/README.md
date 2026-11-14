@@ -65,6 +65,39 @@ Relaciones: `uno_a_muchos` (columna `<desde>_id` en la tabla del lado «hacia»)
 o `muchos_a_muchos` (tabla `rel_<clave>`). `desde` puede ser `oportunidad` o
 `contacto`, del núcleo.
 
+## Nombre y etapas de la oportunidad, y lo inmobiliario (071)
+
+Un cliente que no vende inmuebles renombra la oportunidad, elige sus etapas y
+apaga lo inmobiliario:
+
+```jsonc
+{
+  "inmobiliario": false,               // sin edificios, ambientes, tipologías, tipo de oportunidad ni tipo de contacto
+  "oportunidad": {
+    "nombre": "Reserva", "nombrePlural": "Reservas",
+    "grupoMenu": "Restaurante",        // opcional; por defecto «Ventas»
+    "estados": [                       // en orden; tiene que estar «recibido»
+      { "estado": "recibido", "nombre": "Confirmada" },
+      { "estado": "compro", "nombre": "Llegó" },
+      { "estado": "perdido", "nombre": "Cancelada" },
+      { "estado": "no_calificado", "nombre": "No vino" }
+    ],
+    "motivosCierre": ["Canceló la persona", "Canceló el restaurante"],
+    "cierrePorSinRespuesta": false     // nunca cerrar sola por «no responde»
+  }
+}
+```
+
+- Las etapas son las del núcleo con otro nombre (`recibido`, `en_charlas`,
+  `conoce_informacion`, `visito`, `reservo`, `compro`, `no_calificado`,
+  `perdido`): el historial, las estadísticas y las reglas de etapa no cambian.
+  Las que no se nombran no se ven ni se pueden elegir (la API responde 422).
+- El camino de la barra de avance y del Pipeline son las nombradas, en el
+  orden del núcleo; las de cierre (`perdido`, `no_calificado`) van en «Cerrar».
+- Sin el bloque, todo queda como siempre. Sin `inmobiliario`, vale `true`.
+- Self-test: `APP_BASE_URL=... node scripts/e2e-vocabulario.mjs` con la app
+  levantada y un archivo como el de arriba.
+
 ## Interés encadenado y Valor calculado (0049)
 
 Una relación muchos a muchos desde la oportunidad puede llevar `interes`: sus

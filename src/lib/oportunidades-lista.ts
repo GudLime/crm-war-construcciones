@@ -44,6 +44,14 @@ export const COLUMNAS: readonly Columna[] = [
   { clave: "valor", titulo: "Valor", ancho: 130, alinear: "derecha", criterioAsc: "menor primero", criterioDesc: "mayor primero" },
 ];
 
+/** 071 — Las columnas de esta instancia: sin lo inmobiliario no hay interés, ambientes ni unidades. */
+export function columnasDe(v: { singular: string; inmobiliario: boolean }): readonly Columna[] {
+  const inmobiliarias: readonly ClaveColumna[] = ["interes", "ambientes", "unidades", "departamento"];
+  return COLUMNAS.filter((c) => v.inmobiliario || !inmobiliarias.includes(c.clave)).map((c) =>
+    c.clave === "nombre" ? { ...c, titulo: v.singular } : c
+  );
+}
+
 /** Departamento arranca oculta: se prende desde «Columnas». */
 export const OCULTAS_POR_DEFECTO: readonly ClaveColumna[] = ["departamento"];
 

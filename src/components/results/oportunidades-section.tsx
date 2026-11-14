@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { rate, type RateDto } from "@/lib/analytics";
@@ -11,6 +11,8 @@ import {
   type GrupoEstadisticasDto,
 } from "@/lib/estadisticas-oportunidades";
 import { cn } from "@/lib/utils";
+import { useVocabulario } from "@/components/vocabulario";
+import { enFrase, etapasDeLaInstancia, nombreEstado } from "@/lib/vocabulario";
 import { BarChart } from "./bar-chart";
 import { Funnel } from "./funnel";
 import { Rate, Section, Subhead } from "./section";
@@ -350,7 +352,7 @@ function Controles({
 }
 
 export function OportunidadesSection({
-  data,
+  data: crudo,
   loading,
   error,
   consulta,
@@ -362,32 +364,50 @@ export function OportunidadesSection({
   consulta: Consulta;
   onConsulta: (c: Consulta) => void;
 }) {
+  const voc = useVocabulario();
+  // 071 — Solo las etapas que usa esta instancia, con su nombre.
+  const data = useMemo(
+    () =>
+      crudo && {
+        ...crudo,
+        total: etapasDeLaInstancia(voc, crudo.total, rate),
+        grupos: crudo.grupos.map((g) => etapasDeLaInstancia(voc, g, rate)),
+      },
+    [crudo, voc]
+  );
   const t = data?.total;
   const filtrando = !!data && Object.keys(data.filtros).length > 0;
   return (
     <Section
       id="oportunidades"
-      title="Oportunidades"
+      title={voc.plural}
       hint="De las que entraron en el período: hasta dónde llegaron, cuánto tardaron, por qué se perdieron y de dónde vinieron."
       loading={loading}
       error={error}
       hasData={!!data}
       empty={!!data?.empty}
-      emptyText="No entraron oportunidades en este período. Probá con un rango más amplio."
+      emptyText={`No entraron ${enFrase(voc.plural)} en este período. Probá con un rango más amplio.`}
     >
       {data && t && (
         <div className="space-y-6">
           <Controles data={data} consulta={consulta} onChange={onConsulta} />
           <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-5">
             <StatCard label={filtrando ? "Entraron (con filtros)" : "Entraron"} value={String(t.entraron)} />
-            <StatCard label="Compraron" value={String(t.compraron)} />
-            <RateCard label="Conversión" rate={t.conversion} unit="oportunidades" />
+            <StatCard label={voc.inmobiliario ? "Compraron" : nombreEstado(voc, "compro")} value={String(t.compraron)} />
+            <RateCard label="Conversión" rate={t.conversion} unit={enFrase(voc.plural)} />
             <StatCard label="Siguen abiertas" value={String(t.abiertas)} />
-            <StatCard label="Perdidas / no calificadas" value={`${t.perdidas} / ${t.noCalificadas}`} />
+            <StatCard
+              label={
+                voc.inmobiliario
+                  ? "Perdidas / no calificadas"
+                  : `${nombreEstado(voc, "perdido")} / ${nombreEstado(voc, "no_calificado")}`
+              }
+              value={`${t.perdidas} / ${t.noCalificadas}`}
+            />
           </div>
           {data.multiple && (
             <p className="rounded-md bg-subtle px-3 py-2 text-xs text-text-2">
-              Algunas oportunidades tienen más de un valor y suman en cada grupo: la suma de los grupos puede pasar el total.
+              Algunas {enFrase(voc.plural)} tienen más de un valor y suman en cada grupo: la suma de los grupos puede pasar el total.
             </p>
           )}
           {data.bloques.map((b) => (

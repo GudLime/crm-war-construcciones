@@ -11,6 +11,7 @@ import {
   type AjustesVentas,
 } from "@/lib/ventas-ajustes";
 import { aplicarReglasDeEtapa } from "@/server/motor/oportunidad";
+import { vocabulario } from "@/server/vocabulario";
 
 /**
  * War — La única puerta por la que cambia el estado de una oportunidad, y lo
@@ -414,6 +415,9 @@ export async function ultimaCerrada(
  * lista y las cierra una persona. Devuelve cuántas cerró.
  */
 export async function cerrarPorSilencio(ahora: Date = new Date()): Promise<number> {
+  // 071 — Un cliente que lo apaga en su configuración (un restaurante: la
+  // reserva confirmada no «deja de responder») nunca cierra por silencio.
+  if (!(await vocabulario()).cierrePorSinRespuesta) return 0;
   const db = getDb();
   const orgs = await db.select({ id: schema.organization.id }).from(schema.organization);
   let cerradas = 0;

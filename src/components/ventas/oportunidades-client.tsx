@@ -9,13 +9,13 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { parseMoneyToCents } from "@/lib/money";
 import {
-  ESTADOS_OPORTUNIDAD,
   AMBIENTES,
-  MOTIVOS_CIERRE,
   TIPOS_OPORTUNIDAD,
   etiquetaAmbientes,
 } from "@/lib/ventas";
 import { Chips } from "./oportunidad-panel";
+import { useVocabulario } from "@/components/vocabulario";
+import { enFrase } from "@/lib/vocabulario";
 import { OrigenIcono } from "./origen-icono";
 import { SelectorDeColumnas, SelectorDeForma, VistaOportunidades, usePreferenciasDeLista } from "./oportunidades-vistas";
 import { BarraDeFiltros, PestanasDeVistas, useVistas, type Miembro } from "./filtros-oportunidades";
@@ -95,6 +95,8 @@ function unidadesDeFiltro(filas: readonly OportunidadDto[]): { value: string; la
 }
 
 export function OportunidadesClient() {
+  const voc = useVocabulario();
+  const singular = enFrase(voc.singular);
   const moneda = useMoneda();
   const avisar = useAvisoGuardado();
   const [filas, setFilas] = useState<OportunidadDto[]>([]);
@@ -277,7 +279,7 @@ export function OportunidadesClient() {
       setError(res ? await mensajeDe(res) : "No se pudo guardar");
       return;
     }
-    avisar(editando ? "Cambios aplicados" : "Oportunidad creada");
+    avisar(editando ? "Cambios aplicados" : `${voc.singular} creada`);
     setAbierto(false);
     setEditando(null);
     setForm(vacio);
@@ -290,13 +292,13 @@ export function OportunidadesClient() {
   }
 
   async function eliminar() {
-    if (!editando || !window.confirm("¿Borrar esta oportunidad?")) return;
+    if (!editando || !window.confirm(`¿Borrar esta ${singular}?`)) return;
     const res = await fetch(`/api/oportunidades/${editando}`, { method: "DELETE" }).catch(() => null);
     if (!res?.ok && res?.status !== 204) {
       setError(res ? await mensajeDe(res) : "No se pudo borrar");
       return;
     }
-    avisar("Oportunidad eliminada");
+    avisar(`${voc.singular} eliminada`);
     setAbierto(false);
     setEditando(null);
     void cargar();
@@ -306,20 +308,24 @@ export function OportunidadesClient() {
 
   return (
     <Pagina
-      titulo="Oportunidades"
-      detalle="De dónde llegó, a quién pertenece y qué edificio o departamento está mirando."
+      titulo={voc.plural}
+      detalle={
+        voc.inmobiliario
+          ? "De dónde llegó, a quién pertenece y qué edificio o departamento está mirando."
+          : `De dónde llegó y a quién pertenece cada ${singular}.`
+      }
       accion={
         <div className="flex flex-wrap items-center gap-2">
           <SelectorDeForma forma={pref.forma} onCambio={(forma) => setPref({ ...pref, forma })} />
         <Button size="sm" onClick={abrirNueva}>
           <Plus className="h-4 w-4" strokeWidth={1.8} />
-          Nueva oportunidad
+          Nueva {singular}
         </Button>
         </div>
       }
     >
       {abierto && (
-        <Ficha titulo={editando ? "Editar oportunidad" : "Nueva oportunidad"}>
+        <Ficha titulo={editando ? `Editar ${singular}` : `Nueva ${singular}`}>
           <form onSubmit={guardar} className={grilla}>
             <Campo label="Nombre">
               <Input
@@ -327,7 +333,7 @@ export function OportunidadesClient() {
                 onChange={(e) => setForm({ ...form, nombre: e.target.value })}
                 required
                 maxLength={160}
-                placeholder="García · 2 ambientes"
+                placeholder={voc.inmobiliario ? "García · 2 ambientes" : "García"}
               />
             </Campo>
             <Campo label="Origen">
@@ -346,7 +352,7 @@ export function OportunidadesClient() {
                     {o.nombre}
                   </option>
                 ))}
-                {/* Uno que se borró de Configuración: se conserva en esta oportunidad. */}
+                {/* Uno que se borró de Configuración: se conserva en esta {singular}. */}
                 {form.origen && !iconoDe.has(form.origen) && (
                   <option value={form.origen}>{form.origen}</option>
                 )}
@@ -354,7 +360,7 @@ export function OportunidadesClient() {
             </Campo>
             <Campo label="Estado">
               <Select value={form.estado} onValueChange={(estado) => setForm({ ...form, estado })}>
-                {ESTADOS_OPORTUNIDAD.map((o) => (
+                {voc.estados.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
@@ -375,6 +381,8 @@ export function OportunidadesClient() {
                 {form.contactId && !contacto && <option value={form.contactId}>Contacto</option>}
               </Select>
             </Campo>
+            {voc.inmobiliario && (
+            <>
             <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2 lg:col-span-3">
               <span className="text-xs font-medium text-text-2">Interés · edificios</span>
               <Chips
@@ -421,6 +429,8 @@ export function OportunidadesClient() {
                 ))}
               </Select>
             </Campo>
+            </>
+            )}
             <Campo label="Valor">
               {valorCalculado ? (
                 <p className="py-1.5 text-[13px] text-text-3">
@@ -440,13 +450,13 @@ export function OportunidadesClient() {
                 onValueChange={(motivoCierre) => setForm({ ...form, motivoCierre })}
               >
                 <option value="">Sin motivo</option>
-                {MOTIVOS_CIERRE.map((o) => (
+                {voc.motivos.map((o) => (
                   <option key={o} value={o}>
                     {o}
                   </option>
                 ))}
                 {form.motivoCierre &&
-                  !(MOTIVOS_CIERRE as readonly string[]).includes(form.motivoCierre) && (
+                  !voc.motivos.includes(form.motivoCierre) && (
                     <option value={form.motivoCierre}>{form.motivoCierre}</option>
                   )}
               </Select>
@@ -471,11 +481,15 @@ export function OportunidadesClient() {
       {listo && filas.length === 0 && cargadas === "todas" && !abierto ? (
         <EmptyState
           icon={Tag}
-          title="Todavía no hay oportunidades"
-          description="Una oportunidad junta el origen, el contacto y el edificio o departamento que le interesa."
+          title={`Todavía no hay ${enFrase(voc.plural)}`}
+          description={
+            voc.inmobiliario
+              ? "Una oportunidad junta el origen, el contacto y el edificio o departamento que le interesa."
+              : `Cada ${singular} queda asociada a un contacto.`
+          }
           action={
             <Button size="sm" onClick={abrirNueva}>
-              Nueva oportunidad
+              Nueva {singular}
             </Button>
           }
         />

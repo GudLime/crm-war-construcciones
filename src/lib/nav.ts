@@ -17,6 +17,7 @@ import {
 import { canConfigure } from "@/lib/auth/roles";
 import type { ObjetoMenuDto } from "@/lib/motor/dto";
 import { iconoDeOrigen } from "@/lib/origenes";
+import { VOCABULARIO_POR_DEFECTO, type Vocabulario } from "@/lib/vocabulario";
 
 /**
  * #87 — El modelo del menú, separado del componente que lo pinta.
@@ -57,6 +58,7 @@ export function appNavGroups({
   agenda = false,
   role,
   objetos = [],
+  vocabulario = VOCABULARIO_POR_DEFECTO,
 }: {
   /** 015 — "Citas" solo existe si esta instancia encendió la agenda. */
   agenda?: boolean;
@@ -64,6 +66,8 @@ export function appNavGroups({
   role?: string | null;
   /** 070 — Los objetos personalizados del cliente (Edificio, Tratamiento…). */
   objetos?: ObjetoMenuDto[];
+  /** 071 — Cómo se llama la oportunidad y si existen los edificios. */
+  vocabulario?: Vocabulario;
 }): NavGroup[] {
   // Visibilidad por rol: el operador no ve el Pipeline de leads, el Agente ni
   // el Laboratorio (son de quien administra).
@@ -90,16 +94,17 @@ export function appNavGroups({
   );
 
   const ventas: NavItem[] = [
-    { href: "/edificios", label: "Edificios", icon: Building2 },
+    // 071 — Los edificios son de lo inmobiliario: sin él, no hay entrada.
+    ...(vocabulario.inmobiliario ? [{ href: "/edificios", label: "Edificios", icon: Building2 }] : []),
     // 070 — Cada objeto personalizado del cliente, en el orden de su configuración.
     ...objetos.map((o) => ({ href: `/objetos/${o.clave}`, label: o.nombrePlural, icon: iconoDeOrigen(o.icono) })),
-    { href: "/oportunidades", label: "Oportunidades", icon: Tag },
+    { href: "/oportunidades", label: vocabulario.plural, icon: Tag },
     { href: "/tareas", label: "Tareas", icon: ListTodo },
   ];
 
   return [
     { title: "Trabajo", items: trabajo },
-    { title: "Ventas", items: ventas },
+    { title: vocabulario.grupoMenu, items: ventas },
     ...(admin ? [{ title: "Agente", items: agente }] : []),
     // 019 — Se mide al final: primero se atiende y se organiza.
     { items: [{ href: "/results", label: "Resultados", icon: ChartColumn }] },

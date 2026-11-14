@@ -17,6 +17,7 @@ import { ESTADOS_ABIERTOS, type EstadoOportunidad, type TipoContacto } from "@/l
 import { isWindowOpen, WINDOW_MS } from "@/server/inbox/window";
 import { listarNotasDeOportunidad } from "@/server/notas";
 import { oportunidadConNombres, type OportunidadDto } from "@/server/ventas";
+import { vocabulario } from "@/server/vocabulario";
 
 /**
  * War — Todo lo que muestra la página de una oportunidad, en una sola ida.
@@ -324,6 +325,7 @@ export async function obtenerDetalleOportunidad(
   const notas = await listarNotasDeOportunidad(quien, op.id);
 
   const timeline = armarTimeline({
+    vocabulario: await vocabulario(),
     eventos,
     mensajes,
     reuniones,

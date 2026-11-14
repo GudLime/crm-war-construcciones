@@ -16,6 +16,7 @@ import type { AnuncioDto, ContactDto, FichaDto, FichaValue } from "@/lib/types";
 import { formatearTelefono } from "@/lib/telefono-formato";
 import { cn } from "@/lib/utils";
 import { TIPOS_CONTACTO, etiqueta } from "@/lib/ventas";
+import { useVocabulario } from "@/components/vocabulario";
 
 /**
  * La ficha completa de un contacto, en su propia página (`/contacts/<id>`):
@@ -28,6 +29,7 @@ const TARJETA = "rounded-tarjeta border border-border bg-card shadow-tarjeta";
 
 export function ContactoClient() {
   const { id } = useParams<{ id: string }>();
+  const voc = useVocabulario();
   const avisar = useAvisoGuardado();
   const [contacto, setContacto] = useState<ContactDto | null>(null);
   const [anuncio, setAnuncio] = useState<AnuncioDto | null>(null);
@@ -102,9 +104,11 @@ export function ContactoClient() {
             <ContactAvatar name={contacto.name} seed={contacto.id} size="md" />
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-[22px] font-bold tracking-tight">{contacto.name}</h1>
-              <p className="text-[13px] text-text-3">
-                {contacto.tipoContacto ? etiqueta(TIPOS_CONTACTO, contacto.tipoContacto) : "Sin clasificar"}
-              </p>
+              {voc.inmobiliario && (
+                <p className="text-[13px] text-text-3">
+                  {contacto.tipoContacto ? etiqueta(TIPOS_CONTACTO, contacto.tipoContacto) : "Sin clasificar"}
+                </p>
+              )}
               <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-[13.5px]">
                 <span className="flex items-center gap-2">
                   <Phone className="size-4 text-text-3" />

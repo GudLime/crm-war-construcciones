@@ -3,7 +3,6 @@ import { apiError, parseBody, withAuth } from "@/lib/api";
 import {
   MAX_AMBIENTES,
   VALORES_ESTADO_OPORTUNIDAD,
-  VALORES_MOTIVO,
   type EstadoOportunidad,
 } from "@/lib/ventas";
 import {
@@ -12,6 +11,7 @@ import {
   estadoComercialDelContacto,
 } from "@/server/oportunidades";
 import { VentasError } from "@/server/ventas";
+import { revisarCambio } from "@/server/vocabulario";
 import { alcanceDe, noEncontrado, puedeVerContacto } from "@/server/acceso";
 
 export const dynamic = "force-dynamic";
@@ -53,10 +53,8 @@ const patchSchema = z.object({
   estado: z
     .enum(VALORES_ESTADO_OPORTUNIDAD as [EstadoOportunidad, ...EstadoOportunidad[]])
     .optional(),
-  motivoCierre: z
-    .enum(VALORES_MOTIVO as unknown as [string, ...string[]])
-    .nullable()
-    .optional(),
+  /** 071 — Uno de los motivos de esta instancia (se revisa contra el vocabulario). */
+  motivoCierre: z.string().trim().min(1).max(80).nullable().optional(),
   edificioIds: z.array(z.string().min(1)).max(50).optional(),
   /** 0047 — Ambientes de interés (números). */
   ambientes: z.array(z.number().int().min(1).max(MAX_AMBIENTES)).max(MAX_AMBIENTES).optional(),
@@ -70,6 +68,8 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   if (!(await puedeVerContacto(alcanceDe(session), id))) return noEncontrado("Ese contacto");
   const body = await parseBody(req, patchSchema);
   if (!body.ok) return body.response;
+  const problema = await revisarCambio(session.organizationId, body.data.oportunidadId, body.data);
+  if (problema) return apiError(422, "invalid_body", problema);
   try {
     await actualizarOportunidadDelChat({
       organizationId: session.organizationId,

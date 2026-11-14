@@ -286,11 +286,55 @@ const reglaEtapaSchema = z.object({
   valor: z.union([z.string(), z.number(), z.boolean()]),
 });
 
+/**
+ * 071 — Cómo se llama la oportunidad en este cliente y qué etapas usa. Las
+ * etapas son las del núcleo (`ETAPAS_OPORTUNIDAD`) con otro nombre: así el
+ * historial, las estadísticas y las reglas siguen hablando de lo mismo. Las
+ * que no se nombran no se ven ni se pueden elegir. Sin este bloque, la
+ * oportunidad es la de siempre.
+ */
+const vocabularioOportunidadSchema = z.object({
+  nombre: z.string().trim().min(1).max(40),
+  nombrePlural: z.string().trim().min(1).max(40),
+  /** Título del grupo del menú donde vive (por defecto, «Ventas»). */
+  grupoMenu: z.string().trim().min(1).max(40).optional(),
+  /** En el orden en que se muestran. Tiene que estar `recibido`: es donde nace. */
+  estados: z
+    .array(
+      z.object({
+        estado: z.enum([
+          "recibido",
+          "en_charlas",
+          "conoce_informacion",
+          "visito",
+          "reservo",
+          "compro",
+          "no_calificado",
+          "perdido",
+        ]),
+        nombre: z.string().trim().min(1).max(40),
+      })
+    )
+    .min(2),
+  /** Los motivos de cierre que se ofrecen. Sin la lista, los de siempre. */
+  motivosCierre: z.array(z.string().trim().min(1).max(80)).min(1).max(40).optional(),
+  /** Cerrar sola la que no responde (Ajustes → Ventas). Apagado, nunca corre. */
+  cierrePorSinRespuesta: z.boolean().default(true),
+});
+
 export const configClienteSchema = z.object({
   /** Versión del formato del archivo. */
   version: z.literal(1),
   cliente: z.string().min(1),
   rubro: z.string().min(1).optional(),
+  /** 071 — Nombre, etapas y motivos de la oportunidad (ver arriba). */
+  oportunidad: vocabularioOportunidadSchema.optional(),
+  /**
+   * 071 — Lo inmobiliario del núcleo (edificios, ambientes, tipologías, tipo
+   * de oportunidad y tipo de contacto). Un cliente que no vende inmuebles lo
+   * apaga y no lo ve en ninguna pantalla.
+   */
+  inmobiliario: z.boolean().default(true),
   objetos: z.array(objetoSchema).default([]),
   relaciones: z.array(relacionSchema).default([]),
   reglasEtapa: z.array(reglaEtapaSchema).default([]),
@@ -572,6 +616,20 @@ export function validarConfig(datos: unknown): ResultadoConfig {
         if (!camposHijo.has(f)) errores.push(`objeto «${o.clave}»: «${c.clave}» filtra por «${f}», que no existe en «${hijo.clave}»`);
       }
     }
+  }
+
+  const voc = config.oportunidad;
+  if (voc) {
+    const vistos = new Set<string>();
+    for (const e of voc.estados) {
+      if (vistos.has(e.estado)) errores.push(`oportunidad.estados: «${e.estado}» está repetido`);
+      vistos.add(e.estado);
+    }
+    if (!vistos.has("recibido")) {
+      errores.push("oportunidad.estados: tiene que estar «recibido» (es donde nace cada una)");
+    }
+    const motivos = voc.motivosCierre ?? [];
+    if (new Set(motivos).size !== motivos.length) errores.push("oportunidad.motivosCierre: hay motivos repetidos");
   }
 
   const verPor = config.estadisticas?.verPor;

@@ -16,7 +16,6 @@ import {
   VALORES_ESTADO_OPORTUNIDAD,
   VALORES_ESTADO_TAREA,
   VALORES_ESTADO_UNIDAD,
-  VALORES_MOTIVO,
   VALORES_TIPO_OPORTUNIDAD,
   VALORES_TIPO_TAREA,
   VALORES_TIPOLOGIA,
@@ -48,6 +47,7 @@ import { renderMemoriaAgente } from "@/lib/memoria-agente";
 import { NOMBRE_ORIGEN_MAX } from "@/lib/origenes";
 import { siguienteColor, VALORES_COLOR_EDIFICIO, type ColorEdificio } from "@/lib/colores-edificio";
 import { existeOrigen } from "@/server/origenes";
+import { revisarCambio } from "@/server/vocabulario";
 
 /**
  * Ventas de la constructora. Las rutas solo autentican y traducen el body;
@@ -77,7 +77,8 @@ const estadoOportunidad = z.enum(
 const tipoOportunidad = z.enum(
   VALORES_TIPO_OPORTUNIDAD as [TipoOportunidad, ...TipoOportunidad[]]
 );
-const motivo = z.enum(VALORES_MOTIVO as unknown as [string, ...string[]]);
+/** 071 — Uno de los motivos de esta instancia: se revisa contra el vocabulario al guardar. */
+const motivo = z.string().trim().min(1).max(80);
 const tipoTarea = z.enum(VALORES_TIPO_TAREA as [TipoTarea, ...TipoTarea[]]);
 const estadoTarea = z.enum(VALORES_ESTADO_TAREA as [EstadoTarea, ...EstadoTarea[]]);
 
@@ -882,6 +883,8 @@ export async function crearOportunidad(
   /** War — quién la creó, para el historial. */
   userId: string | null = null
 ): Promise<OportunidadDto> {
+  const problema = await revisarCambio(organizationId, null, datos);
+  if (problema) throw new VentasError(422, "invalid_body", problema);
   const valores = await valoresOportunidad(organizationId, datos);
   let fila: typeof schema.oportunidad.$inferSelect | undefined;
   try {
@@ -916,6 +919,8 @@ export async function editarOportunidad(
     .where(scoped(schema.oportunidad.organizationId, organizationId, eq(schema.oportunidad.id, id)))
     .limit(1);
   if (!previa) throw new VentasError(404, "not_found", "Esa oportunidad no existe");
+  const problema = await revisarCambio(organizationId, id, datos);
+  if (problema) throw new VentasError(422, "invalid_body", problema);
   const { estado, motivoCierre, ...valores } = await valoresOportunidad(
     organizationId,
     datos,

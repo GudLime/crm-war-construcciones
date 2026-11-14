@@ -8,6 +8,8 @@ import { hace, type OportunidadDeInicio } from "@/lib/inicio";
 import type { OrigenDto } from "@/lib/origenes";
 import { cn } from "@/lib/utils";
 import { TIPOS_OPORTUNIDAD, etiqueta } from "@/lib/ventas";
+import { useVocabulario } from "@/components/vocabulario";
+import { enFrase } from "@/lib/vocabulario";
 
 type IconoDeOrigen = Map<string, { icono: string; imagen: string | null }>;
 
@@ -130,6 +132,7 @@ function Bloque({
   vacio: string;
   children: React.ReactNode[];
 }) {
+  const voc = useVocabulario();
   return (
     <section className="rounded-xl border border-border bg-card shadow-sm">
       <header className="flex items-center justify-between gap-3 border-b px-4 py-3">
@@ -141,7 +144,7 @@ function Bloque({
         </div>
         {total > 0 && (
           <Link href={href} className="shrink-0 text-[12.5px] font-medium text-brand-ink hover:underline">
-            Revisar en Oportunidades →
+            Revisar en {voc.plural} →
           </Link>
         )}
       </header>
@@ -166,13 +169,14 @@ export function NuevasParaVos({
   href: string;
   iconos: IconoDeOrigen;
 }) {
+  const voc = useVocabulario();
   return (
     <Bloque
       titulo="Nuevas para vos"
       bajada="Asignadas a vos y todavía sin primer contacto."
       total={total}
       href={href}
-      vacio="No tenés oportunidades nuevas sin contactar."
+      vacio={`No tenés ${enFrase(voc.plural)} nuevas sin contactar.`}
     >
       {lista.map((o) => (
         <Fila

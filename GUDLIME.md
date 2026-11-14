@@ -56,6 +56,17 @@ y la instancia lo elige con `CLIENTE_CONFIG`. Formato y reglas en
 [clientes/README.md](clientes/README.md). Se aplica al arrancar, nunca borra y
 puede «adoptar» tablas que ya existen. Paso 1 de 8: metadatos y configuración.
 
+## Vocabulario de la oportunidad (spec 071)
+
+Cada cliente puede renombrar la oportunidad (Reserva), elegir qué etapas usa
+y con qué nombre, sus motivos de cierre, y apagar lo inmobiliario, desde
+`clientes/<cliente>.json` (formato en [clientes/README.md](clientes/README.md)).
+El servidor lo lee una vez (`src/server/vocabulario.ts`) y lo baja a las
+pantallas con `useVocabulario()` (`src/components/vocabulario.tsx`); lo puro
+vive en `src/lib/vocabulario.ts`. Las API de estado y motivo lo revisan
+(`revisarCambio`). Sin `inmobiliario`, abrir una oportunidad no exige que el
+contacto sea Lead. Primer cliente: Beba (reservas de restaurante).
+
 ## Pendiente
 
 Pasos 2 a 8 del motor (edificio y departamento pasan a ser objetos

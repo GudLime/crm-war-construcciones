@@ -32,6 +32,7 @@ import { ImportContactsDialog } from "./import-contacts-dialog";
 import { NewContactDialog } from "./new-contact-dialog";
 import { StartConversation } from "./start-conversation";
 import { Select } from "@/components/ui/select";
+import { useVocabulario } from "@/components/vocabulario";
 
 export function ContactsClient() {
   const avisar = useAvisoGuardado();
@@ -349,6 +350,7 @@ function EditDialog({
     aiPaused?: boolean;
   }) => Promise<void>;
 }) {
+  const voc = useVocabulario();
   const [name, setName] = useState(contact.name);
   const [email, setEmail] = useState(contact.email ?? "");
   const [tipoContacto, setTipoContacto] = useState<TipoContacto | "">(
@@ -379,6 +381,7 @@ function EditDialog({
               onChange={(e) => setName(e.target.value)}
             />
           </div>
+          {voc.inmobiliario && (
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="edit-tipo">
               Tipo de contacto
@@ -397,6 +400,7 @@ function EditDialog({
               ))}
             </Select>
           </div>
+          )}
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="edit-email">
               Correo electrónico (opcional)

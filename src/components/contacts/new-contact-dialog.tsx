@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
+import { useVocabulario } from "@/components/vocabulario";
 
 const SOURCES: { value: SourceValue; label: string }[] = [
   { value: "referido", label: "Referido" },
@@ -37,6 +38,7 @@ export function NewContactDialog({
   /** Duplicado: en vez de un error seco, se ofrece ir a quien ya existe. */
   onOpenExisting: (contactId: string) => void;
 }) {
+  const voc = useVocabulario();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -205,6 +207,7 @@ export function NewContactDialog({
             )}
           </div>
 
+          {voc.inmobiliario && (
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="nc-tipo">
               Tipo de contacto
@@ -227,6 +230,7 @@ export function NewContactDialog({
               Proveedor y Propio quedan fuera de la venta y sin IA.
             </p>
           </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
