@@ -208,6 +208,24 @@ Se juntan los pedidos de esta tanda y se implementan juntos.
    - Señales en el salón: habitual y faltó antes sin avisar.
    - «Acepta promociones» en el contacto, requisito para cualquier campaña.
 
+2. Ventanas en Reservas:
+   - «Nueva reserva» abre una ventana flotante (modal) en lugar de la ficha
+     que se agranda arriba del salón.
+   - En el salón, las mesas libres son solo dibujo: no se tocan ni abren la
+     carga.
+   - Tocar una mesa con reserva abre sus datos en una ventana flotante, con
+     las acciones (Asistió, No vino, Cancelar, Ver). El sector se muestra fijo;
+     para cambiarlo hay que tocar Editar (lápiz) en esa misma ventana.
+3. Menú de un restaurante (por configuración del cliente, no en el núcleo:
+   WAR conserva lo suyo):
+   - Trabajo queda con Reservas, Bandeja, Contactos y Dashboard, en ese
+     orden. Desaparece la sección Restaurante.
+   - Reservas es la página de inicio (a donde se entra al abrir el CRM);
+     Inicio sale del menú.
+   - Resultados pasa a llamarse Dashboard.
+   - Se quita la página Pipeline (el pipeline queda como vista de Reservas).
+   - Se quitan Tareas y todo lo de tareas: el seguimiento es con notas.
+
 Para después: cumpleaños (pedirlo en el flujo de WhatsApp), envío de campañas
 a un segmento, unir contactos repetidos, feedback después de la visita, etapa
 Consulta (cuando el flujo registre las reservas que no se terminaron).
