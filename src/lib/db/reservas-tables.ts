@@ -54,6 +54,23 @@ export const reservaHorario = pgTable(
  * sector. Vale igual para todos los horarios (cada horario arranca con
  * todas las mesas libres).
  */
+/**
+ * Un sector del local (Salón, Semidescubierto). Las mesas y las reservas lo
+ * nombran por su nombre; cambiarle el nombre lo cambia en las dos.
+ */
+export const reservaSector = pgTable(
+  "reserva_sector",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    nombre: text("nombre").notNull(),
+    orden: integer("orden").notNull().default(0),
+  },
+  (t) => [uniqueIndex("reserva_sector_unico").on(t.organizationId, t.nombre)]
+);
+
 export const reservaCupo = pgTable(
   "reserva_cupo",
   {

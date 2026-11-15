@@ -168,7 +168,10 @@ cualquier otro, redirige a la plantilla de evento de Google Calendar
    sector), `/api/reservas/dia`, `/api/reservas/disponibilidad`,
    `/api/reservas/configuracion`. Pantallas: «Hoy» (`/reservas`: cupo libre
    por horario, Llegó, No vino, Cancelada con motivo, mover de sector, carga
-   a mano) y Ajustes → Reservas; el detalle de la reserva muestra fecha, hora,
+   a mano) y Ajustes → Reservas, con el sector de cada fila de mesas elegido de
+   Configuración → Sectores (`reserva_sector`, migración 0056: renombrar un
+   sector lo cambia en sus mesas y reservas, no se borra uno con mesas, y el
+   orden decide el sector cuando empatan); el detalle de la reserva muestra fecha, hora,
    personas y sector. Una cancelada libera la mesa; una que llegó la sigue
    ocupando. Pruebas: `tests/unit/reservas.test.ts` y
    `scripts/e2e-reservas.mjs`.

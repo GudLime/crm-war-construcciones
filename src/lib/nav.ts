@@ -180,7 +180,12 @@ export function settingsSections({
     { href: "/settings/ventas", label: "Ventas" },
     { href: "/settings/team", label: "Equipo" },
   ];
-  if (reservas) negocio.unshift({ href: "/settings/reservas", label: "Reservas" });
+  if (reservas) {
+    negocio.unshift(
+      { href: "/settings/reservas", label: "Reservas" },
+      { href: "/settings/sectores", label: "Sectores" }
+    );
+  }
   if (atribucion) negocio.push({ href: "/settings/ads", label: "Anuncios" });
 
   return [

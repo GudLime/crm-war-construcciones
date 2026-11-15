@@ -48,6 +48,19 @@ try {
   if (!r.ok()) r = await api("/api/auth/sign-in/email", { method: "POST", body: credenciales });
   ok("registro o login", r.ok(), await r.text());
 
+  // Los sectores del local (se conservan los ids si ya estaban).
+  r = await api("/api/reservas/sectores");
+  const previos = (await r.json()).sectores ?? [];
+  const idDe = (nombre) => previos.find((x) => x.nombre === nombre)?.id ?? null;
+  r = await api("/api/reservas/sectores", {
+    method: "PUT",
+    body: { sectores: [{ id: idDe("Salón"), nombre: "Salón" }, { id: idDe("Semidescubierto"), nombre: "Semidescubierto" }] },
+  });
+  let sectores = (await r.json()).sectores ?? [];
+  ok("guarda los sectores en orden", r.ok() && sectores.map((x) => x.nombre).join(",") === "Salón,Semidescubierto", JSON.stringify(sectores));
+  r = await api("/api/reservas/sectores", { method: "PUT", body: { sectores: [{ nombre: "Patio" }, { nombre: "patio" }] } });
+  ok("rechaza un sector repetido", r.status() === 422, String(r.status()));
+
   // La configuración de Beba: todos los días a las 12, 14 y 20.
   const horarios = [];
   for (let dia = 0; dia < 7; dia++) for (const hora of ["12:00", "14:00", "20:00"]) horarios.push({ diaSemana: dia, hora, activo: true });
@@ -82,6 +95,11 @@ try {
     body: { ...config, horarios: [...config.horarios, { diaSemana: 1, hora: "12:00", activo: true }] },
   });
   ok("rechaza un horario repetido", r.status() === 422, String(r.status()));
+  r = await api("/api/reservas/configuracion", {
+    method: "PUT",
+    body: { ...config, cupo: [...config.cupo, { sector: "Terraza", capacidad: 2, cantidad: 1 }] },
+  });
+  ok("rechaza mesas en un sector que no está en la lista", r.status() === 422, String(r.status()));
 
   r = await api(`/api/reservas/disponibilidad?personas=2&fecha=${MANANA}`);
   let disp = await r.json();
@@ -165,6 +183,36 @@ try {
   ok("Ajustes tiene la sección Reservas", await pagina.getByRole("link", { name: "Reservas" }).first().isVisible());
   ok("resume el cupo por horario", await pagina.getByText("Por horario: 6 mesas para 18 personas.").isVisible());
   ok("la grilla tiene los 21 horarios abiertos", (await pagina.locator("table").getByRole("button", { pressed: true }).count()) === 21);
+  ok("el sector de las mesas es un desplegable", await pagina.getByRole("combobox", { name: "Sector de la fila 1" }).isVisible());
+  ok("Ajustes tiene la sección Sectores", await pagina.getByRole("link", { name: "Sectores" }).first().isVisible());
+
+  // Configuración → Sectores: renombrar cambia las mesas y las reservas; no se borra uno con mesas.
+  r = await api("/api/reservas/sectores", { method: "PUT", body: { sectores: [sectores[0]] } });
+  ok("no deja borrar un sector con mesas", r.status() === 409, String(r.status()));
+  await pagina.goto("/settings/sectores");
+  await pagina.getByLabel("Sector 1").fill("Salón principal");
+  await pagina.getByRole("button", { name: "Guardar" }).click();
+  await pagina.getByText("Guardado").waitFor();
+  r = await api("/api/reservas/configuracion");
+  const renombrada = await r.json();
+  ok(
+    "renombrar el sector cambia sus mesas",
+    renombrada.cupo.filter((q) => q.sector === "Salón principal").length === 2 && !renombrada.cupo.some((q) => q.sector === "Salón"),
+    JSON.stringify(renombrada.cupo)
+  );
+  r = await api(`/api/reservas/dia?fecha=${MANANA}`);
+  const diaRenombrado = await r.json();
+  const todas = diaRenombrado.horarios.flatMap((h) => h.reservas);
+  ok(
+    "y sus reservas",
+    todas.some((x) => x.sector === "Salón principal") && !todas.some((x) => x.sector === "Salón"),
+    JSON.stringify(todas.map((x) => x.sector))
+  );
+  r = await api("/api/reservas/sectores", {
+    method: "PUT",
+    body: { sectores: [{ id: sectores[0].id, nombre: "Salón" }, sectores[1]] },
+  });
+  ok("vuelve a llamarse Salón", r.ok());
 } catch (err) {
   ok("sin excepciones", false, err instanceof Error ? err.message : String(err));
   await pagina.screenshot({ path: "/tmp/e2e-reservas.png", fullPage: true }).catch(() => {});

@@ -132,6 +132,97 @@ export async function leerCupo(organizationId: string): Promise<CupoSector[]> {
     .orderBy(asc(schema.reservaCupo.orden), asc(schema.reservaCupo.capacidad));
 }
 
+export async function leerSectores(organizationId: string): Promise<{ id: string; nombre: string }[]> {
+  return getDb()
+    .select({ id: schema.reservaSector.id, nombre: schema.reservaSector.nombre })
+    .from(schema.reservaSector)
+    .where(scoped(schema.reservaSector.organizationId, organizationId))
+    .orderBy(asc(schema.reservaSector.orden), asc(schema.reservaSector.nombre));
+}
+
+export const sectoresSchema = z
+  .array(z.object({ id: z.string().min(1).max(40).nullable().optional(), nombre: z.string().trim().min(1).max(40) }))
+  .max(20);
+export type SectoresInput = z.infer<typeof sectoresSchema>;
+
+/**
+ * Guarda la lista entera de sectores en su orden. Un sector con `id` que
+ * cambia de nombre lo cambia también en sus mesas y en sus reservas; uno que
+ * falta se borra, salvo que todavía tenga mesas cargadas.
+ */
+export async function guardarSectores(organizationId: string, lista: SectoresInput): Promise<void> {
+  const nombres = new Set<string>();
+  for (const s of lista) {
+    const k = s.nombre.toLocaleLowerCase("es");
+    if (nombres.has(k)) throw new ReservaError(422, "sector_repetido", `«${s.nombre}» está repetido`);
+    nombres.add(k);
+  }
+  const actuales = await leerSectores(organizationId);
+  const porId = new Map(actuales.map((s) => [s.id, s]));
+  const quedan = new Set(lista.map((s) => s.id).filter((id): id is string => !!id && porId.has(id)));
+  const cupo = await leerCupo(organizationId);
+  for (const s of actuales) {
+    if (!quedan.has(s.id) && cupo.some((q) => q.sector === s.nombre && q.cantidad > 0)) {
+      throw new ReservaError(
+        409,
+        "sector_con_mesas",
+        `«${s.nombre}» tiene mesas cargadas. Sacalas en Configuración → Reservas antes de borrarlo.`
+      );
+    }
+  }
+  await getDb().transaction(async (tx) => {
+    const borrados = actuales.filter((s) => !quedan.has(s.id));
+    if (borrados.length) {
+      await tx.delete(schema.reservaSector).where(
+        scoped(schema.reservaSector.organizationId, organizationId, inArray(schema.reservaSector.id, borrados.map((s) => s.id)))
+      );
+      await tx.delete(schema.reservaCupo).where(
+        scoped(schema.reservaCupo.organizationId, organizationId, inArray(schema.reservaCupo.sector, borrados.map((s) => s.nombre)))
+      );
+    }
+    // Primero un nombre provisorio a los que cambian, para poder intercambiar dos nombres.
+    const renombrados = lista.filter((s) => s.id && porId.has(s.id) && porId.get(s.id)!.nombre !== s.nombre);
+    for (const s of renombrados) {
+      await tx.update(schema.reservaSector).set({ nombre: `~${s.id}` }).where(eq(schema.reservaSector.id, s.id!));
+    }
+    for (const [orden, s] of lista.entries()) {
+      const antes = s.id ? porId.get(s.id) : undefined;
+      if (!antes) {
+        await tx.insert(schema.reservaSector).values({ id: newId("reservaSector"), organizationId, nombre: s.nombre, orden });
+        continue;
+      }
+      await tx.update(schema.reservaSector).set({ nombre: s.nombre, orden }).where(eq(schema.reservaSector.id, antes.id));
+      if (antes.nombre !== s.nombre) {
+        await tx
+          .update(schema.reservaCupo)
+          .set({ sector: `~${antes.id}` })
+          .where(scoped(schema.reservaCupo.organizationId, organizationId, eq(schema.reservaCupo.sector, antes.nombre)));
+        await tx
+          .update(schema.reserva)
+          .set({ sector: `~${antes.id}` })
+          .where(scoped(schema.reserva.organizationId, organizationId, eq(schema.reserva.sector, antes.nombre)));
+      }
+    }
+    for (const s of renombrados) {
+      await tx
+        .update(schema.reservaCupo)
+        .set({ sector: s.nombre })
+        .where(scoped(schema.reservaCupo.organizationId, organizationId, eq(schema.reservaCupo.sector, `~${s.id}`)));
+      await tx
+        .update(schema.reserva)
+        .set({ sector: s.nombre })
+        .where(scoped(schema.reserva.organizationId, organizationId, eq(schema.reserva.sector, `~${s.id}`)));
+    }
+    // Las mesas siguen el orden de sus sectores (decide a qué sector va una reserva si empatan).
+    for (const [orden, s] of lista.entries()) {
+      await tx
+        .update(schema.reservaCupo)
+        .set({ orden })
+        .where(scoped(schema.reservaCupo.organizationId, organizationId, eq(schema.reservaCupo.sector, s.nombre)));
+    }
+  });
+}
+
 export async function leerCierres(organizationId: string) {
   return getDb()
     .select({ fecha: schema.reservaCierre.fecha, motivo: schema.reservaCierre.motivo })
@@ -142,13 +233,14 @@ export async function leerCierres(organizationId: string) {
 
 /** Todo Ajustes → Reservas en una sola lectura. */
 export async function leerConfiguracion(organizationId: string) {
-  const [ajustes, horarios, cupo, cierres] = await Promise.all([
+  const [ajustes, horarios, cupo, cierres, sectores] = await Promise.all([
     leerAjustes(organizationId),
     leerHorarios(organizationId),
     leerCupo(organizationId),
     leerCierres(organizationId),
+    leerSectores(organizationId),
   ]);
-  return { ajustes, horarios, cupo, cierres };
+  return { ajustes, horarios, cupo, cierres, sectores: sectores.map((s) => s.nombre) };
 }
 
 export const configuracionSchema = z.object({
@@ -176,6 +268,12 @@ export async function guardarConfiguracion(organizationId: string, c: Configurac
     if (vistos.has(k)) throw new ReservaError(422, "horario_repetido", `El horario ${h.hora} está repetido`);
     vistos.add(k);
   }
+  const lista = (await leerSectores(organizationId)).map((s) => s.nombre);
+  for (const q of c.cupo) {
+    if (!lista.includes(q.sector)) {
+      throw new ReservaError(422, "sector", `«${q.sector}» no es un sector. Se crean en Configuración → Sectores.`);
+    }
+  }
   const sectores = new Set<string>();
   for (const q of c.cupo) {
     const k = `${q.sector.toLowerCase()} ${q.capacidad}`;
@@ -184,8 +282,7 @@ export async function guardarConfiguracion(organizationId: string, c: Configurac
     }
     sectores.add(k);
   }
-  const ordenSector = new Map<string, number>();
-  for (const q of c.cupo) if (!ordenSector.has(q.sector)) ordenSector.set(q.sector, ordenSector.size);
+  const ordenSector = new Map(lista.map((nombre, i) => [nombre, i]));
 
   await getDb().transaction(async (tx) => {
     await tx
@@ -548,7 +645,7 @@ export async function reservasDelDia(
   fecha: string
 ): Promise<{ fecha: string; hoy: string; cerrado: string | null; sectores: string[]; horarios: HorarioDelDia[] }> {
   if (!esFecha(fecha)) throw new ReservaError(422, "invalid_body", "Fecha inválida");
-  const { ajustes, horarios, cupo, cierres } = await leerConfiguracion(organizationId);
+  const { ajustes, horarios, cupo, cierres, sectores } = await leerConfiguracion(organizationId);
   const filas = await getDb()
     .select({
       r: schema.reserva,
@@ -570,7 +667,7 @@ export async function reservasDelDia(
     fecha,
     hoy: enZona(new Date(), ajustes.zonaHoraria).fecha,
     cerrado: cierres.find((c) => c.fecha === fecha)?.motivo ?? (cierres.some((c) => c.fecha === fecha) ? "Cerrado" : null),
-    sectores: [...new Set(cupo.map((c) => c.sector))],
+    sectores: sectores.filter((s) => cupo.some((c) => c.sector === s)),
     horarios: horas.map((hora) => {
       const deEsta = filas.filter((f) => f.r.hora === hora);
       const ocupan = deEsta.filter((f) => ESTADOS_QUE_OCUPAN.includes(f.estado as EstadoOportunidad));

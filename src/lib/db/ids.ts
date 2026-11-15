@@ -71,6 +71,7 @@ const prefixes = {
   reservaHorario: "rho",
   reservaCupo: "rcu",
   reservaCierre: "rci",
+  reservaSector: "rse",
 } as const;
 
 export type IdKind = keyof typeof prefixes;

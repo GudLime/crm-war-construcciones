@@ -1,11 +1,13 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { esFecha, esHora } from "@/lib/reservas";
 
 /**
@@ -42,6 +44,8 @@ const DIAS: { valor: number; corto: string }[] = [
 export function ReservasAjustesClient() {
   const [config, setConfig] = useState<Config | null>(null);
   const [puedeEditar, setPuedeEditar] = useState(false);
+  /** Los sectores de Configuración → Sectores, para el desplegable de cada fila de mesas. */
+  const [sectores, setSectores] = useState<string[]>([]);
   const [horaNueva, setHoraNueva] = useState("");
   const [cierreNuevo, setCierreNuevo] = useState({ fecha: "", motivo: "" });
   const [guardando, setGuardando] = useState(false);
@@ -51,9 +55,10 @@ export function ReservasAjustesClient() {
     void (async () => {
       const res = await fetch("/api/reservas/configuracion").catch(() => null);
       if (!res?.ok) return;
-      const d = (await res.json()) as Config & { puedeEditar: boolean };
+      const d = (await res.json()) as Config & { puedeEditar: boolean; sectores: string[] };
       setConfig({ ajustes: d.ajustes, horarios: d.horarios, cupo: d.cupo, cierres: d.cierres });
       setPuedeEditar(d.puedeEditar);
+      setSectores(d.sectores);
     })();
   }, []);
 
@@ -117,8 +122,9 @@ export function ReservasAjustesClient() {
       setAviso({ tipo: "error", texto: d?.error?.message ?? "No se pudo guardar. Revisá los valores." });
       return;
     }
-    const d = (await res.json()) as Config;
-    setConfig(d);
+    const d = (await res.json()) as Config & { sectores: string[] };
+    setConfig({ ajustes: d.ajustes, horarios: d.horarios, cupo: d.cupo, cierres: d.cierres });
+    setSectores(d.sectores);
     setAviso({ tipo: "ok", texto: "Guardado" });
   }
 
@@ -223,13 +229,20 @@ export function ReservasAjustesClient() {
             <div key={i} className="flex flex-wrap items-end gap-2">
               <div className="space-y-1.5">
                 <Label htmlFor={`sector-${i}`}>Sector</Label>
-                <Input
+                <Select
                   id={`sector-${i}`}
+                  aria-label={`Sector de la fila ${i + 1}`}
                   value={q.sector}
                   disabled={!puedeEditar}
-                  onChange={(e) => cambiarCupo(i, { sector: e.target.value })}
+                  onValueChange={(v) => cambiarCupo(i, { sector: v })}
                   className="w-44"
-                />
+                >
+                  {[...new Set([...sectores, q.sector])].map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor={`cap-${i}`}>Personas por mesa</Label>
@@ -267,19 +280,29 @@ export function ReservasAjustesClient() {
               )}
             </div>
           ))}
-          {puedeEditar && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                setConfig({
-                  ...c,
-                  cupo: [...c.cupo, { sector: c.cupo.at(-1)?.sector ?? "Salón", capacidad: 2, cantidad: 1 }],
-                })
-              }
-            >
-              <Plus className="size-4" /> Agregar mesas
-            </Button>
+          {sectores.length === 0 ? (
+            <p className="text-sm text-text-2">
+              Primero cargá los sectores del local en{" "}
+              <Link href="/settings/sectores" className="font-medium underline">
+                Configuración → Sectores
+              </Link>
+              .
+            </p>
+          ) : (
+            puedeEditar && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setConfig({
+                    ...c,
+                    cupo: [...c.cupo, { sector: c.cupo.at(-1)?.sector ?? sectores[0]!, capacidad: 2, cantidad: 1 }],
+                  })
+                }
+              >
+                <Plus className="size-4" /> Agregar mesas
+              </Button>
+            )
           )}
           {c.cupo.length > 0 && (
             <p className="rounded-lg bg-subtle px-3 py-2 text-[13px] text-text-2">

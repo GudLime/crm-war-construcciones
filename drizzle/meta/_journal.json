@@ -393,6 +393,13 @@
       "when": 1795200000000,
       "tag": "0055_reservas",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1795300000000,
+      "tag": "0056_reserva_sector",
+      "breakpoints": true
     }
   ]
 }
