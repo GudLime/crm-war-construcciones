@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
 import { OportunidadPanel } from "@/components/ventas/oportunidad-panel";
+import { ReservasDeLaPersona } from "@/components/reservas/reservas-de-la-persona";
 import { WhatsAppLogo } from "@/components/whatsapp-logo";
 import type { AnuncioDto, ContactDto, FichaDto, FichaValue } from "@/lib/types";
 import { formatearTelefono } from "@/lib/telefono-formato";
@@ -27,7 +28,7 @@ import { useVocabulario } from "@/components/vocabulario";
 
 const TARJETA = "rounded-tarjeta border border-border bg-card shadow-tarjeta";
 
-export function ContactoClient() {
+export function ContactoClient({ reservas = false }: { reservas?: boolean }) {
   const { id } = useParams<{ id: string }>();
   const voc = useVocabulario();
   const avisar = useAvisoGuardado();
@@ -143,7 +144,12 @@ export function ContactoClient() {
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-4">
             <section className={cn(TARJETA, "overflow-hidden")}>
-              <OportunidadPanel contactId={contacto.id} />
+              {/* 071 — En un restaurante, sus reservas y sus números en lugar de una oportunidad. */}
+              {reservas ? (
+                <ReservasDeLaPersona contactId={contacto.id} />
+              ) : (
+                <OportunidadPanel contactId={contacto.id} />
+              )}
             </section>
           </div>
           <div className="space-y-4">
@@ -151,10 +157,18 @@ export function ContactoClient() {
               <FichaPanel ficha={ficha} onSave={guardarFicha} />
             </section>
             <section className={cn(TARJETA, "p-4")}>
-              <p className="kicker mb-2">Notas del contacto</p>
+              <p className="kicker mb-2">{reservas ? "Notas fijas" : "Notas del contacto"}</p>
+              {reservas && (
+                <p className="mb-2 text-[12px] text-text-3">Aparecen en cada reserva de esta persona y en el salón.</p>
+              )}
               <Textarea
                 rows={5}
-                placeholder="Lo fijo del cliente: dirección, cómo prefiere pagar…"
+                aria-label="Notas del contacto"
+                placeholder={
+                  reservas
+                    ? "Celíaca, silla de bebé, prefiere el semidescubierto…"
+                    : "Lo fijo del cliente: dirección, cómo prefiere pagar…"
+                }
                 value={notas}
                 onChange={(e) => setNotas(e.target.value)}
               />

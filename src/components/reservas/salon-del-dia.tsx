@@ -1,15 +1,17 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, ExternalLink, StickyNote, X } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, ExternalLink, Pencil, Star, StickyNote } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
+import { Ventana } from "@/components/ui/ventana";
 import { useVocabulario } from "@/components/vocabulario";
-import { Acciones, Campo, EstadoPill, Ficha, grilla } from "@/components/ventas/ui";
-import { aMinutos, fechaCorta, sentar, sumarDias, type LugarEnSalon } from "@/lib/reservas";
+import { Acciones, Campo, EstadoPill } from "@/components/ventas/ui";
+import { SEGMENTOS, aMinutos, fechaCorta, sentar, sumarDias, type Segmento } from "@/lib/reservas";
+import { formatearTelefono } from "@/lib/telefono-formato";
 import { ESTADOS_ABIERTOS } from "@/lib/ventas";
 import { enFrase, nombreEstado, opcionesEstado } from "@/lib/vocabulario";
 import { cn } from "@/lib/utils";
@@ -18,9 +20,9 @@ import { cn } from "@/lib/utils";
  * 071 — Vista Mosaico de Reservas: el salón de un día, horario por horario.
  * Cada sector muestra sus mesas; las reservas se sientan en orden de llegada
  * (no hay mesas con nombre: se reserva cupo) y debajo de cada una va quién
- * reservó. Tocar una mesa libre abre la carga con ese horario, sector y
- * tamaño; tocar una reserva abre sus acciones (Llegó, No vino, Cancelada,
- * cambiar de sector).
+ * reservó. Las mesas libres son solo dibujo. Tocar una reserva la abre en
+ * una ventana con sus datos y acciones (Asistió, No vino, Cancelada); el
+ * sector se cambia con Editar. «Nueva reserva» también abre una ventana.
  */
 
 type Reserva = {
@@ -34,6 +36,8 @@ type Reserva = {
   estado: string;
   canal: string;
   observaciones: string | null;
+  notas: string | null;
+  persona: { segmento: Segmento; visitasAntes: number; noVinoAntes: number };
 };
 type Horario = { hora: string; configurado: boolean; personas: number; reservas: Reserva[] };
 type Dia = {
@@ -74,7 +78,6 @@ export function SalonDelDia({ nuevaPedida }: { nuevaPedida: number }) {
   const [dia, setDia] = useState<Dia | null>(null);
   const [hora, setHora] = useState<string | null>(null);
   const [elegida, setElegida] = useState<string | null>(null);
-  const [cancelando, setCancelando] = useState<string | null>(null);
   const [form, setForm] = useState<Formulario | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -107,7 +110,6 @@ export function SalonDelDia({ nuevaPedida }: { nuevaPedida: number }) {
 
   const irA = (fecha: string) => {
     setElegida(null);
-    setCancelando(null);
     void cargar(fecha, false);
   };
 
@@ -126,7 +128,7 @@ export function SalonDelDia({ nuevaPedida }: { nuevaPedida: number }) {
   const contadores = [
     { titulo: voc.plural, valor: ocupanDelDia.length },
     { titulo: "Personas", valor: ocupanDelDia.reduce((a, r) => a + r.personas, 0) },
-    { titulo: "Llegaron", valor: delDia.filter((r) => r.estado === "compro").length, tono: "text-success-text" },
+    { titulo: nombreEstado(voc, "compro"), valor: delDia.filter((r) => r.estado === "compro").length, tono: "text-success-text" },
     {
       titulo: hora ? `Mesas libres a las ${hora}` : "Mesas libres",
       valor: salon.reduce((a, s) => a + s.libres, 0),
@@ -144,13 +146,12 @@ export function SalonDelDia({ nuevaPedida }: { nuevaPedida: number }) {
       avisar(d?.error?.message ?? "No se pudo cambiar", "error");
       return;
     }
-    setCancelando(null);
     setElegida(null);
     avisar(`${r.nombre}: ${nombreEstado(voc, estado)}`);
     await cargar(dia?.fecha ?? null);
   }
 
-  async function moverSector(r: Reserva, sector: string) {
+  async function moverSector(r: Reserva, sector: string): Promise<boolean> {
     const res = await fetch(`/api/reservas/${r.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -159,8 +160,11 @@ export function SalonDelDia({ nuevaPedida }: { nuevaPedida: number }) {
     if (!res?.ok) {
       const d = (await res?.json().catch(() => null)) as { error?: { message?: string } } | null;
       avisar(d?.error?.message ?? "No se pudo mover", "error");
-    } else avisar(`${r.nombre} pasó a ${sector}`);
+      return false;
+    }
+    avisar(`${r.nombre} pasó a ${sector}`);
     await cargar(dia?.fecha ?? null);
+    return true;
   }
 
   async function crear(e: React.FormEvent) {
@@ -236,8 +240,7 @@ export function SalonDelDia({ nuevaPedida }: { nuevaPedida: number }) {
                 onClick={() => {
                   setHora(h.hora);
                   setElegida(null);
-                  setCancelando(null);
-                }}
+                              }}
                 className={cn(
                   "inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium tabular-nums transition-colors",
                   h.hora === hora ? "bg-card text-foreground shadow-sm" : "text-text-2 hover:text-foreground"
@@ -267,8 +270,8 @@ export function SalonDelDia({ nuevaPedida }: { nuevaPedida: number }) {
       )}
 
       {form && (
-        <Ficha titulo={`Nueva ${singular} · ${fechaCorta(dia.fecha)}`}>
-          <form onSubmit={(e) => void crear(e)} className={grilla}>
+        <Ventana titulo={`Nueva ${singular}`} detalle={fechaCorta(dia.fecha)} onCerrar={() => setForm(null)}>
+          <form onSubmit={(e) => void crear(e)} className="grid gap-3 sm:grid-cols-2">
             <Campo label="A nombre de">
               <Input
                 required
@@ -313,7 +316,7 @@ export function SalonDelDia({ nuevaPedida }: { nuevaPedida: number }) {
                 ))}
               </Select>
             </Campo>
-            <Campo label="Observaciones">
+            <Campo label="Observaciones" className="sm:col-span-2">
               <Input
                 value={form.observaciones}
                 placeholder="Cumpleaños, silla de bebé…"
@@ -329,7 +332,7 @@ export function SalonDelDia({ nuevaPedida }: { nuevaPedida: number }) {
               </Button>
             </Acciones>
           </form>
-        </Ficha>
+        </Ventana>
       )}
 
       {dia.horarios.length === 0 && (
@@ -353,10 +356,6 @@ export function SalonDelDia({ nuevaPedida }: { nuevaPedida: number }) {
 
       {horario &&
         salon.map((s) => {
-          const abierta = s.lugares.find(
-            (l): l is Extract<LugarEnSalon<Reserva>, { tipo: "reserva" }> =>
-              l.tipo === "reserva" && l.reserva.id === elegida
-          )?.reserva;
           return (
             <section
               key={s.sector}
@@ -374,41 +373,26 @@ export function SalonDelDia({ nuevaPedida }: { nuevaPedida: number }) {
               <div className="flex flex-wrap gap-x-5 gap-y-6">
                 {s.lugares.map((l, i) =>
                   l.tipo === "libre" ? (
-                    <button
+                    <div
                       key={`libre-${i}`}
-                      type="button"
+                      role="img"
                       aria-label={`Mesa de ${l.capacidad} libre en ${s.sector}`}
-                      onClick={() => {
-                        setElegida(null);
-                        setError(null);
-                        setForm({
-                          nombre: "",
-                          telefono: "",
-                          hora: horario.hora,
-                          sector: s.sector,
-                          personas: String(l.capacidad),
-                          observaciones: "",
-                        });
-                      }}
-                      className="group flex w-[112px] flex-col items-center gap-2 rounded-lg p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                      className="flex w-[112px] flex-col items-center gap-2 p-1"
                     >
                       <Mesas capacidades={[l.capacidad]} tono="libre" />
-                      <span className="text-[12px] text-text-3 group-hover:text-text-2">Libre</span>
-                    </button>
+                      <span className="text-[12px] text-text-3">Libre</span>
+                    </div>
                   ) : (
                     <button
                       key={l.reserva.id}
                       type="button"
                       aria-label={`${l.reserva.nombre}, ${l.reserva.personas} personas`}
-                      aria-pressed={elegida === l.reserva.id}
-                      onClick={() => {
-                        setCancelando(null);
-                        setElegida(elegida === l.reserva.id ? null : l.reserva.id);
-                      }}
+                      aria-haspopup="dialog"
+                      onClick={() => setElegida(l.reserva.id)}
                       className={cn(
                         "flex flex-col items-center gap-2 rounded-lg p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
-                        l.mesas.length > 1 ? "w-[164px]" : "w-[112px]",
-                        elegida === l.reserva.id && "bg-subtle"
+                        "hover:bg-subtle",
+                        l.mesas.length > 1 ? "w-[164px]" : "w-[112px]"
                       )}
                     >
                       <Mesas
@@ -423,77 +407,13 @@ export function SalonDelDia({ nuevaPedida }: { nuevaPedida: number }) {
                           {l.reserva.estado === "compro" && ` · ${nombreEstado(voc, "compro").toLowerCase()}`}
                           {l.sobrecupo && " · sin mesa"}
                         </span>
-                        {l.reserva.observaciones && (
-                          <StickyNote className="mx-auto mt-0.5 size-3 text-text-3" aria-label="Tiene observaciones" />
-                        )}
+                        <Senales r={l.reserva} />
                       </span>
                     </button>
                   )
                 )}
               </div>
 
-              {abierta && (
-                <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border bg-subtle px-4 py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold">{abierta.nombre}</p>
-                    <p className="text-[13px] text-text-3">
-                      {abierta.personas} persona{abierta.personas === 1 ? "" : "s"} ·{" "}
-                      {abierta.mesas.map((m) => `mesa de ${m.capacidad}`).join(" + ")}
-                      {abierta.telefono && ` · ${abierta.telefono}`}
-                      {abierta.canal === "whatsapp" && " · por WhatsApp"}
-                    </p>
-                    {abierta.observaciones && <p className="text-[13px] text-text-2">{abierta.observaciones}</p>}
-                  </div>
-                  <EstadoPill opciones={estados} value={abierta.estado} />
-                  {dia.sectores.length > 1 && (
-                    <Select
-                      aria-label={`Sector de ${abierta.nombre}`}
-                      value={abierta.sector}
-                      onValueChange={(v) => void moverSector(abierta, v)}
-                      className="h-8 w-44"
-                    >
-                      {dia.sectores.map((x) => (
-                        <option key={x} value={x}>
-                          {x}
-                        </option>
-                      ))}
-                    </Select>
-                  )}
-                  {cancelando === abierta.id ? (
-                    <MotivoDeCancelacion
-                      motivos={voc.motivos}
-                      etiqueta={nombreEstado(voc, "perdido")}
-                      onConfirmar={(motivo) => void cambiarEstado(abierta, "perdido", motivo)}
-                      onVolver={() => setCancelando(null)}
-                    />
-                  ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {abierta.estado !== "compro" && (
-                        <>
-                          <Button size="sm" onClick={() => void cambiarEstado(abierta, "compro")}>
-                            {nombreEstado(voc, "compro")}
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => void cambiarEstado(abierta, "no_calificado")}>
-                            {nombreEstado(voc, "no_calificado")}
-                          </Button>
-                        </>
-                      )}
-                      <Button size="sm" variant="ghost" onClick={() => setCancelando(abierta.id)}>
-                        Cancelar {singular}
-                      </Button>
-                      <Link
-                        href={`/oportunidades/${abierta.oportunidadId}`}
-                        className={buttonVariants({ size: "sm", variant: "ghost" })}
-                      >
-                        <ExternalLink className="size-3.5" /> Ver
-                      </Link>
-                    </div>
-                  )}
-                  <Button size="sm" variant="ghost" aria-label="Cerrar" onClick={() => setElegida(null)}>
-                    <X className="size-4" />
-                  </Button>
-                </div>
-              )}
             </section>
           );
         })}
@@ -514,11 +434,26 @@ export function SalonDelDia({ nuevaPedida }: { nuevaPedida: number }) {
         </section>
       )}
 
+      {elegida && horario && (() => {
+        const abierta = horario.reservas.find((x) => x.id === elegida);
+        return abierta ? (
+          <VentanaDeReserva
+            reserva={abierta}
+            fecha={dia.fecha}
+            hora={horario.hora}
+            sectores={dia.sectores}
+            onCerrar={() => setElegida(null)}
+            onEstado={(estado, motivo) => cambiarEstado(abierta, estado, motivo)}
+            onSector={(sector) => moverSector(abierta, sector)}
+          />
+        ) : null;
+      })()}
+
       {horario && (
         <p className="flex flex-wrap gap-4 text-[12px] text-text-3">
           <Leyenda tono="confirmada" texto={nombreEstado(voc, "recibido")} />
           <Leyenda tono="llego" texto={nombreEstado(voc, "compro")} />
-          <Leyenda tono="libre" texto="Libre: tocala para cargar una reserva" />
+          <Leyenda tono="libre" texto="Libre" />
           <span>Las reservas no tienen mesa fija: se sientan en orden de llegada.</span>
         </p>
       )}
@@ -609,5 +544,198 @@ function MotivoDeCancelacion({
         Volver
       </Button>
     </div>
+  );
+}
+
+/**
+ * La reserva en una ventana: sus datos, el sector fijo (se cambia con el lápiz
+ * de Editar) y lo que se hace con ella en el salón.
+ */
+function VentanaDeReserva({
+  reserva: r,
+  fecha,
+  hora,
+  sectores,
+  onCerrar,
+  onEstado,
+  onSector,
+}: {
+  reserva: Reserva;
+  fecha: string;
+  hora: string;
+  sectores: string[];
+  onCerrar: () => void;
+  onEstado: (estado: string, motivo?: string) => Promise<void>;
+  onSector: (sector: string) => Promise<boolean>;
+}) {
+  const voc = useVocabulario();
+  const [editando, setEditando] = useState(false);
+  const [sector, setSector] = useState(r.sector);
+  const [cancelando, setCancelando] = useState(false);
+  const [ocupado, setOcupado] = useState(false);
+  const abierta = OCUPA.has(r.estado);
+
+  async function guardarSector() {
+    if (sector === r.sector) return setEditando(false);
+    setOcupado(true);
+    const ok = await onSector(sector);
+    setOcupado(false);
+    if (ok) setEditando(false);
+  }
+
+  const filas: [string, React.ReactNode][] = [
+    ["Cuándo", `${fechaCorta(fecha)} · ${hora}`],
+    ["Personas", String(r.personas)],
+    ["Mesas", r.mesas.map((m) => `de ${m.capacidad}`).join(" + ")],
+    ...(r.telefono ? [["Teléfono", formatearTelefono(r.telefono)] as [string, React.ReactNode]] : []),
+    ...(r.canal === "whatsapp" ? [["Llegó por", "WhatsApp"] as [string, React.ReactNode]] : []),
+    ...(r.observaciones ? [["Observaciones", r.observaciones] as [string, React.ReactNode]] : []),
+    [
+      "Persona",
+      <span key="persona" className="inline-flex flex-wrap items-center gap-1.5">
+        {SEGMENTOS.find((x) => x.value === r.persona.segmento)?.label}
+        <span className="font-normal text-text-3">
+          {r.persona.visitasAntes === 0
+            ? "· primera vez"
+            : `· vino ${r.persona.visitasAntes} ${r.persona.visitasAntes === 1 ? "vez" : "veces"}`}
+        </span>
+      </span>,
+    ],
+    ...(r.persona.noVinoAntes > 0
+      ? [
+          [
+            "Faltó",
+            <span key="falto" className="text-warning-text">
+              {r.persona.noVinoAntes} {r.persona.noVinoAntes === 1 ? "vez" : "veces"} sin avisar
+            </span>,
+          ] as [string, React.ReactNode],
+        ]
+      : []),
+    ...(r.notas ? [["Notas", r.notas] as [string, React.ReactNode]] : []),
+  ];
+
+  return (
+    <Ventana
+      titulo={r.nombre}
+      detalle={<EstadoPill opciones={opcionesEstado(voc)} value={r.estado} />}
+      accion={
+        abierta && !editando ? (
+          <Button size="sm" variant="ghost" onClick={() => setEditando(true)}>
+            <Pencil className="size-3.5" /> Editar
+          </Button>
+        ) : undefined
+      }
+      onCerrar={onCerrar}
+    >
+      <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 text-sm">
+        {filas.slice(0, 3).map(([k, v]) => (
+          <Fragment key={k}>
+            <dt className="text-text-3">{k}</dt>
+            <dd className="font-medium">{v}</dd>
+          </Fragment>
+        ))}
+        <dt className="self-center text-text-3">Sector</dt>
+        <dd className="font-medium">
+          {editando ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Select aria-label="Sector" value={sector} onValueChange={setSector} className="h-8 w-48">
+                {sectores.map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </Select>
+              <Button size="sm" disabled={ocupado} onClick={() => void guardarSector()}>
+                Guardar
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setSector(r.sector);
+                  setEditando(false);
+                }}
+              >
+                Cancelar
+              </Button>
+            </div>
+          ) : (
+            r.sector
+          )}
+        </dd>
+        {filas.slice(3).map(([k, v]) => (
+          <Fragment key={k}>
+            <dt className="text-text-3">{k}</dt>
+            <dd className="font-medium">{v}</dd>
+          </Fragment>
+        ))}
+      </dl>
+
+      <div className="mt-5 flex flex-wrap items-center gap-2 border-t pt-4">
+        {cancelando ? (
+          <MotivoDeCancelacion
+            motivos={voc.motivos}
+            etiqueta={nombreEstado(voc, "perdido")}
+            onConfirmar={(motivo) => void onEstado("perdido", motivo)}
+            onVolver={() => setCancelando(false)}
+          />
+        ) : (
+          <>
+            {abierta && r.estado !== "compro" && (
+              <>
+                <Button size="sm" onClick={() => void onEstado("compro")}>
+                  {nombreEstado(voc, "compro")}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => void onEstado("no_calificado")}>
+                  {nombreEstado(voc, "no_calificado")}
+                </Button>
+              </>
+            )}
+            {abierta && (
+              <Button size="sm" variant="ghost" onClick={() => setCancelando(true)}>
+                Cancelar {enFrase(voc.singular)}
+              </Button>
+            )}
+            <Link
+              href={`/oportunidades/${r.oportunidadId}`}
+              className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "ml-auto")}
+            >
+              <ExternalLink className="size-3.5" /> Ver
+            </Link>
+          </>
+        )}
+      </div>
+    </Ventana>
+  );
+}
+
+/** Lo que conviene ver de un vistazo debajo de la mesa: habitual, faltó antes, tiene notas. */
+function Senales({ r }: { r: Reserva }) {
+  const habitual = r.persona.segmento === "habitual";
+  const falto = r.persona.noVinoAntes > 0;
+  const notas = !!(r.notas || r.observaciones);
+  if (!habitual && !falto && !notas) return null;
+  return (
+    <span className="mt-1 flex justify-center gap-1.5">
+      {habitual && (
+        <span title="Habitual" aria-label="Habitual" className="text-warning-text">
+          <Star className="size-3.5" />
+        </span>
+      )}
+      {falto && (
+        <span
+          title={`Faltó ${r.persona.noVinoAntes} ${r.persona.noVinoAntes === 1 ? "vez" : "veces"} sin avisar`}
+          aria-label="Faltó antes sin avisar"
+          className="text-danger-text"
+        >
+          <AlertTriangle className="size-3.5" />
+        </span>
+      )}
+      {notas && (
+        <span title={[r.notas, r.observaciones].filter(Boolean).join(" · ")} aria-label="Tiene notas" className="text-text-3">
+          <StickyNote className="size-3.5" />
+        </span>
+      )}
+    </span>
   );
 }

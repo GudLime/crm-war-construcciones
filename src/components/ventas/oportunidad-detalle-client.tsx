@@ -68,7 +68,7 @@ import {
 import { OrigenIcono } from "./origen-icono";
 import { PildoraEdificio } from "./pildora-edificio";
 import { useVocabulario } from "@/components/vocabulario";
-import { enFrase, nombreEstado } from "@/lib/vocabulario";
+import { enFrase, nombreEstado, pantallaOculta } from "@/lib/vocabulario";
 
 /**
  * La página de una oportunidad (ver GUDLIME.md → «Página de la oportunidad»).
@@ -903,53 +903,60 @@ function Timeline({
     await onCambio();
   }
 
+  // 071 — Sin tareas (el seguimiento es con notas), no hay próximos pasos que cargar.
+  const conTareas = !pantallaOculta(voc, "tareas");
+
   return (
     <div className="flex flex-col">
-      <TituloDeBloque abierto={verProximos} onToggle={() => setVerProximos((v) => !v)} titulo="Próximos pasos" n={proximos.length}>
-        <button
-          type="button"
-          onClick={() => {
-            setVerProximos(true);
-            setAgregando((v) => !v);
-          }}
-          className="inline-flex h-7 items-center gap-1 rounded-full border border-border bg-card px-3 text-[12.5px] font-medium hover:bg-accent"
-        >
-          <Plus className="size-3.5" /> Agregar tarea
-        </button>
-      </TituloDeBloque>
-      {verProximos && (
+      {conTareas && (
         <>
-          {agregando && (
-            <AgregarTarea
-              oportunidadId={oportunidadId}
-              contactId={contactId}
-              onListo={async () => {
-                setAgregando(false);
-                await onCambio();
+          <TituloDeBloque abierto={verProximos} onToggle={() => setVerProximos((v) => !v)} titulo="Próximos pasos" n={proximos.length}>
+            <button
+              type="button"
+              onClick={() => {
+                setVerProximos(true);
+                setAgregando((v) => !v);
               }}
-              onCancelar={() => setAgregando(false)}
-            />
+              className="inline-flex h-7 items-center gap-1 rounded-full border border-border bg-card px-3 text-[12.5px] font-medium hover:bg-accent"
+            >
+              <Plus className="size-3.5" /> Agregar tarea
+            </button>
+          </TituloDeBloque>
+          {verProximos && (
+            <>
+              {agregando && (
+                <AgregarTarea
+                  oportunidadId={oportunidadId}
+                  contactId={contactId}
+                  onListo={async () => {
+                    setAgregando(false);
+                    await onCambio();
+                  }}
+                  onCancelar={() => setAgregando(false)}
+                />
+              )}
+              {error && <p className="mb-2 text-sm text-danger-text">{error}</p>}
+              {proximos.length === 0 && !agregando ? (
+                <p className="py-2 text-[13px] text-text-3">No hay nada por hacer. Agregá una tarea para el próximo paso.</p>
+              ) : (
+                <ol className="space-y-1">
+                  {proximos.map((p) => (
+                    <ProximoFila key={p.id} paso={p} onMarcar={marcar} />
+                  ))}
+                </ol>
+              )}
+            </>
           )}
-          {error && <p className="mb-2 text-sm text-danger-text">{error}</p>}
-          {proximos.length === 0 && !agregando ? (
-            <p className="py-2 text-[13px] text-text-3">No hay nada por hacer. Agregá una tarea para el próximo paso.</p>
-          ) : (
-            <ol className="space-y-1">
-              {proximos.map((p) => (
-                <ProximoFila key={p.id} paso={p} onMarcar={marcar} />
-              ))}
-            </ol>
-          )}
+
+          <div role="separator" aria-label="Hoy" className="flex items-center gap-2.5 py-2.5">
+            <span className="h-px flex-1 bg-border-strong" />
+            <span className="rounded-full bg-foreground px-3 py-[3px] text-[12px] font-semibold text-background">
+              Hoy · {hoyLargo()}
+            </span>
+            <span className="h-px flex-1 bg-border-strong" />
+          </div>
         </>
       )}
-
-      <div role="separator" aria-label="Hoy" className="flex items-center gap-2.5 py-2.5">
-        <span className="h-px flex-1 bg-border-strong" />
-        <span className="rounded-full bg-foreground px-3 py-[3px] text-[12px] font-semibold text-background">
-          Hoy · {hoyLargo()}
-        </span>
-        <span className="h-px flex-1 bg-border-strong" />
-      </div>
 
       <TituloDeBloque
         abierto={verHistorial}

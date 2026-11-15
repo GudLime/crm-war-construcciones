@@ -14,6 +14,8 @@ import { OportunidadesSection, type Consulta } from "./oportunidades-section";
 import type { EstadisticasOportunidadesDto } from "@/lib/estadisticas-oportunidades";
 import { defaultRange, RangePicker, type Range } from "./range-picker";
 import { SalesSection } from "./sales-section";
+import { useVocabulario } from "@/components/vocabulario";
+import { nombrePantalla } from "@/lib/vocabulario";
 
 type Block<T> = { data: T | null; loading: boolean; error: string | null };
 
@@ -77,6 +79,7 @@ export function ResultsClient({
   today: string;
   timezone: string;
 }) {
+  const voc = useVocabulario();
   const [range, setRange] = useState<Range>(() => defaultRange(today));
   const [sales, setSales] = useState<Block<SalesBlockDto>>(inicial);
   const [ads, setAds] = useState<Block<AdsBlockDto>>(inicial);
@@ -117,9 +120,9 @@ export function ResultsClient({
     <div className="flex h-full flex-col">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-6 sm:py-4">
         <div className="min-w-0">
-          <h2 className="text-[17px] font-bold tracking-tight">Resultados</h2>
+          <h2 className="text-[17px] font-bold tracking-tight">{nombrePantalla(voc, "results", "Resultados")}</h2>
           <p className="text-xs text-text-3">
-            Oportunidades, ventas, el trabajo del agente, de dónde llegan y qué se está cayendo.
+            {voc.plural}, ventas, el trabajo del agente, de dónde llegan y qué se está cayendo.
           </p>
         </div>
         <RangePicker value={range} onChange={setRange} today={today} timezone={timezone} />

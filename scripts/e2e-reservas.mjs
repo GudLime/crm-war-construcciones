@@ -142,47 +142,81 @@ try {
   r = await api("/api/reservas", { method: "POST", body: { nombre: "Lejos", fecha: fechaBA(9), hora: "12:00", personas: 2 } });
   ok("a 9 días no se puede reservar", r.status() === 409, String(r.status()));
 
+  // El menú de un restaurante: Trabajo = Reservas, Bandeja, Contactos, Dashboard.
+  await pagina.goto("/");
+  await pagina.getByRole("tab", { name: "Mosaico" }).waitFor();
+  ok("al entrar se abre Reservas", new URL(pagina.url()).pathname === "/oportunidades", pagina.url());
+  const menu = (await pagina.locator("nav").first().innerText()).split("\n").map((x) => x.trim()).filter(Boolean);
+  const trabajo = menu.slice(menu.findIndex((x) => /^trabajo$/i.test(x)) + 1, menu.findIndex((x) => /^trabajo$/i.test(x)) + 5);
+  ok("Trabajo es Reservas, Bandeja, Contactos y Dashboard", trabajo.join(",") === "Reservas,Bandeja,Contactos,Dashboard", menu.join(" | "));
+  ok("no hay Inicio, Pipeline, Tareas ni sección Restaurante", !menu.some((x) => /^(Inicio|Pipeline|Tareas|Restaurante)$/i.test(x)), menu.join(" | "));
+  for (const [ruta, que] of [["/pipeline", "el Pipeline"], ["/tareas", "Tareas"]]) {
+    const res = await pagina.goto(ruta);
+    ok(`${que} no existe`, res?.status() === 404, String(res?.status()));
+  }
+  await pagina.goto("/inicio");
+  ok("Inicio lleva a Reservas", new URL(pagina.url()).pathname === "/oportunidades", pagina.url());
+  await pagina.goto("/results");
+  ok("Resultados se llama Dashboard", await pagina.getByRole("heading", { name: "Dashboard" }).isVisible());
+
   // Reservas en Mosaico: el salón del día por horario.
   await pagina.goto("/reservas");
   ok("la dirección vieja de «Hoy» lleva a Reservas", pagina.url().endsWith("/oportunidades"), pagina.url());
   await pagina.getByRole("tab", { name: "Mosaico" }).waitFor();
   ok("en un restaurante abre en Mosaico", (await pagina.getByRole("tab", { name: "Mosaico" }).getAttribute("aria-selected")) === "true");
-  ok("el menú ya no tiene «Hoy»", (await pagina.getByRole("link", { name: "Hoy", exact: true }).count()) === 0);
   await pagina.getByRole("button", { name: "Día siguiente" }).click();
   await pagina.getByRole("tab", { name: /^20:00/ }).click();
   const tile = (nombre) => pagina.getByRole("button", { name: new RegExp(`^${nombre}, `) });
+  const libres = (cap) => pagina.getByRole("img", { name: new RegExp(`^Mesa de ${cap} libre`) });
+  const ventana = pagina.getByRole("dialog");
   await tile(`Pareja 1 ${sello}`).waitFor();
   ok("a las 20 están sentadas las tres parejas", (await pagina.getByRole("button", { name: new RegExp(`${sello}, 2 personas`) }).count()) === 3);
-  ok("no queda ninguna mesa de 2 libre", (await pagina.getByRole("button", { name: /^Mesa de 2 libre/ }).count()) === 0);
-  ok("quedan las tres mesas de 4", (await pagina.getByRole("button", { name: /^Mesa de 4 libre/ }).count()) === 3);
+  ok("no queda ninguna mesa de 2 libre", (await libres(2).count()) === 0);
+  ok("quedan las tres mesas de 4", (await libres(4).count()) === 3);
+  await libres(4).first().click({ force: true });
+  ok("una mesa libre no abre nada", (await ventana.count()) === 0);
 
+  // La reserva se abre en una ventana; el sector no se cambia sin Editar.
   await tile(`Pareja 1 ${sello}`).click();
-  await pagina.getByRole("button", { name: "Asistió", exact: true }).click();
-  await pagina.getByRole("button", { name: new RegExp(`^Pareja 1 ${sello}`) }).getByText("asistió").waitFor();
+  await ventana.waitFor();
+  ok("la reserva se abre en una ventana", await ventana.getByRole("heading", { name: `Pareja 1 ${sello}` }).isVisible());
+  ok("el sector no es un desplegable hasta tocar Editar", (await ventana.getByRole("combobox", { name: "Sector" }).count()) === 0);
+  const sectorAntes = await ventana.locator("dd").last().innerText();
+  await ventana.getByRole("button", { name: "Editar" }).click();
+  ok("con Editar aparece el desplegable", await ventana.getByRole("combobox", { name: "Sector" }).isVisible());
+  await ventana.getByRole("button", { name: "Cancelar", exact: true }).click();
+  ok("cancelar la edición deja el sector como estaba", (await ventana.locator("dd").last().innerText()) === sectorAntes);
+  await ventana.getByRole("button", { name: "Asistió", exact: true }).click();
+  await ventana.waitFor({ state: "detached" });
+  await tile(`Pareja 1 ${sello}`).getByText("asistió").waitFor();
   ok("marca Asistió y la mesa lo muestra", true);
 
   await tile(`Pareja 2 ${sello}`).click();
-  await pagina.getByRole("button", { name: "Cancelar reserva" }).click();
-  await pagina.getByRole("button", { name: "Cancelada", exact: true }).click();
-  await pagina.getByRole("button", { name: /^Mesa de 2 libre/ }).waitFor();
-  ok("cancelar libera la mesa (quien asistió la sigue ocupando)", (await pagina.getByRole("button", { name: /^Mesa de 2 libre/ }).count()) === 1);
+  await ventana.getByRole("button", { name: "Cancelar reserva" }).click();
+  await ventana.getByRole("button", { name: "Cancelada", exact: true }).click();
+  await libres(2).first().waitFor();
+  ok("cancelar libera la mesa (quien asistió la sigue ocupando)", (await libres(2).count()) === 1);
   ok("la cancelada figura aparte, sin mesa", await pagina.getByRole("region", { name: "Sin mesa" }).getByText(`Pareja 2 ${sello}`).isVisible());
 
-  // Tocar la mesa libre carga una reserva con ese horario, sector y tamaño.
-  await pagina.getByRole("button", { name: /^Mesa de 2 libre/ }).click();
-  ok("la carga viene con 2 personas", (await pagina.getByRole("spinbutton", { name: "Personas" }).inputValue()) === "2");
-  await pagina.getByLabel("A nombre de").fill(`Teléfono ${sello}`);
-  await pagina.getByLabel("Teléfono (opcional)").fill("11 5555 0000");
-  await pagina.getByRole("button", { name: "Guardar" }).click();
+  // «Nueva reserva» abre una ventana; se carga en la mesa que quedó libre.
+  await pagina.getByRole("button", { name: "Nueva reserva" }).click();
+  await ventana.waitFor();
+  ok("«Nueva reserva» abre una ventana", await ventana.getByRole("heading", { name: "Nueva reserva" }).isVisible());
+  await ventana.getByLabel("A nombre de").fill(`Teléfono ${sello}`);
+  await ventana.getByLabel("Teléfono (opcional)").fill("11 5555 0000");
+  await ventana.getByRole("combobox", { name: "Horario" }).click();
+  await pagina.getByRole("option", { name: "20:00" }).click();
+  await ventana.getByRole("button", { name: "Guardar" }).click();
   await tile(`Teléfono ${sello}`).waitFor();
-  ok("la reserva cargada a mano ocupa esa mesa", (await pagina.getByRole("button", { name: /^Mesa de 2 libre/ }).count()) === 0);
+  ok("la reserva cargada a mano ocupa esa mesa", (await libres(2).count()) === 0);
 
-  // El detalle de la reserva dice cuándo y para cuántos.
+  // El detalle de la reserva dice cuándo y para cuántos, y no tiene tareas.
   await tile(`Pareja 3 ${sello}`).click();
-  await pagina.getByRole("link", { name: "Ver" }).click();
+  await ventana.getByRole("link", { name: "Ver" }).click();
   await pagina.getByText("· 2 personas · ", { exact: false }).first().waitFor();
   const cabecera = await pagina.locator("dl").first().innerText();
   ok("el detalle muestra fecha, hora y personas", /· 20:00\s*· 2 personas · \S/.test(cabecera), cabecera.slice(0, 120));
+  ok("el detalle no tiene Próximos pasos ni tareas", (await pagina.getByText("Próximos pasos").count()) === 0);
 
   // Las otras vistas siguen estando.
   await pagina.goto("/oportunidades");
@@ -190,6 +224,77 @@ try {
   await pagina.getByText(`Pareja 3 ${sello}`).first().waitFor();
   ok("la Lista muestra las reservas", true);
   await pagina.getByRole("tab", { name: "Mosaico" }).click();
+
+  // Contactos de un restaurante: números, segmento, vistas, notas fijas y promociones.
+  const tel = `54911${String(Date.now()).slice(-8)}`;
+  r = await reservar({ nombre: `Habitual ${sello}`, telefono: tel, hora: "12:00", personas: 2, fecha: fechaBA(2) });
+  const habitualId = (await r.json()).reserva?.contactId;
+  ok("una reserva con teléfono crea su contacto", r.ok() && !!habitualId);
+  const asistio = async (cuerpo) => {
+    const x = await (await reservar(cuerpo)).json();
+    await api(`/api/oportunidades/${x.reserva.oportunidadId}/estado`, { method: "PATCH", body: { estado: "compro" } });
+    return x;
+  };
+  const primera = await api(`/api/reservas/dia?fecha=${fechaBA(2)}`).then((x) => x.json());
+  const op1 = primera.horarios.flatMap((h) => h.reservas).find((x) => x.contactId === habitualId).oportunidadId;
+  await api(`/api/oportunidades/${op1}/estado`, { method: "PATCH", body: { estado: "compro" } });
+  await asistio({ nombre: `Habitual ${sello}`, contactId: habitualId, hora: "12:00", personas: 2, fecha: fechaBA(3) });
+  await asistio({ nombre: `Habitual ${sello}`, contactId: habitualId, hora: "12:00", personas: 2, fecha: fechaBA(4) });
+  const faltona = await (await reservar({ nombre: `Faltona ${sello}`, telefono: `54911${String(Date.now() + 7).slice(-8)}`, hora: "12:00", personas: 2, fecha: fechaBA(2) })).json();
+  await api(`/api/oportunidades/${faltona.reserva.oportunidadId}/estado`, { method: "PATCH", body: { estado: "no_calificado" } });
+  await api(`/api/contacts/${habitualId}`, { method: "PATCH", body: { notes: "Celíaca" } });
+
+  r = await api(`/api/reservas/comensales/${habitualId}`);
+  const persona = await r.json();
+  ok(
+    "cuenta visitas y reservas de la persona",
+    persona.comensal?.visitas === 3 && persona.comensal?.reservas === 3 && persona.comensal?.segmento === "habitual",
+    JSON.stringify(persona.comensal)
+  );
+
+  // En el salón: la próxima reserva de la habitual y de la que faltó muestran sus señales.
+  await reservar({ nombre: `Habitual ${sello}`, contactId: habitualId, hora: "14:00", personas: 2 });
+  await reservar({ nombre: `Faltona ${sello}`, contactId: faltona.reserva.contactId, hora: "14:00", personas: 2 });
+  await pagina.goto("/oportunidades");
+  await pagina.getByRole("button", { name: "Día siguiente" }).click();
+  await pagina.getByRole("tab", { name: /^14:00/ }).click();
+  await tile(`Habitual ${sello}`).waitFor();
+  ok("la habitual se marca en el salón", (await tile(`Habitual ${sello}`).getByLabel("Habitual").count()) === 1);
+  ok("y sus notas también", (await tile(`Habitual ${sello}`).getByLabel("Tiene notas").count()) === 1);
+  ok("la que faltó antes se marca", (await tile(`Faltona ${sello}`).getByLabel("Faltó antes sin avisar").count()) === 1);
+  await tile(`Habitual ${sello}`).click();
+  const texto = await ventana.innerText();
+  ok("la ventana muestra sus notas y cuántas veces vino", /Celíaca/.test(texto) && /vino 3 veces/.test(texto), texto);
+  await ventana.getByRole("button", { name: "Cerrar" }).click();
+
+  // Contactos: vistas armadas y el contador de cada persona.
+  await pagina.goto("/contacts");
+  const vistas = pagina.getByRole("tablist", { name: "Vistas de contactos" });
+  await vistas.waitFor();
+  await vistas.getByRole("tab", { name: /^Habituales/ }).click();
+  const fila = pagina.locator("li", { hasText: `Habitual ${sello}` });
+  await fila.waitFor();
+  ok("la vista Habituales la muestra con su contador", /4 reservas · 3 visitas/.test(await fila.innerText()), await fila.innerText());
+  ok("Habituales no muestra a quien vino menos", (await pagina.locator("li", { hasText: `Faltona ${sello}` }).count()) === 0);
+  await vistas.getByRole("tab", { name: /^Faltaron alguna vez/ }).click();
+  await pagina.locator("li", { hasText: `Faltona ${sello}` }).waitFor();
+  ok("la vista Faltaron muestra a quien no vino", true);
+  ok("sin Pipeline no hay filtro por etapa del embudo", (await pagina.getByRole("combobox", { name: "Filtrar por etapa del embudo" }).count()) === 0);
+
+  // La ficha: números, historial y «Acepta promociones».
+  await pagina.goto(`/contacts/${habitualId}`);
+  await pagina.getByText("Historial").waitFor();
+  const ficha = await pagina.locator("main").innerText();
+  ok("la ficha tiene sus números y su historial", /Visitas\s*3/.test(ficha) && (ficha.match(/· 12:00/g) ?? []).length >= 3, ficha.slice(0, 400));
+  ok("las notas se llaman Notas fijas", /Notas fijas/i.test(ficha));
+  await pagina.getByRole("switch", { name: "Acepta promociones" }).click();
+  await pagina.getByText("Acepta promociones").first().waitFor();
+  r = await api(`/api/reservas/comensales/${habitualId}`);
+  ok("queda marcado que acepta promociones", (await r.json()).comensal?.aceptaPromociones === true);
+  await pagina.goto("/contacts");
+  await pagina.getByRole("tablist", { name: "Vistas de contactos" }).getByRole("tab", { name: /^Aceptan promociones/ }).click();
+  await pagina.locator("li", { hasText: `Habitual ${sello}` }).waitFor();
+  ok("la vista Aceptan promociones la muestra", true);
 
   // Ajustes → Reservas.
   await pagina.goto("/settings/reservas");

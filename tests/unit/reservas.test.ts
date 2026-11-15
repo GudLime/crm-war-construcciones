@@ -8,6 +8,9 @@ import {
   horariosReservables,
   resumenCupo,
   sentar,
+  segmentoDe,
+  enVista,
+  COMENSAL_VACIO,
   type CupoSector,
   type Ocupacion,
 } from "@/lib/reservas";
@@ -158,5 +161,27 @@ describe("sentar (vista Mosaico)", () => {
     const ultima = semi.lugares.at(-1)!;
     expect(ultima.tipo === "reserva" && ultima.reserva.id === "b" && ultima.sobrecupo).toBe(true);
     expect(semi.libres).toBe(1);
+  });
+});
+
+describe("personas de un restaurante", () => {
+  const base = { ...COMENSAL_VACIO, segmento: "nuevo" as const };
+  it("segmento por visitas", () => {
+    expect(segmentoDe(0, 3)).toBe("nuevo");
+    expect(segmentoDe(1, 3)).toBe("cliente");
+    expect(segmentoDe(2, 3)).toBe("cliente");
+    expect(segmentoDe(3, 3)).toBe("habitual");
+  });
+  it("vistas armadas", () => {
+    const hoy = "2026-11-15";
+    const vieja = { ...base, segmento: "cliente" as const, visitas: 1, ultimaVisita: "2026-09-01" };
+    expect(enVista(vieja, "recuperar", hoy)).toBe(true);
+    expect(enVista({ ...vieja, proxima: { fecha: "2026-11-20", hora: "20:00" } }, "recuperar", hoy)).toBe(false);
+    expect(enVista({ ...vieja, ultimaVisita: "2026-10-01" }, "recuperar", hoy)).toBe(false);
+    expect(enVista(base, "recuperar", hoy)).toBe(false);
+    expect(enVista({ ...vieja, ultimaVisita: "2026-11-02" }, "este_mes", hoy)).toBe(true);
+    expect(enVista({ ...base, noVino: 1 }, "faltaron", hoy)).toBe(true);
+    expect(enVista({ ...base, aceptaPromociones: true }, "promociones", hoy)).toBe(true);
+    expect(enVista(base, "habitual", hoy)).toBe(false);
   });
 });

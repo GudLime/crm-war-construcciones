@@ -65,7 +65,7 @@ try {
   await pagina.goto("/oportunidades");
   await pagina.getByRole("heading", { name: "Reservas" }).first().waitFor({ timeout: 15000 });
   const menu = await pagina.locator("nav").first().innerText();
-  ok("el menú dice Reservas, en el grupo Restaurante", /Reservas/.test(menu) && /Restaurante/i.test(menu), menu);
+  ok("el menú dice Reservas", /Reservas/.test(menu), menu);
   ok("el menú no tiene Edificios ni Oportunidades", !/Edificios|Oportunidades/.test(menu), menu);
   // Con RESERVAS encendida la página abre en el salón (Mosaico): se pasa a la Lista.
   const lista0 = pagina.getByRole("tab", { name: "Lista" });

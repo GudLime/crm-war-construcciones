@@ -11,13 +11,14 @@ import {
   Search,
   Send,
   Upload,
+  Star,
   UserPlus,
   Users,
 } from "lucide-react";
 import { emailOpcionalValido } from "@/lib/email";
 import { TIPOS_CONTACTO, etiqueta, type TipoContacto } from "@/lib/ventas";
 import type { ContactDto } from "@/lib/types";
-import { formatPhone } from "@/lib/utils";
+import { cn, formatPhone } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,9 +34,25 @@ import { NewContactDialog } from "./new-contact-dialog";
 import { StartConversation } from "./start-conversation";
 import { Select } from "@/components/ui/select";
 import { useVocabulario } from "@/components/vocabulario";
+import {
+  COMENSAL_VACIO,
+  SEGMENTOS,
+  VISTAS_COMENSALES,
+  enVista,
+  fechaCorta,
+  type Comensal,
+  type Segmento,
+  type VistaComensales,
+} from "@/lib/reservas";
+import { pantallaOculta } from "@/lib/vocabulario";
+import type { Comensales } from "@/server/reservas/comensales";
 
-export function ContactsClient() {
+export function ContactsClient({ reservas = false }: { reservas?: boolean }) {
   const avisar = useAvisoGuardado();
+  const voc = useVocabulario();
+  /** 071 — En un restaurante: lo que se cuenta de cada persona por sus reservas. */
+  const [personas, setPersonas] = useState<Comensales | null>(null);
+  const [vista, setVista] = useState<VistaComensales>("todos");
   const router = useRouter();
   const [contacts, setContacts] = useState<ContactDto[]>([]);
   const [query, setQuery] = useState("");
@@ -56,13 +73,30 @@ export function ContactsClient() {
   }, []);
 
   useEffect(() => {
+    if (!reservas) return;
+    void (async () => {
+      const res = await fetch("/api/reservas/comensales").catch(() => null);
+      if (res?.ok) setPersonas((await res.json()) as Comensales);
+    })();
+  }, [reservas]);
+
+  useEffect(() => {
+    // 071 — Sin Pipeline de leads, no hay etapas del embudo para filtrar.
+    if (pantallaOculta(voc, "pipeline")) return;
     void (async () => {
       const res = await fetch("/api/pipeline/stages").catch(() => null);
       if (!res?.ok) return;
       const data = (await res.json()) as { stages: { name: string }[] };
       setStages(data.stages.map((s) => s.name));
     })();
-  }, []);
+  }, [voc]);
+
+  const personaDe = (id: string): Comensal =>
+    personas?.porContacto[id] ?? { ...COMENSAL_VACIO, segmento: "nuevo" };
+  const cuantos = (v: VistaComensales) =>
+    personas ? contacts.filter((c) => enVista(personaDe(c.id), v, personas.hoy)).length : 0;
+  const visibles =
+    personas && vista !== "todos" ? contacts.filter((c) => enVista(personaDe(c.id), vista, personas.hoy)) : contacts;
 
   const refetch = useCallback(async () => {
     const params = new URLSearchParams();
@@ -151,6 +185,31 @@ export function ContactsClient() {
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        {personas && contacts.length > 0 && (
+          <div role="tablist" aria-label="Vistas de contactos" className="mb-4 flex flex-wrap gap-1.5">
+            {VISTAS_COMENSALES.map((v) => (
+              <button
+                key={v.value}
+                type="button"
+                role="tab"
+                aria-selected={vista === v.value}
+                onClick={() => setVista(v.value)}
+                className={cn(
+                  "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors",
+                  vista === v.value ? "border-foreground bg-foreground text-background" : "bg-card text-text-2 hover:text-foreground"
+                )}
+              >
+                {v.label}
+                <span className={cn("text-[12px] tabular-nums", vista === v.value ? "opacity-70" : "text-text-3")}>
+                  {cuantos(v.value)}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+        {personas && contacts.length > 0 && visibles.length === 0 && (
+          <p className="text-sm text-text-3">Nadie en esta vista.</p>
+        )}
         {contacts.length === 0 ? (
           query.trim() || stage !== "all" ? (
             <EmptyState
@@ -176,7 +235,7 @@ export function ContactsClient() {
           )
         ) : (
           <ul className="space-y-2">
-            {contacts.map((c) => (
+            {visibles.map((c) => (
               <li
                 key={c.id}
                 className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card px-3 py-3 sm:flex-nowrap sm:gap-x-4 sm:px-4"
@@ -190,12 +249,13 @@ export function ContactsClient() {
                       {c.name}
                     </span>
                     {c.priority && <PriorityBadge value={c.priority} />}
-                    {c.stageName && (
+                    {c.stageName && !pantallaOculta(voc, "pipeline") && (
                       <Badge variant="outline">{c.stageName}</Badge>
                     )}
                     {c.archivedAt && (
                       <Badge variant="secondary">Archivado</Badge>
                     )}
+                    {personas && <SegmentoBadge segmento={personaDe(c.id).segmento} />}
                     {c.aiPaused && (
                       <Badge
                         variant="warning"
@@ -214,7 +274,8 @@ export function ContactsClient() {
                         {etiqueta(TIPOS_CONTACTO, c.tipoContacto)}
                       </Badge>
                     )}
-                    {c.source?.source === "capturada" && (
+                    {/* 071 — En un restaurante «Otro» es quien entró por una reserva: no dice nada. */}
+                    {c.source?.source === "capturada" && !(personas && c.source.value === "otro") && (
                       <Badge variant="secondary">
                         {SOURCE_LABELS[c.source.value]}
                       </Badge>
@@ -225,6 +286,7 @@ export function ContactsClient() {
                     {c.email ? ` · ${c.email}` : ""}
                     {c.notes ? ` · ${c.notes.slice(0, 60)}` : ""}
                   </p>
+                  {personas && <ResumenPersona c={personaDe(c.id)} />}
                 </div>
                 <div className="ml-auto flex shrink-0 items-center gap-1.5">
                   <Button
@@ -476,5 +538,37 @@ function EditDialog({
         </div>
       </div>
     </div>
+  );
+}
+
+/** 071 — Nuevo, Cliente o Habitual. */
+export function SegmentoBadge({ segmento }: { segmento: Segmento }) {
+  const label = SEGMENTOS.find((x) => x.value === segmento)?.label ?? segmento;
+  return (
+    <Badge variant={segmento === "habitual" ? "success" : segmento === "cliente" ? "default" : "secondary"}>
+      {segmento === "habitual" && <Star className="mr-1 h-3 w-3" strokeWidth={1.8} />}
+      {label}
+    </Badge>
+  );
+}
+
+/** 071 — El contador de una persona en la lista: reservas, visitas, última y faltas. */
+function ResumenPersona({ c }: { c: Comensal }) {
+  const partes = [
+    `${c.reservas} reserva${c.reservas === 1 ? "" : "s"}`,
+    `${c.visitas} visita${c.visitas === 1 ? "" : "s"}`,
+    c.ultimaVisita ? `última ${fechaCorta(c.ultimaVisita)}` : null,
+    c.proxima ? `próxima ${fechaCorta(c.proxima.fecha)} ${c.proxima.hora}` : null,
+  ].filter(Boolean);
+  return (
+    <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-text-2">
+      <span>{partes.join(" · ")}</span>
+      {c.noVino > 0 && (
+        <span className="text-danger-text">
+          faltó {c.noVino} {c.noVino === 1 ? "vez" : "veces"}
+        </span>
+      )}
+      {c.aceptaPromociones && <span className="text-success-text">acepta promociones</span>}
+    </p>
   );
 }

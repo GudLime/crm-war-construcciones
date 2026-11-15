@@ -14,7 +14,9 @@ import {
   formaPara,
   horariosReservables,
   resumenCupo,
+  segmentoDe,
   type CupoSector,
+  type Segmento,
   type Ocupacion,
 } from "@/lib/reservas";
 import { normalizarTelefono } from "@/lib/telefono";
@@ -51,6 +53,7 @@ export const ajustesSchema = z.object({
   duracionMinutos: z.number().int().min(15).max(12 * 60),
   enlaceCarta: z.string().trim().url().max(500).nullable(),
   direccion: z.string().trim().max(200).nullable(),
+  umbralHabitual: z.number().int().min(2).max(100).default(3),
 });
 export type AjustesReservas = z.infer<typeof ajustesSchema>;
 
@@ -87,6 +90,7 @@ const AJUSTES_POR_DEFECTO: AjustesReservas = {
   duracionMinutos: 120,
   enlaceCarta: null,
   direccion: null,
+  umbralHabitual: 3,
 };
 
 export async function leerAjustes(organizationId: string): Promise<AjustesReservas> {
@@ -104,6 +108,7 @@ export async function leerAjustes(organizationId: string): Promise<AjustesReserv
     duracionMinutos: fila.duracionMinutos,
     enlaceCarta: fila.enlaceCarta,
     direccion: fila.direccion,
+    umbralHabitual: fila.umbralHabitual,
   };
 }
 
@@ -639,6 +644,10 @@ export type ReservaDelDia = {
   estado: string;
   canal: string;
   observaciones: string | null;
+  /** Las notas de la persona (las del contacto): aparecen en cada reserva. */
+  notas: string | null;
+  /** Cómo viene la persona, sin contar esta reserva: para recibirla y para confirmar. */
+  persona: { segmento: Segmento; visitasAntes: number; noVinoAntes: number };
 };
 
 export type HorarioDelDia = {
@@ -673,12 +682,26 @@ export async function reservasDelDia(
       estado: schema.oportunidad.estado,
       contactoNombre: schema.contact.name,
       telefono: schema.contact.phone,
+      notas: schema.contact.notes,
     })
     .from(schema.reserva)
     .innerJoin(schema.oportunidad, eq(schema.oportunidad.id, schema.reserva.oportunidadId))
     .innerJoin(schema.contact, eq(schema.contact.id, schema.reserva.contactId))
     .where(scoped(schema.reserva.organizationId, organizationId, eq(schema.reserva.fecha, fecha)))
     .orderBy(asc(schema.reserva.hora), asc(schema.reserva.createdAt));
+
+  // Lo que se sabe de cada persona por sus otras reservas.
+  const { comensales } = await import("./comensales");
+  const personas = await comensales(organizationId, [...new Set(filas.map((f) => f.r.contactId))]);
+  const personaDe = (f: (typeof filas)[number]) => {
+    const c = personas.porContacto[f.r.contactId];
+    const visitasAntes = Math.max(0, (c?.visitas ?? 0) - (f.estado === "compro" ? 1 : 0));
+    return {
+      segmento: segmentoDe(visitasAntes, personas.umbral),
+      visitasAntes,
+      noVinoAntes: Math.max(0, (c?.noVino ?? 0) - (f.estado === "no_calificado" ? 1 : 0)),
+    };
+  };
 
   const delDia = new Set(
     horarios.filter((h) => h.activo && h.diaSemana === new Date(`${fecha}T00:00:00Z`).getUTCDay()).map((h) => h.hora)
@@ -719,6 +742,8 @@ export async function reservasDelDia(
           estado: f.estado,
           canal: f.r.canal,
           observaciones: f.r.observaciones,
+          notas: f.notas?.trim() || null,
+          persona: personaDe(f),
         })),
       };
     }),

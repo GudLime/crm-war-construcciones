@@ -17,7 +17,8 @@ import {
 import { canConfigure } from "@/lib/auth/roles";
 import type { ObjetoMenuDto } from "@/lib/motor/dto";
 import { iconoDeOrigen } from "@/lib/origenes";
-import { VOCABULARIO_POR_DEFECTO, type Vocabulario } from "@/lib/vocabulario";
+import type { PantallaMenu } from "@/lib/motor/config";
+import { VOCABULARIO_POR_DEFECTO, nombrePantalla, pantallaOculta, type Vocabulario } from "@/lib/vocabulario";
 
 /**
  * #87 — El modelo del menú, separado del componente que lo pinta.
@@ -72,16 +73,32 @@ export function appNavGroups({
   // Visibilidad por rol: el operador no ve el Pipeline de leads, el Agente ni
   // el Laboratorio (son de quien administra).
   const admin = canConfigure(role);
-  const trabajo: NavItem[] = [
-    // Inicio del vendedor: lo primero que se ve al entrar.
-    { href: "/inicio", label: "Inicio", icon: House },
-    { href: "/inbox", label: "Bandeja", icon: Inbox, badge: true },
-    ...(admin ? [{ href: "/pipeline", label: "Pipeline", icon: Kanban }] : []),
-    { href: "/contacts", label: "Contactos", icon: Users },
-  ];
+  const v = vocabulario;
+  // 071 — Cada pantalla del menú con su nombre en esta instancia; las apagadas no están.
+  const pantallas: Partial<Record<PantallaMenu, NavItem>> = {};
+  const poner = (p: PantallaMenu, item: NavItem, existe = true) => {
+    if (existe && !pantallaOculta(v, p)) pantallas[p] = { ...item, label: nombrePantalla(v, p, item.label) };
+  };
+  // Inicio del vendedor: lo primero que se ve al entrar.
+  poner("inicio", { href: "/inicio", label: "Inicio", icon: House });
+  poner("inbox", { href: "/inbox", label: "Bandeja", icon: Inbox, badge: true });
+  poner("pipeline", { href: "/pipeline", label: "Pipeline", icon: Kanban }, admin);
+  poner("contacts", { href: "/contacts", label: "Contactos", icon: Users });
   // Citas va después de Contactos: es el paso siguiente de un trato, no una
   // sección aparte.
-  if (agenda) trabajo.push({ href: "/bookings", label: "Citas", icon: CalendarDays });
+  poner("bookings", { href: "/bookings", label: "Citas", icon: CalendarDays }, agenda);
+  poner("oportunidades", { href: "/oportunidades", label: v.plural, icon: Tag });
+  poner("tareas", { href: "/tareas", label: "Tareas", icon: ListTodo });
+  // 019 — Se mide al final: primero se atiende y se organiza.
+  poner("results", { href: "/results", label: "Resultados", icon: ChartColumn });
+
+  // 071 — Un cliente puede armar Trabajo a su gusto: esas pantallas salen de su grupo de siempre.
+  const ordenTrabajo: PantallaMenu[] = v.menu.trabajo ?? ["inicio", "inbox", "pipeline", "contacts", "bookings"];
+  const enTrabajo = new Set(ordenTrabajo);
+  const de = (lista: PantallaMenu[]) =>
+    lista.flatMap((p) => (pantallas[p] ? [pantallas[p]!] : []));
+  const fuera = (lista: PantallaMenu[]) => de(lista.filter((p) => !enTrabajo.has(p)));
+  const trabajo = de(ordenTrabajo);
 
   const agente: NavItem[] = [];
   // Un miembro del equipo no puede hacer ninguno de los pasos de la guía.
@@ -95,19 +112,18 @@ export function appNavGroups({
 
   const ventas: NavItem[] = [
     // 071 — Los edificios son de lo inmobiliario: sin él, no hay entrada.
-    ...(vocabulario.inmobiliario ? [{ href: "/edificios", label: "Edificios", icon: Building2 }] : []),
+    ...(v.inmobiliario ? [{ href: "/edificios", label: "Edificios", icon: Building2 }] : []),
     // 070 — Cada objeto personalizado del cliente, en el orden de su configuración.
     ...objetos.map((o) => ({ href: `/objetos/${o.clave}`, label: o.nombrePlural, icon: iconoDeOrigen(o.icono) })),
-    { href: "/oportunidades", label: vocabulario.plural, icon: Tag },
-    { href: "/tareas", label: "Tareas", icon: ListTodo },
+    ...fuera(["oportunidades", "tareas"]),
   ];
+  const resultados = fuera(["results"]);
 
   return [
     { title: "Trabajo", items: trabajo },
-    { title: vocabulario.grupoMenu, items: ventas },
+    ...(ventas.length ? [{ title: v.grupoMenu, items: ventas }] : []),
     ...(admin ? [{ title: "Agente", items: agente }] : []),
-    // 019 — Se mide al final: primero se atiende y se organiza.
-    { items: [{ href: "/results", label: "Resultados", icon: ChartColumn }] },
+    ...(resultados.length ? [{ items: resultados }] : []),
   ];
 }
 

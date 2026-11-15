@@ -24,6 +24,11 @@ export function vocabulario(): Promise<Vocabulario> {
   return cache;
 }
 
+/** 071 — Una página apagada en el menú de este cliente: no existe. */
+export async function pantallaApagada(p: "inicio" | "pipeline" | "tareas"): Promise<boolean> {
+  return (await vocabulario()).menu.ocultas.includes(p);
+}
+
 /** Para las pruebas: vuelve a leer el archivo la próxima vez. */
 export function olvidarVocabulario(): void {
   cache = null;

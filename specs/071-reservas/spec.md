@@ -190,9 +190,15 @@ cualquier otro, redirige a la plantilla de evento de Google Calendar
 6. Pruebas de punta a punta con mocks y con el número de prueba; paso al
    número de Beba; capacitación.
 
-## Tanda de cambios en curso (sin implementar)
+## Tanda de cambios del 15 de noviembre (hecha)
 
-Se juntan los pedidos de esta tanda y se implementan juntos.
+Implementada junta. Cómo quedó: menú por `menu` en `clientes/<cliente>.json`
+(ver clientes/README.md); ventanas con `src/components/ui/ventana.tsx`;
+personas en `src/server/reservas/comensales.ts` (se cuentan de las reservas,
+no se guardan; solo «Acepta promociones» vive en `reserva_comensal`, migración
+0057, que también suma el umbral de Habitual a Ajustes → Reservas). Las notas
+fijas son las notas del contacto. Pruebas en `tests/unit/reservas.test.ts`,
+`tests/unit/vocabulario.test.ts` y `scripts/e2e-reservas.mjs`.
 
 1. Contactos de un restaurante:
    - Números de cada persona, calculados de sus reservas: visitas (Asistió),

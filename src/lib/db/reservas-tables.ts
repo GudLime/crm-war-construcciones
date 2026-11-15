@@ -31,8 +31,31 @@ export const reservaAjustes = pgTable("reserva_ajustes", {
   duracionMinutos: integer("duracion_minutos").notNull().default(120),
   enlaceCarta: text("enlace_carta"),
   direccion: text("direccion"),
+  /** Con cuántas visitas (Asistió) una persona pasa a ser Habitual. */
+  umbralHabitual: integer("umbral_habitual").notNull().default(3),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+/**
+ * Lo que el restaurante sabe de una persona además de sus reservas: si acepta
+ * recibir promociones (requisito para cualquier campaña). Las visitas, el
+ * segmento y la última visita no se guardan: se cuentan de sus reservas.
+ */
+export const reservaComensal = pgTable(
+  "reserva_comensal",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    contactId: text("contact_id")
+      .notNull()
+      .references(() => contact.id, { onDelete: "cascade" }),
+    aceptaPromociones: boolean("acepta_promociones").notNull().default(false),
+    aceptaPromocionesAt: timestamp("acepta_promociones_at"),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("reserva_comensal_unico").on(t.organizationId, t.contactId)]
+);
 
 /** Un horario de reserva: día de la semana (0 = domingo) y hora «HH:MM». */
 export const reservaHorario = pgTable(

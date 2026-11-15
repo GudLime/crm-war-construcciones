@@ -283,3 +283,81 @@ export function sentar<R extends Ocupacion>(
     })
     .filter((s) => s.total > 0 || s.lugares.length > 0);
 }
+
+// ─── Las personas (contactos de un restaurante) ─────────────────────────
+
+export const SEGMENTOS = [
+  { value: "nuevo", label: "Nuevo" },
+  { value: "cliente", label: "Cliente" },
+  { value: "habitual", label: "Habitual" },
+] as const;
+export type Segmento = (typeof SEGMENTOS)[number]["value"];
+
+/** Nuevo: todavía no vino. Cliente: vino. Habitual: vino `umbral` veces o más. */
+export function segmentoDe(visitas: number, umbral: number): Segmento {
+  if (visitas <= 0) return "nuevo";
+  return visitas >= umbral ? "habitual" : "cliente";
+}
+
+/** Lo que se cuenta de una persona a partir de sus reservas. */
+export type Comensal = {
+  /** Reservas a las que asistió. */
+  visitas: number;
+  reservas: number;
+  noVino: number;
+  canceladas: number;
+  primeraVisita: string | null;
+  ultimaVisita: string | null;
+  /** La próxima reserva confirmada (hoy o después). */
+  proxima: { fecha: string; hora: string } | null;
+  segmento: Segmento;
+  aceptaPromociones: boolean;
+};
+
+export const COMENSAL_VACIO: Omit<Comensal, "segmento"> = {
+  visitas: 0,
+  reservas: 0,
+  noVino: 0,
+  canceladas: 0,
+  primeraVisita: null,
+  ultimaVisita: null,
+  proxima: null,
+  aceptaPromociones: false,
+};
+
+/** Las vistas armadas de Contactos en un restaurante. */
+export const VISTAS_COMENSALES = [
+  { value: "todos", label: "Todos" },
+  { value: "nuevo", label: "Nuevos" },
+  { value: "cliente", label: "Clientes" },
+  { value: "habitual", label: "Habituales" },
+  { value: "recuperar", label: "No vienen hace más de 60 días" },
+  { value: "faltaron", label: "Faltaron alguna vez" },
+  { value: "este_mes", label: "Vinieron este mes" },
+  { value: "promociones", label: "Aceptan promociones" },
+] as const;
+export type VistaComensales = (typeof VISTAS_COMENSALES)[number]["value"];
+
+/** Días sin venir para estar en «No vienen hace más de 60 días». */
+export const DIAS_PARA_RECUPERAR = 60;
+
+/** ¿Esta persona entra en la vista? `hoy` en la zona del negocio. */
+export function enVista(c: Comensal, vista: VistaComensales, hoy: string): boolean {
+  switch (vista) {
+    case "todos":
+      return true;
+    case "nuevo":
+    case "cliente":
+    case "habitual":
+      return c.segmento === vista;
+    case "recuperar":
+      // Vino alguna vez, hace más de 60 días, y no tiene una reserva por delante.
+      return !!c.ultimaVisita && c.ultimaVisita < sumarDias(hoy, -DIAS_PARA_RECUPERAR) && !c.proxima;
+    case "faltaron":
+      return c.noVino > 0;
+    case "este_mes":
+      return !!c.ultimaVisita && c.ultimaVisita.slice(0, 7) === hoy.slice(0, 7);
+    case "promociones":
+      return c.aceptaPromociones;
+  }
+}

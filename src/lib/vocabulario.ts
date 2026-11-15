@@ -1,4 +1,4 @@
-import type { ConfigCliente } from "@/lib/motor/config";
+import type { ConfigCliente, PantallaMenu } from "@/lib/motor/config";
 import {
   CAMINO_OPORTUNIDAD,
   ESTADOS_ABIERTOS,
@@ -41,6 +41,12 @@ export type Vocabulario = {
   etiquetaCerrar: string;
   inmobiliario: boolean;
   cierrePorSinRespuesta: boolean;
+  /** El menú de este cliente: orden de Trabajo, nombres y pantallas apagadas. */
+  menu: {
+    trabajo: PantallaMenu[] | null;
+    nombres: Partial<Record<PantallaMenu, string>>;
+    ocultas: PantallaMenu[];
+  };
 };
 
 export const VOCABULARIO_POR_DEFECTO: Vocabulario = {
@@ -55,15 +61,21 @@ export const VOCABULARIO_POR_DEFECTO: Vocabulario = {
   etiquetaCerrar: "Perdida",
   inmobiliario: true,
   cierrePorSinRespuesta: true,
+  menu: { trabajo: null, nombres: {}, ocultas: [] },
 };
 
 /** Arma el vocabulario a partir del archivo del cliente. Sin archivo, el de siempre. */
 export function vocabularioDe(
-  config: Pick<ConfigCliente, "oportunidad" | "inmobiliario"> | null | undefined
+  config: (Pick<ConfigCliente, "oportunidad" | "inmobiliario"> & Partial<Pick<ConfigCliente, "menu">>) | null | undefined
 ): Vocabulario {
   const inmobiliario = config?.inmobiliario ?? true;
+  const menu = {
+    trabajo: config?.menu?.trabajo ? [...new Set(config.menu.trabajo)] : null,
+    nombres: { ...(config?.menu?.nombres ?? {}) },
+    ocultas: [...new Set(config?.menu?.ocultar ?? [])] as PantallaMenu[],
+  };
   const o = config?.oportunidad;
-  if (!o) return { ...VOCABULARIO_POR_DEFECTO, inmobiliario };
+  if (!o) return { ...VOCABULARIO_POR_DEFECTO, inmobiliario, menu };
   const estados = o.estados.map((e) => ({ value: e.estado, label: e.nombre }));
   const visibles = new Set(estados.map((e) => e.value));
   return {
@@ -78,7 +90,36 @@ export function vocabularioDe(
     etiquetaCerrar: "Cerrar",
     inmobiliario,
     cierrePorSinRespuesta: o.cierrePorSinRespuesta,
+    menu,
   };
+}
+
+/** ¿Esta pantalla está apagada en esta instancia? */
+export function pantallaOculta(v: Vocabulario, p: PantallaMenu): boolean {
+  return v.menu.ocultas.includes(p);
+}
+
+/** El nombre de una pantalla del menú en esta instancia. */
+export function nombrePantalla(v: Vocabulario, p: PantallaMenu, porDefecto: string): string {
+  return v.menu.nombres[p] ?? porDefecto;
+}
+
+const RUTA: Record<PantallaMenu, string> = {
+  inicio: "/inicio",
+  inbox: "/inbox",
+  pipeline: "/pipeline",
+  contacts: "/contacts",
+  bookings: "/bookings",
+  oportunidades: "/oportunidades",
+  tareas: "/tareas",
+  results: "/results",
+};
+
+/** A dónde se entra al abrir el CRM: Inicio, o sin Inicio la primera pantalla de Trabajo. */
+export function rutaDeEntrada(v: Vocabulario): string {
+  if (!pantallaOculta(v, "inicio")) return RUTA.inicio;
+  const primera = (v.menu.trabajo ?? ["inbox"]).find((p) => !pantallaOculta(v, p) && p !== "bookings");
+  return RUTA[primera ?? "inbox"];
 }
 
 /** El nombre de una etapa en esta instancia. Una oculta conserva el del núcleo. */

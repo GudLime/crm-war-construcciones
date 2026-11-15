@@ -98,6 +98,30 @@ apaga lo inmobiliario:
 - Self-test: `APP_BASE_URL=... node scripts/e2e-vocabulario.mjs` con la app
   levantada y un archivo como el de arriba.
 
+## Menú del cliente (071)
+
+El bloque `menu` arma el menú de esta instancia sin tocar el núcleo:
+
+```json
+"menu": {
+  "trabajo": ["oportunidades", "inbox", "contacts", "results"],
+  "nombres": { "results": "Dashboard" },
+  "ocultar": ["inicio", "pipeline", "tareas"]
+}
+```
+
+- `trabajo`: las pantallas del grupo Trabajo, en ese orden. Salen de su grupo
+  de siempre; un grupo que queda vacío no se muestra. Pantallas: `inicio`,
+  `inbox`, `pipeline`, `contacts`, `bookings`, `oportunidades`, `tareas`,
+  `results`.
+- `nombres`: cómo se llama cada pantalla en el menú (y en su título, para
+  Resultados).
+- `ocultar`: apaga `inicio`, `pipeline` o `tareas`. Su página deja de existir
+  (Inicio lleva a la primera pantalla de Trabajo; las otras dan 404) y
+  desaparece su rastro en otras pantallas (sin tareas, la oportunidad no
+  tiene Próximos pasos). Sin Inicio, al abrir el CRM se entra a la primera
+  pantalla de Trabajo, aunque falten pasos de la guía.
+
 ## Interés encadenado y Valor calculado (0049)
 
 Una relación muchos a muchos desde la oportunidad puede llevar `interes`: sus

@@ -27,6 +27,7 @@ type Ajustes = {
   duracionMinutos: number;
   enlaceCarta: string | null;
   direccion: string | null;
+  umbralHabitual: number;
 };
 type Config = { ajustes: Ajustes; horarios: Horario[]; cupo: Cupo[]; cierres: Cierre[] };
 
@@ -96,7 +97,10 @@ export function ReservasAjustesClient() {
     setConfig({ ...c, ajustes: { ...c.ajustes, [k]: v } });
   }
 
-  function numero(k: "anticipacionDias" | "minutosAntes" | "maxPersonas" | "duracionMinutos", v: string) {
+  function numero(
+    k: "anticipacionDias" | "minutosAntes" | "maxPersonas" | "duracionMinutos" | "umbralHabitual",
+    v: string
+  ) {
     const n = Number.parseInt(v, 10);
     ajuste(k, Number.isFinite(n) ? n : 0);
   }
@@ -362,6 +366,21 @@ export function ReservasAjustesClient() {
               disabled={!puedeEditar}
               onChange={(e) => numero("duracionMinutos", e.target.value)}
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="umbral">Visitas para ser Habitual</Label>
+            <Input
+              id="umbral"
+              type="number"
+              min={2}
+              max={100}
+              value={c.ajustes.umbralHabitual}
+              disabled={!puedeEditar}
+              onChange={(e) => numero("umbralHabitual", e.target.value)}
+            />
+            <p className="text-[12px] text-text-3">
+              Con menos visitas es Cliente; sin ninguna, Nuevo. Se ve en Contactos y en el salón.
+            </p>
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="direccion">Dirección (va en el evento del calendario)</Label>

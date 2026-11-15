@@ -76,7 +76,11 @@ alcanza (o dos del mismo sector). Cada reserva es una oportunidad con su fila
 en `reserva` (fecha, hora, personas, sector, mesas); las etapas que ocupan
 mesa son las abiertas y Compró (en Beba, Confirmada y Llegó). El día se
 maneja desde la vista Mosaico de Reservas (el salón por horario y sector,
-`src/components/reservas/salon-del-dia.tsx`). Reglas puras en `src/lib/reservas.ts`,
+`src/components/reservas/salon-del-dia.tsx`). En Contactos, cada persona
+muestra sus reservas, visitas y faltas, su segmento (Nuevo, Cliente,
+Habitual) y las vistas armadas; todo se cuenta de sus reservas
+(`src/server/reservas/comensales.ts`). El menú de cada cliente (orden,
+nombres, pantallas apagadas) va en el bloque `menu` de su configuración. Reglas puras en `src/lib/reservas.ts`,
 servicio en `src/server/reservas/`.
 
 ## Pendiente

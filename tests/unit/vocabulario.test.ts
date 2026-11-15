@@ -8,6 +8,7 @@ import {
   nombreEstado,
   opcionesEstado,
   problemaDeVocabulario,
+  rutaDeEntrada,
   vocabularioDe,
 } from "@/lib/vocabulario";
 import { CAMINO_OPORTUNIDAD, ESTADOS_ABIERTOS_LISTA, MOTIVOS_CIERRE } from "@/lib/ventas";
@@ -165,5 +166,47 @@ describe("pantallas", () => {
     expect(r.embudo[0]?.avance).toBe(0.5);
     expect(r.embudo[1]?.avance).toBeNull();
     expect(r.tiempos.map((t) => t.nombre)).toEqual(["Confirmada"]);
+  });
+});
+
+describe("menú del cliente (071)", () => {
+  const conMenu = (menu: unknown) => {
+    const r = validarConfig({ ...RESTAURANTE, menu });
+    if (!r.ok) throw new Error(r.errores.join("; "));
+    return vocabularioDe(r.config);
+  };
+  const BEBA = {
+    trabajo: ["oportunidades", "inbox", "contacts", "results"],
+    nombres: { results: "Dashboard" },
+    ocultar: ["inicio", "pipeline", "tareas"],
+  };
+
+  it("arma Trabajo en ese orden y saca esas pantallas de su grupo", () => {
+    const grupos = appNavGroups({ role: "owner", vocabulario: conMenu(BEBA) });
+    expect(grupos[0]!.title).toBe("Trabajo");
+    expect(grupos[0]!.items.map((i) => i.label)).toEqual(["Reservas", "Bandeja", "Contactos", "Dashboard"]);
+    const todo = grupos.flatMap((g) => g.items.map((i) => i.href));
+    expect(todo).not.toContain("/inicio");
+    expect(todo).not.toContain("/pipeline");
+    expect(todo).not.toContain("/tareas");
+    // El grupo Restaurante queda vacío y no se muestra; Resultados no se repite.
+    expect(grupos.some((g) => g.title === "Restaurante")).toBe(false);
+    expect(todo.filter((h) => h === "/results")).toHaveLength(1);
+  });
+
+  it("sin Inicio se entra a la primera pantalla de Trabajo", () => {
+    expect(rutaDeEntrada(conMenu(BEBA))).toBe("/oportunidades");
+    expect(rutaDeEntrada(VOCABULARIO_POR_DEFECTO)).toBe("/inicio");
+  });
+
+  it("sin bloque de menú todo queda como siempre", () => {
+    const grupos = appNavGroups({ role: "owner", vocabulario: conMenu(undefined) });
+    expect(grupos[0]!.items.map((i) => i.href)).toEqual(["/inicio", "/inbox", "/pipeline", "/contacts"]);
+    expect(grupos.flatMap((g) => g.items.map((i) => i.href))).toContain("/tareas");
+  });
+
+  it("rechaza una pantalla que no existe o una que no se puede apagar", () => {
+    expect(validarConfig({ ...RESTAURANTE, menu: { trabajo: ["cocina"] } }).ok).toBe(false);
+    expect(validarConfig({ ...RESTAURANTE, menu: { ocultar: ["inbox"] } }).ok).toBe(false);
   });
 });

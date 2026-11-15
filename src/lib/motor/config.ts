@@ -322,6 +322,34 @@ const vocabularioOportunidadSchema = z.object({
   cierrePorSinRespuesta: z.boolean().default(true),
 });
 
+/** 071 — Las pantallas del menú que un cliente puede reordenar, renombrar u ocultar. */
+export const PANTALLAS_MENU = [
+  "inicio",
+  "inbox",
+  "pipeline",
+  "contacts",
+  "bookings",
+  "oportunidades",
+  "tareas",
+  "results",
+] as const;
+export type PantallaMenu = (typeof PANTALLAS_MENU)[number];
+/** Las que se pueden apagar: su página deja de existir y su rastro en otras pantallas también. */
+export const PANTALLAS_OCULTABLES = ["inicio", "pipeline", "tareas"] as const;
+
+/**
+ * 071 — El menú de este cliente. `trabajo` arma el grupo Trabajo con esas
+ * pantallas, en ese orden (las saca de su grupo de siempre; un grupo que queda
+ * vacío no se muestra). `nombres` cambia cómo se llaman. `ocultar` apaga
+ * Inicio, el Pipeline de leads o las Tareas: sin Inicio, se entra a la primera
+ * pantalla de Trabajo.
+ */
+const menuSchema = z.object({
+  trabajo: z.array(z.enum(PANTALLAS_MENU)).min(1).max(PANTALLAS_MENU.length).optional(),
+  nombres: z.partialRecord(z.enum(PANTALLAS_MENU), z.string().trim().min(1).max(30)).optional(),
+  ocultar: z.array(z.enum(PANTALLAS_OCULTABLES)).max(PANTALLAS_OCULTABLES.length).optional(),
+});
+
 export const configClienteSchema = z.object({
   /** Versión del formato del archivo. */
   version: z.literal(1),
@@ -335,6 +363,8 @@ export const configClienteSchema = z.object({
    * apaga y no lo ve en ninguna pantalla.
    */
   inmobiliario: z.boolean().default(true),
+  /** 071 — Orden, nombres y pantallas apagadas del menú (ver arriba). */
+  menu: menuSchema.optional(),
   objetos: z.array(objetoSchema).default([]),
   relaciones: z.array(relacionSchema).default([]),
   reglasEtapa: z.array(reglaEtapaSchema).default([]),
