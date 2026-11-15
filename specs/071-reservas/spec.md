@@ -190,6 +190,28 @@ cualquier otro, redirige a la plantilla de evento de Google Calendar
 6. Pruebas de punta a punta con mocks y con el número de prueba; paso al
    número de Beba; capacitación.
 
+## Tanda de cambios en curso (sin implementar)
+
+Se juntan los pedidos de esta tanda y se implementan juntos.
+
+1. Contactos de un restaurante:
+   - Números de cada persona, calculados de sus reservas: visitas (Asistió),
+     reservas totales, No vino, Canceladas, primera y última visita.
+   - Segmento automático Nuevo, Cliente y Habitual; el umbral de Habitual
+     (por ejemplo, 3 visitas) se configura en Ajustes → Reservas.
+   - Filtros en Contactos con vistas armadas: Habituales, No vienen hace más
+     de 60 días, Faltaron alguna vez, Vinieron este mes.
+   - Historial de reservas en la ficha del contacto (fecha, personas, sector y
+     cómo terminó).
+   - Notas fijas de la persona (celíaca, silla de bebé, prefiere el
+     semidescubierto) que aparecen en cada reserva futura y en el salón.
+   - Señales en el salón: habitual y faltó antes sin avisar.
+   - «Acepta promociones» en el contacto, requisito para cualquier campaña.
+
+Para después: cumpleaños (pedirlo en el flujo de WhatsApp), envío de campañas
+a un segmento, unir contactos repetidos, feedback después de la visita, etapa
+Consulta (cuando el flujo registre las reservas que no se terminaron).
+
 ## Fuera de alcance por ahora
 
 Mesas específicas y plano del salón · cupo por personas y mesas combinables ·
