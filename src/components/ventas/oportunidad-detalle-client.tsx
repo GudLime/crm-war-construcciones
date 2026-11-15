@@ -17,6 +17,7 @@ import {
   ClipboardList,
   DoorOpen,
   FileText,
+  CalendarCheck,
   Flag,
   History,
   Mail,
@@ -37,6 +38,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { aLocal, plata, useMoneda } from "@/components/ventas/ui";
+import { fechaCorta } from "@/lib/reservas";
 import { WhatsAppLogo } from "@/components/whatsapp-logo";
 import type { NotaDto } from "@/lib/notas";
 import type {
@@ -327,6 +329,22 @@ export function OportunidadDetalleClient() {
 
               <div className="mt-3 flex flex-wrap gap-x-10 gap-y-0.5 text-[13.5px]">
                 <dl className="flex min-w-0 flex-[1_1_300px] flex-col gap-0.5">
+                  {datos.reserva && (
+                    <Fila icono={CalendarCheck} titulo="Para">
+                      <span className="tabular-nums">
+                        {fechaCorta(datos.reserva.fecha)} · {datos.reserva.hora}
+                      </span>
+                      <span className="font-normal text-text-3">
+                        · {datos.reserva.personas} persona{datos.reserva.personas === 1 ? "" : "s"} ·{" "}
+                        {datos.reserva.sector}
+                      </span>
+                    </Fila>
+                  )}
+                  {datos.reserva?.observaciones && (
+                    <Fila icono={StickyNote} titulo="Pidió">
+                      {datos.reserva.observaciones}
+                    </Fila>
+                  )}
                   <Fila icono={Megaphone} titulo="Origen">
                     {op.origen ? (
                       <span className="flex items-center gap-2">

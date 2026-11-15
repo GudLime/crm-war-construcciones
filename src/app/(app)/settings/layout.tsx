@@ -1,6 +1,7 @@
 import { SettingsNav } from "@/components/settings/settings-nav";
 import { soloAdminEnPagina } from "@/server/auth/solo-admin";
 import { agendaEnabled } from "@/server/agenda/flag";
+import { reservasEnabled } from "@/server/reservas/flag";
 import { atribucionEnabled } from "@/server/attribution/flag";
 import { isChannelEnabled } from "@/server/channels/enabled";
 
@@ -23,6 +24,7 @@ export default async function SettingsLayout({
       <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
         <SettingsNav
           agenda={agendaEnabled()}
+          reservas={reservasEnabled()}
           atribucion={atribucionEnabled()}
           instagram={isChannelEnabled("instagram")}
           messenger={isChannelEnabled("messenger")}

@@ -1,6 +1,6 @@
 # 071 — Reservas de restaurante por WhatsApp
 
-Estado: fase 2 hecha (vocabulario configurable) · Primer cliente: Beba (pastificio, Villa Urquiza) · Repo: GudLime/gudlime-crm-service (núcleo) + GudLime/crm-beba (configuración)
+Estado: fases 2 y 3 hechas (vocabulario configurable; cupo, Ajustes → Reservas y vista del día) · Primer cliente: Beba (pastificio, Villa Urquiza) · Repo: GudLime/gudlime-crm-service (núcleo) + GudLime/crm-beba (configuración)
 
 ## Qué
 
@@ -155,6 +155,23 @@ cualquier otro, redirige a la plantilla de evento de Google Calendar
    etapas y motivos revisados en la API, cierre por silencio apagable.
    Pruebas: `tests/unit/vocabulario.test.ts` y `scripts/e2e-vocabulario.mjs`.
 3. Reservas: tablas, disponibilidad, Ajustes → Reservas y vista del día.
+   **Hecho**, detrás de la bandera `RESERVAS` (`src/server/reservas/flag.ts`;
+   apagada, todo da 404 y el menú no cambia). Migración `0055_reservas`
+   (ajustes, horarios, cupo por sector y tamaño de mesa, días cerrados,
+   reserva atada 1 a 1 a su oportunidad). Reglas puras en
+   `src/lib/reservas.ts` (mesa más chica que alcanza, nunca una de 4 para 1 o
+   2, par del mismo sector para 5 o 6, el sector que deja más lugar para
+   grupos grandes, anticipación y minutos antes en la zona del negocio);
+   servicio en `src/server/reservas/servicio.ts`, que toma el cupo con un
+   lock por día y horario para que dos reservas no se lleven la misma mesa.
+   API: `/api/reservas` (alta manual), `/api/reservas/[id]` (cambio de
+   sector), `/api/reservas/dia`, `/api/reservas/disponibilidad`,
+   `/api/reservas/configuracion`. Pantallas: «Hoy» (`/reservas`: cupo libre
+   por horario, Llegó, No vino, Cancelada con motivo, mover de sector, carga
+   a mano) y Ajustes → Reservas; el detalle de la reserva muestra fecha, hora,
+   personas y sector. Una cancelada libera la mesa; una que llegó la sigue
+   ocupando. Pruebas: `tests/unit/reservas.test.ts` y
+   `scripts/e2e-reservas.mjs`.
 4. WhatsApp: mensajes interactivos, id del botón en el despacho, API del
    cerebro, cerebro de reservas, calendario.
 5. Plantilla de recordatorio (aprobación de Meta) y barrido.
@@ -169,6 +186,5 @@ seña · coexistencia con la app.
 
 ## A definir (no bloquea)
 
-Días y horarios en que abre Beba · días de anticipación · hasta cuánto antes se
-reserva por WhatsApp · hora de los recordatorios · enlace de la carta ·
+Hora de los recordatorios · enlace de la carta ·
 dirección para el calendario.

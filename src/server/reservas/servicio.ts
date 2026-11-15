@@ -1,0 +1,612 @@
+import { randomBytes } from "node:crypto";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { z } from "zod";
+import { getDb, schema } from "@/lib/db";
+import { newId } from "@/lib/db/ids";
+import type { MesaTomada } from "@/lib/db/reservas-tables";
+import { scoped } from "@/lib/db/tenant";
+import {
+  asignar,
+  enZona,
+  esFecha,
+  esHora,
+  fechasDeLaAnticipacion,
+  formaPara,
+  horariosReservables,
+  resumenCupo,
+  type CupoSector,
+  type Ocupacion,
+} from "@/lib/reservas";
+import { normalizarTelefono } from "@/lib/telefono";
+import { ESTADOS_ABIERTOS, type EstadoOportunidad } from "@/lib/ventas";
+import { registrarCreada, type Actor } from "@/server/oportunidad-historial";
+
+/**
+ * 071 — Reservas de restaurante: ajustes, disponibilidad y toma de cupo.
+ * La regla de mesas vive pura en `lib/reservas.ts`; acá se juntan los datos
+ * y se escribe. Lo usan la vista del día, Ajustes → Reservas y (fase 4) el
+ * cerebro del flujo de WhatsApp.
+ */
+
+export class ReservaError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string
+  ) {
+    super(message);
+  }
+}
+
+/** Ocupan cupo las Confirmadas (abiertas) y las que Llegó; las cerradas lo liberan. */
+export const ESTADOS_QUE_OCUPAN: EstadoOportunidad[] = [...ESTADOS_ABIERTOS, "compro"];
+
+// ─── Ajustes ────────────────────────────────────────────────────────────
+
+export const ajustesSchema = z.object({
+  zonaHoraria: z.string().trim().min(3).max(60),
+  anticipacionDias: z.number().int().min(0).max(90),
+  minutosAntes: z.number().int().min(0).max(24 * 60),
+  maxPersonas: z.number().int().min(1).max(100),
+  duracionMinutos: z.number().int().min(15).max(12 * 60),
+  enlaceCarta: z.string().trim().url().max(500).nullable(),
+  direccion: z.string().trim().max(200).nullable(),
+});
+export type AjustesReservas = z.infer<typeof ajustesSchema>;
+
+export const horariosSchema = z
+  .array(
+    z.object({
+      diaSemana: z.number().int().min(0).max(6),
+      hora: z.string().refine(esHora, "Hora en formato HH:MM"),
+      activo: z.boolean().default(true),
+    })
+  )
+  .max(7 * 24);
+
+export const cupoSchema = z
+  .array(
+    z.object({
+      sector: z.string().trim().min(1).max(40),
+      capacidad: z.number().int().min(1).max(30),
+      cantidad: z.number().int().min(0).max(200),
+    })
+  )
+  .max(60);
+
+export const cierreSchema = z.object({
+  fecha: z.string().refine(esFecha, "Fecha en formato AAAA-MM-DD"),
+  motivo: z.string().trim().max(120).nullable().optional(),
+});
+
+const AJUSTES_POR_DEFECTO: AjustesReservas = {
+  zonaHoraria: "America/Argentina/Buenos_Aires",
+  anticipacionDias: 7,
+  minutosAntes: 20,
+  maxPersonas: 6,
+  duracionMinutos: 120,
+  enlaceCarta: null,
+  direccion: null,
+};
+
+export async function leerAjustes(organizationId: string): Promise<AjustesReservas> {
+  const [fila] = await getDb()
+    .select()
+    .from(schema.reservaAjustes)
+    .where(eq(schema.reservaAjustes.organizationId, organizationId))
+    .limit(1);
+  if (!fila) return { ...AJUSTES_POR_DEFECTO };
+  return {
+    zonaHoraria: fila.zonaHoraria,
+    anticipacionDias: fila.anticipacionDias,
+    minutosAntes: fila.minutosAntes,
+    maxPersonas: fila.maxPersonas,
+    duracionMinutos: fila.duracionMinutos,
+    enlaceCarta: fila.enlaceCarta,
+    direccion: fila.direccion,
+  };
+}
+
+export async function leerHorarios(organizationId: string) {
+  return getDb()
+    .select({
+      diaSemana: schema.reservaHorario.diaSemana,
+      hora: schema.reservaHorario.hora,
+      activo: schema.reservaHorario.activo,
+    })
+    .from(schema.reservaHorario)
+    .where(scoped(schema.reservaHorario.organizationId, organizationId))
+    .orderBy(asc(schema.reservaHorario.diaSemana), asc(schema.reservaHorario.hora));
+}
+
+export async function leerCupo(organizationId: string): Promise<CupoSector[]> {
+  return getDb()
+    .select({
+      sector: schema.reservaCupo.sector,
+      capacidad: schema.reservaCupo.capacidad,
+      cantidad: schema.reservaCupo.cantidad,
+      orden: schema.reservaCupo.orden,
+    })
+    .from(schema.reservaCupo)
+    .where(scoped(schema.reservaCupo.organizationId, organizationId))
+    .orderBy(asc(schema.reservaCupo.orden), asc(schema.reservaCupo.capacidad));
+}
+
+export async function leerCierres(organizationId: string) {
+  return getDb()
+    .select({ fecha: schema.reservaCierre.fecha, motivo: schema.reservaCierre.motivo })
+    .from(schema.reservaCierre)
+    .where(scoped(schema.reservaCierre.organizationId, organizationId))
+    .orderBy(asc(schema.reservaCierre.fecha));
+}
+
+/** Todo Ajustes → Reservas en una sola lectura. */
+export async function leerConfiguracion(organizationId: string) {
+  const [ajustes, horarios, cupo, cierres] = await Promise.all([
+    leerAjustes(organizationId),
+    leerHorarios(organizationId),
+    leerCupo(organizationId),
+    leerCierres(organizationId),
+  ]);
+  return { ajustes, horarios, cupo, cierres };
+}
+
+export const configuracionSchema = z.object({
+  ajustes: ajustesSchema,
+  horarios: horariosSchema,
+  cupo: cupoSchema,
+  cierres: z.array(cierreSchema).max(400),
+});
+export type ConfiguracionReservas = z.infer<typeof configuracionSchema>;
+
+/**
+ * Guarda Ajustes → Reservas entero (reemplaza horarios, cupo y cierres).
+ * Cambiar el cupo no toca las reservas ya tomadas: si quedan más de las que
+ * entran, la vista del día lo muestra con cupo negativo.
+ */
+export async function guardarConfiguracion(organizationId: string, c: ConfiguracionReservas): Promise<void> {
+  try {
+    new Intl.DateTimeFormat("es-AR", { timeZone: c.ajustes.zonaHoraria });
+  } catch {
+    throw new ReservaError(422, "zona_invalida", `«${c.ajustes.zonaHoraria}» no es una zona horaria`);
+  }
+  const vistos = new Set<string>();
+  for (const h of c.horarios) {
+    const k = `${h.diaSemana} ${h.hora}`;
+    if (vistos.has(k)) throw new ReservaError(422, "horario_repetido", `El horario ${h.hora} está repetido`);
+    vistos.add(k);
+  }
+  const sectores = new Set<string>();
+  for (const q of c.cupo) {
+    const k = `${q.sector.toLowerCase()} ${q.capacidad}`;
+    if (sectores.has(k)) {
+      throw new ReservaError(422, "cupo_repetido", `Las mesas de ${q.capacidad} de «${q.sector}» están repetidas`);
+    }
+    sectores.add(k);
+  }
+  const ordenSector = new Map<string, number>();
+  for (const q of c.cupo) if (!ordenSector.has(q.sector)) ordenSector.set(q.sector, ordenSector.size);
+
+  await getDb().transaction(async (tx) => {
+    await tx
+      .insert(schema.reservaAjustes)
+      .values({ organizationId, ...c.ajustes })
+      .onConflictDoUpdate({
+        target: schema.reservaAjustes.organizationId,
+        set: { ...c.ajustes, updatedAt: new Date() },
+      });
+    await tx.delete(schema.reservaHorario).where(eq(schema.reservaHorario.organizationId, organizationId));
+    if (c.horarios.length) {
+      await tx.insert(schema.reservaHorario).values(
+        c.horarios.map((h) => ({ id: newId("reservaHorario"), organizationId, ...h }))
+      );
+    }
+    await tx.delete(schema.reservaCupo).where(eq(schema.reservaCupo.organizationId, organizationId));
+    if (c.cupo.length) {
+      await tx.insert(schema.reservaCupo).values(
+        c.cupo.map((q) => ({
+          id: newId("reservaCupo"),
+          organizationId,
+          ...q,
+          orden: ordenSector.get(q.sector) ?? 0,
+        }))
+      );
+    }
+    await tx.delete(schema.reservaCierre).where(eq(schema.reservaCierre.organizationId, organizationId));
+    const fechas = [...new Map(c.cierres.map((x) => [x.fecha, x])).values()];
+    if (fechas.length) {
+      await tx.insert(schema.reservaCierre).values(
+        fechas.map((x) => ({ id: newId("reservaCierre"), organizationId, fecha: x.fecha, motivo: x.motivo ?? null }))
+      );
+    }
+  });
+}
+
+// ─── Ocupación y disponibilidad ──────────────────────────────────────────
+
+type Db = ReturnType<typeof getDb>;
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+async function ocupadasEn(
+  db: Db | Tx,
+  organizationId: string,
+  fecha: string,
+  horas?: readonly string[],
+  excepto?: string
+): Promise<(Ocupacion & { hora: string })[]> {
+  const filas = await db
+    .select({
+      id: schema.reserva.id,
+      hora: schema.reserva.hora,
+      sector: schema.reserva.sector,
+      mesas: schema.reserva.mesas,
+    })
+    .from(schema.reserva)
+    .innerJoin(schema.oportunidad, eq(schema.oportunidad.id, schema.reserva.oportunidadId))
+    .where(
+      scoped(
+        schema.reserva.organizationId,
+        organizationId,
+        and(
+          eq(schema.reserva.fecha, fecha),
+          inArray(schema.oportunidad.estado, ESTADOS_QUE_OCUPAN),
+          horas?.length ? inArray(schema.reserva.hora, [...horas]) : undefined
+        )
+      )
+    );
+  return filas.filter((f) => f.id !== excepto);
+}
+
+function porHora(ocupadas: readonly (Ocupacion & { hora: string })[], hora: string): Ocupacion[] {
+  return ocupadas.filter((o) => o.hora === hora);
+}
+
+export type HorarioDisponible = { hora: string; hayLugar: boolean };
+
+/** Los horarios reservables de una fecha y si entra una reserva de `personas`. */
+export async function disponibilidad(
+  organizationId: string,
+  input: { fecha: string; personas: number; ahora?: Date }
+): Promise<{ derivar: boolean; horarios: HorarioDisponible[] }> {
+  const { ajustes, horarios, cupo, cierres } = await leerConfiguracion(organizationId);
+  if (input.personas > ajustes.maxPersonas || !formaPara(cupo, input.personas)) {
+    return { derivar: true, horarios: [] };
+  }
+  const reservables = horariosReservables({
+    fecha: input.fecha,
+    horarios,
+    cierres: cierres.map((c) => c.fecha),
+    ahora: input.ahora ?? new Date(),
+    zona: ajustes.zonaHoraria,
+    anticipacionDias: ajustes.anticipacionDias,
+    minutosAntes: ajustes.minutosAntes,
+  });
+  if (!reservables.length) return { derivar: false, horarios: [] };
+  const ocupadas = await ocupadasEn(getDb(), organizationId, input.fecha, reservables);
+  return {
+    derivar: false,
+    horarios: reservables.map((hora) => ({
+      hora,
+      hayLugar: asignar(cupo, porHora(ocupadas, hora), input.personas) !== null,
+    })),
+  };
+}
+
+/** Los días de la anticipación con al menos un horario libre para `personas`. */
+export async function diasConLugar(
+  organizationId: string,
+  input: { personas: number; ahora?: Date }
+): Promise<{ derivar: boolean; dias: { fecha: string; horarios: string[] }[] }> {
+  const ajustes = await leerAjustes(organizationId);
+  const ahora = input.ahora ?? new Date();
+  const dias: { fecha: string; horarios: string[] }[] = [];
+  for (const fecha of fechasDeLaAnticipacion(ahora, ajustes.zonaHoraria, ajustes.anticipacionDias)) {
+    const d = await disponibilidad(organizationId, { fecha, personas: input.personas, ahora });
+    if (d.derivar) return { derivar: true, dias: [] };
+    const libres = d.horarios.filter((h) => h.hayLugar).map((h) => h.hora);
+    if (libres.length) dias.push({ fecha, horarios: libres });
+  }
+  return { derivar: false, dias };
+}
+
+// ─── Tomar cupo ─────────────────────────────────────────────────────────
+
+export type ReservaCreada = {
+  id: string;
+  oportunidadId: string;
+  contactId: string;
+  fecha: string;
+  hora: string;
+  personas: number;
+  nombre: string;
+  sector: string;
+  mesas: MesaTomada[];
+  tokenCalendario: string;
+};
+
+/**
+ * Toma el cupo y crea la reserva (y su oportunidad, Confirmada) en una sola
+ * transacción. Un bloqueo por fecha y horario hace que dos pedidos a la vez
+ * por la última mesa no entren los dos: el segundo ve la ocupación del
+ * primero y recibe 409 `sin_lugar`.
+ */
+export async function tomarCupo(
+  organizationId: string,
+  input: {
+    contactId: string;
+    fecha: string;
+    hora: string;
+    personas: number;
+    nombre: string;
+    canal: "whatsapp" | "manual" | "telefono";
+    observaciones?: string | null;
+    actor: Actor;
+    /** Una persona del equipo puede cargar una reserva fuera de los horarios reservables. */
+    forzarHorario?: boolean;
+    ahora?: Date;
+  }
+): Promise<ReservaCreada> {
+  if (!esFecha(input.fecha) || !esHora(input.hora)) {
+    throw new ReservaError(422, "invalid_body", "Fecha u hora inválida");
+  }
+  const { ajustes, horarios, cupo, cierres } = await leerConfiguracion(organizationId);
+  if (!input.forzarHorario) {
+    if (input.personas > ajustes.maxPersonas) {
+      throw new ReservaError(409, "derivar", `Más de ${ajustes.maxPersonas} personas lo atiende una persona`);
+    }
+    const reservables = horariosReservables({
+      fecha: input.fecha,
+      horarios,
+      cierres: cierres.map((c) => c.fecha),
+      ahora: input.ahora ?? new Date(),
+      zona: ajustes.zonaHoraria,
+      anticipacionDias: ajustes.anticipacionDias,
+      minutosAntes: ajustes.minutosAntes,
+    });
+    if (!reservables.includes(input.hora)) {
+      throw new ReservaError(409, "fuera_de_horario", "Ese horario no se puede reservar");
+    }
+  }
+  const [contacto] = await getDb()
+    .select({ id: schema.contact.id })
+    .from(schema.contact)
+    .where(scoped(schema.contact.organizationId, organizationId, eq(schema.contact.id, input.contactId)))
+    .limit(1);
+  if (!contacto) throw new ReservaError(404, "not_found", "Ese contacto no existe");
+
+  const creada = await getDb().transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext(${`reserva:${organizationId}:${input.fecha}:${input.hora}`}))`
+    );
+    const ocupadas = await ocupadasEn(tx, organizationId, input.fecha, [input.hora]);
+    const asignada = asignar(cupo, ocupadas, input.personas);
+    if (!asignada) throw new ReservaError(409, "sin_lugar", "No queda lugar en ese horario");
+
+    const [op] = await tx
+      .insert(schema.oportunidad)
+      .values({
+        id: newId("oportunidad"),
+        organizationId,
+        nombre: input.nombre,
+        contactId: input.contactId,
+        estado: "recibido",
+      })
+      .returning();
+    const [res] = await tx
+      .insert(schema.reserva)
+      .values({
+        id: newId("reserva"),
+        organizationId,
+        oportunidadId: op!.id,
+        contactId: input.contactId,
+        fecha: input.fecha,
+        hora: input.hora,
+        personas: input.personas,
+        nombre: input.nombre,
+        sector: asignada.sector,
+        mesas: asignada.mesas,
+        tokenCalendario: randomBytes(18).toString("base64url"),
+        canal: input.canal,
+        observaciones: input.observaciones ?? null,
+      })
+      .returning();
+    return { op: op!, res: res! };
+  });
+
+  await registrarCreada(organizationId, creada.op, input.actor, {
+    reserva: { fecha: input.fecha, hora: input.hora, personas: input.personas, canal: input.canal },
+  });
+  const r = creada.res;
+  return {
+    id: r.id,
+    oportunidadId: r.oportunidadId,
+    contactId: r.contactId,
+    fecha: r.fecha,
+    hora: r.hora,
+    personas: r.personas,
+    nombre: r.nombre,
+    sector: r.sector,
+    mesas: r.mesas,
+    tokenCalendario: r.tokenCalendario,
+  };
+}
+
+/**
+ * El contacto de una reserva cargada a mano: el que ya tiene ese teléfono o
+ * uno nuevo. Sin teléfono (alguien que se acercó al local), uno nuevo sin
+ * WhatsApp.
+ */
+export async function contactoParaReserva(
+  organizationId: string,
+  input: { nombre: string; telefono?: string | null }
+): Promise<string> {
+  const db = getDb();
+  if (input.telefono) {
+    const n = normalizarTelefono(input.telefono);
+    if (!n.ok) throw new ReservaError(422, "telefono_invalido", "Ese teléfono no parece válido");
+    const [existente] = await db
+      .select({ id: schema.contact.id })
+      .from(schema.contact)
+      .where(scoped(schema.contact.organizationId, organizationId, eq(schema.contact.waIdentity, n.telefono)))
+      .limit(1);
+    if (existente) return existente.id;
+    const [nuevo] = await db
+      .insert(schema.contact)
+      .values({
+        id: newId("contact"),
+        organizationId,
+        name: input.nombre,
+        phone: n.telefono,
+        waIdentity: n.telefono,
+        source: "otro",
+      })
+      .onConflictDoNothing()
+      .returning({ id: schema.contact.id });
+    if (nuevo) return nuevo.id;
+    const [ganador] = await db
+      .select({ id: schema.contact.id })
+      .from(schema.contact)
+      .where(scoped(schema.contact.organizationId, organizationId, eq(schema.contact.waIdentity, n.telefono)))
+      .limit(1);
+    if (ganador) return ganador.id;
+    throw new ReservaError(409, "contacto", "No se pudo crear el contacto");
+  }
+  const [nuevo] = await db
+    .insert(schema.contact)
+    .values({
+      id: newId("contact"),
+      organizationId,
+      name: input.nombre,
+      waIdentity: `reserva:${newId("reserva")}`,
+      source: "otro",
+    })
+    .returning({ id: schema.contact.id });
+  return nuevo!.id;
+}
+
+/** Mueve una reserva a otro sector, si ahí entran sus mesas. */
+export async function cambiarSector(organizationId: string, reservaId: string, sector: string): Promise<void> {
+  const [r] = await getDb()
+    .select()
+    .from(schema.reserva)
+    .where(scoped(schema.reserva.organizationId, organizationId, eq(schema.reserva.id, reservaId)))
+    .limit(1);
+  if (!r) throw new ReservaError(404, "not_found", "Esa reserva no existe");
+  if (r.sector === sector) return;
+  const cupo = await leerCupo(organizationId);
+  await getDb().transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`reserva:${organizationId}:${r.fecha}:${r.hora}`}))`);
+    const ocupadas = await ocupadasEn(tx, organizationId, r.fecha, [r.hora], r.id);
+    const delSector = cupo.filter((c) => c.sector === sector);
+    if (!delSector.length) throw new ReservaError(422, "sector", `«${sector}» no es un sector`);
+    const libresAhi = resumenCupo(
+      delSector,
+      ocupadas.filter((o) => o.sector === sector)
+    );
+    for (const m of r.mesas) {
+      const tipo = libresAhi.find((x) => x.capacidad === m.capacidad);
+      if (!tipo || tipo.libres <= 0) {
+        throw new ReservaError(409, "sin_lugar", `En «${sector}» no quedan mesas de ${m.capacidad}`);
+      }
+      tipo.libres--;
+    }
+    await tx
+      .update(schema.reserva)
+      .set({ sector, updatedAt: new Date() })
+      .where(eq(schema.reserva.id, r.id));
+  });
+}
+
+// ─── La vista del día ───────────────────────────────────────────────────
+
+export type ReservaDelDia = {
+  id: string;
+  oportunidadId: string;
+  contactId: string;
+  nombre: string;
+  contactoNombre: string;
+  telefono: string | null;
+  personas: number;
+  sector: string;
+  mesas: MesaTomada[];
+  estado: string;
+  canal: string;
+  observaciones: string | null;
+};
+
+export type HorarioDelDia = {
+  hora: string;
+  /** false: hay reservas en un horario que ya no está en Ajustes. */
+  configurado: boolean;
+  cupo: { capacidad: number; libres: number; total: number }[];
+  personas: number;
+  reservas: ReservaDelDia[];
+};
+
+export async function reservasDelDia(
+  organizationId: string,
+  fecha: string
+): Promise<{ fecha: string; hoy: string; cerrado: string | null; sectores: string[]; horarios: HorarioDelDia[] }> {
+  if (!esFecha(fecha)) throw new ReservaError(422, "invalid_body", "Fecha inválida");
+  const { ajustes, horarios, cupo, cierres } = await leerConfiguracion(organizationId);
+  const filas = await getDb()
+    .select({
+      r: schema.reserva,
+      estado: schema.oportunidad.estado,
+      contactoNombre: schema.contact.name,
+      telefono: schema.contact.phone,
+    })
+    .from(schema.reserva)
+    .innerJoin(schema.oportunidad, eq(schema.oportunidad.id, schema.reserva.oportunidadId))
+    .innerJoin(schema.contact, eq(schema.contact.id, schema.reserva.contactId))
+    .where(scoped(schema.reserva.organizationId, organizationId, eq(schema.reserva.fecha, fecha)))
+    .orderBy(asc(schema.reserva.hora), asc(schema.reserva.createdAt));
+
+  const delDia = new Set(
+    horarios.filter((h) => h.activo && h.diaSemana === new Date(`${fecha}T00:00:00Z`).getUTCDay()).map((h) => h.hora)
+  );
+  const horas = [...new Set([...delDia, ...filas.map((f) => f.r.hora)])].sort();
+  return {
+    fecha,
+    hoy: enZona(new Date(), ajustes.zonaHoraria).fecha,
+    cerrado: cierres.find((c) => c.fecha === fecha)?.motivo ?? (cierres.some((c) => c.fecha === fecha) ? "Cerrado" : null),
+    sectores: [...new Set(cupo.map((c) => c.sector))],
+    horarios: horas.map((hora) => {
+      const deEsta = filas.filter((f) => f.r.hora === hora);
+      const ocupan = deEsta.filter((f) => ESTADOS_QUE_OCUPAN.includes(f.estado as EstadoOportunidad));
+      return {
+        hora,
+        configurado: delDia.has(hora),
+        cupo: resumenCupo(
+          cupo,
+          ocupan.map((f) => ({ sector: f.r.sector, mesas: f.r.mesas }))
+        ),
+        personas: ocupan.reduce((a, f) => a + f.r.personas, 0),
+        reservas: deEsta.map((f) => ({
+          id: f.r.id,
+          oportunidadId: f.r.oportunidadId,
+          contactId: f.r.contactId,
+          nombre: f.r.nombre,
+          contactoNombre: f.contactoNombre,
+          telefono: f.telefono,
+          personas: f.r.personas,
+          sector: f.r.sector,
+          mesas: f.r.mesas,
+          estado: f.estado,
+          canal: f.r.canal,
+          observaciones: f.r.observaciones,
+        })),
+      };
+    }),
+  };
+}
+
+/** La reserva de una oportunidad (para mostrarla en su página). */
+export async function reservaDeOportunidad(organizationId: string, oportunidadId: string) {
+  const [r] = await getDb()
+    .select()
+    .from(schema.reserva)
+    .where(scoped(schema.reserva.organizationId, organizationId, eq(schema.reserva.oportunidadId, oportunidadId)))
+    .limit(1);
+  return r ?? null;
+}

@@ -67,6 +67,17 @@ vive en `src/lib/vocabulario.ts`. Las API de estado y motivo lo revisan
 (`revisarCambio`). Sin `inmobiliario`, abrir una oportunidad no exige que el
 contacto sea Lead. Primer cliente: Beba (reservas de restaurante).
 
+## Reservas de restaurante (spec 071)
+
+Módulo opcional detrás de `RESERVAS=on`; apagado, sus pantallas y su API dan
+404. Se reserva por cupo, no por mesa: cada horario arranca con todas las
+mesas de Ajustes → Reservas libres y cada reserva se lleva la más chica que
+alcanza (o dos del mismo sector). Cada reserva es una oportunidad con su fila
+en `reserva` (fecha, hora, personas, sector, mesas); las etapas que ocupan
+mesa son las abiertas y Compró (en Beba, Confirmada y Llegó). El día se
+maneja desde «Hoy» (`/reservas`). Reglas puras en `src/lib/reservas.ts`,
+servicio en `src/server/reservas/`.
+
 ## Pendiente
 
 Pasos 2 a 8 del motor (edificio y departamento pasan a ser objetos

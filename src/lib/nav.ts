@@ -1,5 +1,6 @@
 import {
   Building2,
+  CalendarCheck,
   CalendarDays,
   ChartColumn,
   FlaskConical,
@@ -56,12 +57,15 @@ export const SETTINGS_ITEM: NavItem = {
  */
 export function appNavGroups({
   agenda = false,
+  reservas = false,
   role,
   objetos = [],
   vocabulario = VOCABULARIO_POR_DEFECTO,
 }: {
   /** 015 — "Citas" solo existe si esta instancia encendió la agenda. */
   agenda?: boolean;
+  /** 071 — «Hoy» (la vista del día de reservas) solo con la bandera RESERVAS. */
+  reservas?: boolean;
   /** #86 — La guía de inicio solo para quien puede configurar. */
   role?: string | null;
   /** 070 — Los objetos personalizados del cliente (Edificio, Tratamiento…). */
@@ -94,6 +98,7 @@ export function appNavGroups({
   );
 
   const ventas: NavItem[] = [
+    ...(reservas ? [{ href: "/reservas", label: "Hoy", icon: CalendarCheck }] : []),
     // 071 — Los edificios son de lo inmobiliario: sin él, no hay entrada.
     ...(vocabulario.inmobiliario ? [{ href: "/edificios", label: "Edificios", icon: Building2 }] : []),
     // 070 — Cada objeto personalizado del cliente, en el orden de su configuración.
@@ -129,12 +134,15 @@ export type SettingsSection = {
  */
 export function settingsSections({
   agenda = false,
+  reservas = false,
   atribucion = false,
   instagram = false,
   messenger = false,
   tiktok = false,
 }: {
   agenda?: boolean;
+  /** 071 — "Reservas" solo si la instancia toma reservas (bandera RESERVAS). */
+  reservas?: boolean;
   /** 016 — "Anuncios" existe solo con la bandera ATRIBUCION. */
   atribucion?: boolean;
   /** 023 — "Instagram" solo si el canal está encendido con CHANNELS. */
@@ -172,6 +180,7 @@ export function settingsSections({
     { href: "/settings/ventas", label: "Ventas" },
     { href: "/settings/team", label: "Equipo" },
   ];
+  if (reservas) negocio.unshift({ href: "/settings/reservas", label: "Reservas" });
   if (atribucion) negocio.push({ href: "/settings/ads", label: "Anuncios" });
 
   return [
