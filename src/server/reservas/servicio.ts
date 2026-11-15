@@ -440,6 +440,8 @@ export async function tomarCupo(
     actor: Actor;
     /** Una persona del equipo puede cargar una reserva fuera de los horarios reservables. */
     forzarHorario?: boolean;
+    /** El equipo eligió el sector (tocó una mesa libre del mosaico): solo se busca ahí. */
+    sector?: string | null;
     ahora?: Date;
   }
 ): Promise<ReservaCreada> {
@@ -476,8 +478,16 @@ export async function tomarCupo(
       sql`select pg_advisory_xact_lock(hashtext(${`reserva:${organizationId}:${input.fecha}:${input.hora}`}))`
     );
     const ocupadas = await ocupadasEn(tx, organizationId, input.fecha, [input.hora]);
-    const asignada = asignar(cupo, ocupadas, input.personas);
-    if (!asignada) throw new ReservaError(409, "sin_lugar", "No queda lugar en ese horario");
+    const enSector = input.sector ? cupo.filter((c) => c.sector === input.sector) : cupo;
+    if (input.sector && !enSector.length) throw new ReservaError(422, "sector", `«${input.sector}» no es un sector`);
+    const asignada = asignar(enSector, ocupadas, input.personas);
+    if (!asignada) {
+      throw new ReservaError(
+        409,
+        "sin_lugar",
+        input.sector ? `No queda lugar en «${input.sector}» en ese horario` : "No queda lugar en ese horario"
+      );
+    }
 
     const [op] = await tx
       .insert(schema.oportunidad)
@@ -643,7 +653,18 @@ export type HorarioDelDia = {
 export async function reservasDelDia(
   organizationId: string,
   fecha: string
-): Promise<{ fecha: string; hoy: string; cerrado: string | null; sectores: string[]; horarios: HorarioDelDia[] }> {
+): Promise<{
+  fecha: string;
+  hoy: string;
+  /** La hora ahora en la zona del negocio ("HH:MM"), para abrir el mosaico en el horario que viene. */
+  ahora: string;
+  duracionMinutos: number;
+  cerrado: string | null;
+  sectores: string[];
+  /** Las mesas de cada sector, para dibujar el salón. */
+  mesas: { sector: string; capacidad: number; cantidad: number }[];
+  horarios: HorarioDelDia[];
+}> {
   if (!esFecha(fecha)) throw new ReservaError(422, "invalid_body", "Fecha inválida");
   const { ajustes, horarios, cupo, cierres, sectores } = await leerConfiguracion(organizationId);
   const filas = await getDb()
@@ -667,7 +688,13 @@ export async function reservasDelDia(
     fecha,
     hoy: enZona(new Date(), ajustes.zonaHoraria).fecha,
     cerrado: cierres.find((c) => c.fecha === fecha)?.motivo ?? (cierres.some((c) => c.fecha === fecha) ? "Cerrado" : null),
+    ahora: (() => {
+      const m = enZona(new Date(), ajustes.zonaHoraria).minutos;
+      return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+    })(),
+    duracionMinutos: ajustes.duracionMinutos,
     sectores: sectores.filter((s) => cupo.some((c) => c.sector === s)),
+    mesas: cupo.map((c) => ({ sector: c.sector, capacidad: c.capacidad, cantidad: c.cantidad })),
     horarios: horas.map((hora) => {
       const deEsta = filas.filter((f) => f.r.hora === hora);
       const ocupan = deEsta.filter((f) => ESTADOS_QUE_OCUPAN.includes(f.estado as EstadoOportunidad));

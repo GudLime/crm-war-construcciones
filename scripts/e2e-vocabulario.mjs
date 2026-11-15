@@ -67,6 +67,9 @@ try {
   const menu = await pagina.locator("nav").first().innerText();
   ok("el menú dice Reservas, en el grupo Restaurante", /Reservas/.test(menu) && /Restaurante/i.test(menu), menu);
   ok("el menú no tiene Edificios ni Oportunidades", !/Edificios|Oportunidades/.test(menu), menu);
+  // Con RESERVAS encendida la página abre en el salón (Mosaico): se pasa a la Lista.
+  const lista0 = pagina.getByRole("tab", { name: "Lista" });
+  if ((await lista0.getAttribute("aria-selected")) !== "true") await lista0.click();
   await pagina.getByText("Lucía Pérez").first().waitFor({ timeout: 15000 });
   const lista = await pagina.locator("main").innerText();
   ok("la lista tiene «Nueva reserva»", /Nueva reserva/.test(lista));

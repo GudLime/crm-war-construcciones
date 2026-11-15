@@ -20,6 +20,7 @@ import { OrigenIcono } from "./origen-icono";
 import { SelectorDeColumnas, SelectorDeForma, VistaOportunidades, usePreferenciasDeLista } from "./oportunidades-vistas";
 import { BarraDeFiltros, PestanasDeVistas, useVistas, type Miembro } from "./filtros-oportunidades";
 import { situacionACargar } from "@/lib/vistas";
+import { SalonDelDia } from "@/components/reservas/salon-del-dia";
 import type { OrigenDto } from "@/lib/origenes";
 import type { DepartamentoDto, EdificioDto, OportunidadDto } from "@/server/ventas";
 import {
@@ -94,7 +95,7 @@ function unidadesDeFiltro(filas: readonly OportunidadDto[]): { value: string; la
     .sort((a, b) => a.label.localeCompare(b.label, "es", { numeric: true }));
 }
 
-export function OportunidadesClient() {
+export function OportunidadesClient({ reservas = false }: { reservas?: boolean }) {
   const voc = useVocabulario();
   const singular = enFrase(voc.singular);
   const moneda = useMoneda();
@@ -116,7 +117,15 @@ export function OportunidadesClient() {
   const volverA = useRef<string | null>(null);
   /** Nombre del origen → su ícono o imagen (Configuración → Orígenes). */
   const iconoDe = useMemo(() => new Map(origenes.map((o) => [o.nombre, o])), [origenes]);
-  const [pref, setPref] = usePreferenciasDeLista();
+  const [pref, setPref] = usePreferenciasDeLista(reservas);
+  /** 071 — En Mosaico (el salón) la página muestra las mesas del día, no las tarjetas. */
+  const enSalon = reservas && pref.forma === "mosaico";
+  /** 071 — Cada vez que se toca «Nueva reserva», el salón abre su carga. */
+  const [nuevaReserva, setNuevaReserva] = useState(0);
+  // Al salir del salón se olvida el pedido, para que volver no reabra la carga.
+  useEffect(() => {
+    if (!enSalon) setNuevaReserva(0);
+  }, [enSalon]);
   /** Qué hay cargado: la lista arranca con las abiertas y trae las cerradas solo si se piden. */
   const [cargadas, setCargadas] = useState<"abiertas" | "cerradas" | "todas" | null>(null);
   const vistas = useVistas({ filas, cargadas, pref, setPref });
@@ -310,14 +319,24 @@ export function OportunidadesClient() {
     <Pagina
       titulo={voc.plural}
       detalle={
-        voc.inmobiliario
+        enSalon
+          ? "Las mesas de cada horario y quién las reservó."
+          : voc.inmobiliario
           ? "De dónde llegó, a quién pertenece y qué edificio o departamento está mirando."
           : `De dónde llegó y a quién pertenece cada ${singular}.`
       }
       accion={
         <div className="flex flex-wrap items-center gap-2">
           <SelectorDeForma forma={pref.forma} onCambio={(forma) => setPref({ ...pref, forma })} />
-        <Button size="sm" onClick={abrirNueva}>
+        <Button
+          size="sm"
+          onClick={() => {
+            // Una reserva se carga con su fecha, horario y cupo: eso vive en el salón.
+            if (!reservas) return abrirNueva();
+            if (pref.forma !== "mosaico") setPref({ ...pref, forma: "mosaico" });
+            setNuevaReserva((n) => n + 1);
+          }}
+        >
           <Plus className="h-4 w-4" strokeWidth={1.8} />
           Nueva {singular}
         </Button>
@@ -478,7 +497,9 @@ export function OportunidadesClient() {
         </Ficha>
       )}
 
-      {listo && filas.length === 0 && cargadas === "todas" && !abierto ? (
+      {enSalon ? (
+        <SalonDelDia nuevaPedida={nuevaReserva} />
+      ) : listo && filas.length === 0 && cargadas === "todas" && !abierto ? (
         <EmptyState
           icon={Tag}
           title={`Todavía no hay ${enFrase(voc.plural)}`}

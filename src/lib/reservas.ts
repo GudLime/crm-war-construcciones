@@ -220,3 +220,66 @@ export function fechaCorta(fecha: string): string {
     .format(new Date(`${fecha}T12:00:00Z`))
     .replace(/\./g, "");
 }
+
+// ─── El salón dibujado (vista Mosaico) ─────────────────────────────────
+
+/**
+ * Lo que se dibuja en un sector: una reserva sentada en sus mesas (una o dos
+ * juntas) o una mesa libre. Las mesas no tienen nombre: la reserva no toma
+ * una mesa concreta sino cupo, así que se sientan en orden de llegada.
+ */
+export type LugarEnSalon<R> =
+  | { tipo: "reserva"; reserva: R; mesas: number[]; sobrecupo: boolean }
+  | { tipo: "libre"; capacidad: number };
+
+export type SectorDibujado<R> = { sector: string; lugares: LugarEnSalon<R>[]; libres: number; total: number };
+
+/**
+ * Sienta las reservas de un horario en las mesas de cada sector. Primero las
+ * mesas grandes, en el orden de los sectores; las reservas que ocupan mesa,
+ * en el orden en que llegaron. Si una reserva no tiene mesa (se achicó el
+ * cupo después de tomarla) se dibuja igual, marcada como sobrecupo.
+ */
+export function sentar<R extends Ocupacion>(
+  cupo: readonly CupoSector[],
+  ocupan: readonly R[],
+  sectores: readonly string[]
+): SectorDibujado<R>[] {
+  const orden = [...new Set([...sectores, ...cupo.map((c) => c.sector), ...ocupan.map((r) => r.sector)])];
+  return orden
+    .map((sector) => {
+      const mesas = cupo
+        .filter((c) => c.sector === sector)
+        .sort((a, b) => b.capacidad - a.capacidad)
+        .flatMap((c) => Array.from({ length: Math.max(0, c.cantidad) }, () => c.capacidad));
+      const tomada = mesas.map(() => false);
+      const lugares: { pos: number; lugar: LugarEnSalon<R> }[] = [];
+      for (const r of ocupan.filter((x) => x.sector === sector)) {
+        let pos = Number.POSITIVE_INFINITY;
+        let sobrecupo = false;
+        for (const m of r.mesas) {
+          const i = mesas.findIndex((cap, j) => cap === m.capacidad && !tomada[j]);
+          if (i < 0) sobrecupo = true;
+          else {
+            tomada[i] = true;
+            pos = Math.min(pos, i);
+          }
+        }
+        lugares.push({
+          pos: sobrecupo && pos === Number.POSITIVE_INFINITY ? mesas.length + lugares.length : pos,
+          lugar: { tipo: "reserva", reserva: r, mesas: r.mesas.map((m) => m.capacidad), sobrecupo },
+        });
+      }
+      mesas.forEach((capacidad, i) => {
+        if (!tomada[i]) lugares.push({ pos: i, lugar: { tipo: "libre", capacidad } });
+      });
+      lugares.sort((a, b) => a.pos - b.pos);
+      return {
+        sector,
+        lugares: lugares.map((l) => l.lugar),
+        libres: tomada.filter((t) => !t).length,
+        total: mesas.length,
+      };
+    })
+    .filter((s) => s.total > 0 || s.lugares.length > 0);
+}

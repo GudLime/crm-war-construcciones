@@ -75,7 +75,8 @@ mesas de Ajustes → Reservas libres y cada reserva se lleva la más chica que
 alcanza (o dos del mismo sector). Cada reserva es una oportunidad con su fila
 en `reserva` (fecha, hora, personas, sector, mesas); las etapas que ocupan
 mesa son las abiertas y Compró (en Beba, Confirmada y Llegó). El día se
-maneja desde «Hoy» (`/reservas`). Reglas puras en `src/lib/reservas.ts`,
+maneja desde la vista Mosaico de Reservas (el salón por horario y sector,
+`src/components/reservas/salon-del-dia.tsx`). Reglas puras en `src/lib/reservas.ts`,
 servicio en `src/server/reservas/`.
 
 ## Pendiente

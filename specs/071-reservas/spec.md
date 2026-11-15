@@ -175,6 +175,15 @@ cualquier otro, redirige a la plantilla de evento de Google Calendar
    personas y sector. Una cancelada libera la mesa; una que llegó la sigue
    ocupando. Pruebas: `tests/unit/reservas.test.ts` y
    `scripts/e2e-reservas.mjs`.
+   **Vista Mosaico** (reemplaza a «Hoy»): con la bandera, la página Reservas
+   suma el salón como tercera forma de ver y abre en ella. Agrupa por horario
+   y por sector, dibuja cada mesa con sus sillas y sienta las reservas en orden
+   de llegada (`sentar` en `src/lib/reservas.ts`; las mesas no tienen nombre
+   porque se reserva cupo). Un grupo de 5 o 6 se ve como dos mesas juntas.
+   Tocar una mesa libre abre la carga con ese horario, sector y tamaño (el alta
+   acepta `sector`); tocar una reserva da Llegó, No vino, Cancelada, cambio de
+   sector y Ver. Las canceladas y las que no vinieron van aparte, sin mesa.
+   `/reservas` redirige a Reservas.
 4. WhatsApp: mensajes interactivos, id del botón en el despacho, API del
    cerebro, cerebro de reservas, calendario.
 5. Plantilla de recordatorio (aprobación de Meta) y barrido.

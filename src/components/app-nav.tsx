@@ -76,7 +76,6 @@ export function AppNav({
   apariencia,
   commit,
   agenda = false,
-  reservas = false,
   kicker = "CRM · WhatsApp",
   objetos = [],
   open = false,
@@ -100,8 +99,6 @@ export function AppNav({
    * todavía debe ver la entrada igual.
    */
   agenda?: boolean;
-  /** 071 — ¿esta instancia toma reservas? */
-  reservas?: boolean;
   /** 070 — Los objetos personalizados del cliente, para el menú. */
   objetos?: ObjetoMenuDto[];
   /** Solo aplica por debajo de `lg`: en escritorio el lateral es fijo. */
@@ -200,7 +197,7 @@ export function AppNav({
   // #87 — Qué hay en el menú y en qué grupo lo decide `appNavGroups`; aquí
   // solo se pinta.
   const vocabulario = useVocabulario();
-  const groups = appNavGroups({ agenda, reservas, role, objetos, vocabulario });
+  const groups = appNavGroups({ agenda, role, objetos, vocabulario });
 
   function renderItem(item: NavItem) {
     const active = isNavActive(pathname, item.href);

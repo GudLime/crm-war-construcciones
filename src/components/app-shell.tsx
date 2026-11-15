@@ -34,7 +34,6 @@ export function AppShell({
   apariencia,
   commit,
   agenda = false,
-  reservas = false,
   kicker,
   objetos = [],
   vocabulario = VOCABULARIO_POR_DEFECTO,
@@ -49,8 +48,6 @@ export function AppShell({
   commit?: ResolvedCommit;
   /** 015 — ¿esta instancia tiene agenda? Lo decide el servidor. */
   agenda?: boolean;
-  /** 071 — ¿esta instancia toma reservas? Lo decide el servidor. */
-  reservas?: boolean;
   /** 028 — La etiqueta bajo el logo (`navKicker`). */
   kicker?: string;
   /** 070 — Los objetos personalizados del cliente, para el menú. */
@@ -108,7 +105,6 @@ export function AppShell({
         role={role}
         apariencia={apariencia}
         agenda={agenda}
-        reservas={reservas}
         objetos={objetos}
         kicker={kicker}
         open={navOpen}

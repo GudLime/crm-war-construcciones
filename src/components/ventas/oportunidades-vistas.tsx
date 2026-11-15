@@ -70,13 +70,14 @@ const PREFERENCIAS: Preferencias = {
   anchos: {},
 };
 
-function leerPreferencias(): Preferencias {
+function leerPreferencias(clave: string, formaInicial: FormaDeVer): Preferencias {
+  const base = { ...PREFERENCIAS, forma: formaInicial };
   try {
-    const t = window.localStorage.getItem(GUARDADO);
-    if (!t) return PREFERENCIAS;
-    return { ...PREFERENCIAS, ...(JSON.parse(t) as Partial<Preferencias>) };
+    const t = window.localStorage.getItem(clave);
+    if (!t) return base;
+    return { ...base, ...(JSON.parse(t) as Partial<Preferencias>) };
   } catch {
-    return PREFERENCIAS;
+    return base;
   }
 }
 
@@ -269,21 +270,26 @@ export function SelectorDeForma({ forma, onCambio }: { forma: FormaDeVer; onCamb
 }
 
 /** El estado de la página: forma de ver, columnas, orden y anchos (recordados en este navegador). */
-export function usePreferenciasDeLista() {
-  const [pref, setPref] = useState<Preferencias>(PREFERENCIAS);
+/**
+ * 071 — Una instancia de reservas abre la primera vez en Mosaico (el salón) y
+ * guarda sus preferencias aparte, para no heredar las de la lista de ventas.
+ */
+export function usePreferenciasDeLista(reservas = false) {
+  const clave = reservas ? `${GUARDADO}.reservas` : GUARDADO;
+  const [pref, setPref] = useState<Preferencias>(() => ({ ...PREFERENCIAS, forma: reservas ? "mosaico" : "lista" }));
   const cargado = useRef(false);
   useEffect(() => {
-    setPref(leerPreferencias());
+    setPref(leerPreferencias(clave, reservas ? "mosaico" : "lista"));
     cargado.current = true;
-  }, []);
+  }, [clave, reservas]);
   useEffect(() => {
     if (!cargado.current) return;
     try {
-      window.localStorage.setItem(GUARDADO, JSON.stringify(pref));
+      window.localStorage.setItem(clave, JSON.stringify(pref));
     } catch {
       // sin almacenamiento: queda en memoria
     }
-  }, [pref]);
+  }, [pref, clave]);
   return [pref, setPref] as const;
 }
 

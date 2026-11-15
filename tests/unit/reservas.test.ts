@@ -7,6 +7,7 @@ import {
   formaPara,
   horariosReservables,
   resumenCupo,
+  sentar,
   type CupoSector,
   type Ocupacion,
 } from "@/lib/reservas";
@@ -115,4 +116,47 @@ describe("horariosReservables", () => {
 
 it("fechaCorta", () => {
   expect(fechaCorta("2026-11-15")).toMatch(/dom.*15.*nov/);
+});
+
+describe("sentar (vista Mosaico)", () => {
+  const cupo = [
+    { sector: "Salón", capacidad: 4, cantidad: 2 },
+    { sector: "Salón", capacidad: 2, cantidad: 2 },
+    { sector: "Semi", capacidad: 4, cantidad: 1 },
+    { sector: "Semi", capacidad: 2, cantidad: 1 },
+  ];
+  const r = (id: string, sector: string, ...caps: number[]) => ({ id, sector, mesas: caps.map((capacidad) => ({ capacidad })) });
+
+  it("dibuja todas las mesas libres, grandes primero, en el orden de los sectores", () => {
+    const s = sentar(cupo, [], ["Semi", "Salón"]);
+    expect(s.map((x) => x.sector)).toEqual(["Semi", "Salón"]);
+    expect(s[1]!.lugares).toEqual([
+      { tipo: "libre", capacidad: 4 },
+      { tipo: "libre", capacidad: 4 },
+      { tipo: "libre", capacidad: 2 },
+      { tipo: "libre", capacidad: 2 },
+    ]);
+    expect(s[1]!.libres).toBe(4);
+  });
+
+  it("sienta cada reserva en su mesa y junta las de un grupo", () => {
+    const s = sentar(cupo, [r("a", "Salón", 2), r("b", "Salón", 4, 2)], ["Salón", "Semi"]);
+    const salon = s[0]!;
+    expect(salon.libres).toBe(1);
+    expect(salon.lugares.map((l) => (l.tipo === "reserva" ? l.reserva.id : `libre ${l.capacidad}`))).toEqual([
+      "b",
+      "libre 4",
+      "a",
+    ]);
+    const grupo = salon.lugares[0]!;
+    expect(grupo.tipo === "reserva" && grupo.mesas).toEqual([4, 2]);
+  });
+
+  it("una reserva sin mesa (cupo achicado) se dibuja como sobrecupo al final", () => {
+    const s = sentar(cupo, [r("a", "Semi", 2), r("b", "Semi", 2)], ["Salón", "Semi"]);
+    const semi = s.find((x) => x.sector === "Semi")!;
+    const ultima = semi.lugares.at(-1)!;
+    expect(ultima.tipo === "reserva" && ultima.reserva.id === "b" && ultima.sobrecupo).toBe(true);
+    expect(semi.libres).toBe(1);
+  });
 });

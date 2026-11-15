@@ -3,7 +3,8 @@
  * de restaurante, carga el cupo de Beba, llena un horario hasta que no queda
  * lugar, comprueba las reglas (mesa de 2 para 1 o 2 personas, 4 + 2 para 5 o 6,
  * derivar a más de 6, nada fuera de los 7 días) y maneja el día desde la
- * pantalla «Hoy»: Llegó, Cancelada (libera la mesa) y una reserva cargada a mano.
+ * vista Mosaico de Reservas: Llegó, Cancelada (libera la mesa) y una reserva
+ * cargada tocando una mesa libre.
  *
  * Uso: app corriendo con RESERVAS=on y la BD migrada, sin reservas para mañana;
  *   APP_BASE_URL=http://localhost:3100 node scripts/e2e-reservas.mjs
@@ -141,41 +142,54 @@ try {
   r = await api("/api/reservas", { method: "POST", body: { nombre: "Lejos", fecha: fechaBA(9), hora: "12:00", personas: 2 } });
   ok("a 9 días no se puede reservar", r.status() === 409, String(r.status()));
 
-  // La pantalla «Hoy».
+  // Reservas en Mosaico: el salón del día por horario.
   await pagina.goto("/reservas");
-  await pagina.getByRole("heading", { name: "Hoy", level: 2 }).waitFor();
-  ok("el menú tiene «Hoy»", await pagina.getByRole("link", { name: "Hoy" }).first().isVisible());
+  ok("la dirección vieja de «Hoy» lleva a Reservas", pagina.url().endsWith("/oportunidades"), pagina.url());
+  await pagina.getByRole("tab", { name: "Mosaico" }).waitFor();
+  ok("en un restaurante abre en Mosaico", (await pagina.getByRole("tab", { name: "Mosaico" }).getAttribute("aria-selected")) === "true");
+  ok("el menú ya no tiene «Hoy»", (await pagina.getByRole("link", { name: "Hoy", exact: true }).count()) === 0);
   await pagina.getByRole("button", { name: "Día siguiente" }).click();
-  const veinte = pagina.getByRole("region", { name: "Horario 20:00" });
-  await veinte.getByText(`Pareja 1 ${sello}`).waitFor();
-  ok("a las 20 figuran las tres parejas", (await veinte.getByText(sello).count()) === 3);
-  ok("y no queda ninguna mesa de 2", await veinte.getByText("Mesas de 2: 0 libres de 3").isVisible());
+  await pagina.getByRole("tab", { name: /^20:00/ }).click();
+  const tile = (nombre) => pagina.getByRole("button", { name: new RegExp(`^${nombre}, `) });
+  await tile(`Pareja 1 ${sello}`).waitFor();
+  ok("a las 20 están sentadas las tres parejas", (await pagina.getByRole("button", { name: new RegExp(`${sello}, 2 personas`) }).count()) === 3);
+  ok("no queda ninguna mesa de 2 libre", (await pagina.getByRole("button", { name: /^Mesa de 2 libre/ }).count()) === 0);
+  ok("quedan las tres mesas de 4", (await pagina.getByRole("button", { name: /^Mesa de 4 libre/ }).count()) === 3);
 
-  const fila = (nombre) => veinte.locator("li", { hasText: nombre });
-  await fila(`Pareja 1 ${sello}`).getByRole("button", { name: "Llegó" }).click();
-  await fila(`Pareja 1 ${sello}`).getByText("Llegó", { exact: true }).waitFor();
-  ok("marca Llegó", true);
+  await tile(`Pareja 1 ${sello}`).click();
+  await pagina.getByRole("button", { name: "Llegó", exact: true }).click();
+  await pagina.getByRole("button", { name: new RegExp(`^Pareja 1 ${sello}`) }).getByText("llegó").waitFor();
+  ok("marca Llegó y la mesa lo muestra", true);
 
-  await fila(`Pareja 2 ${sello}`).getByRole("button", { name: "Cancelar" }).click();
-  await fila(`Pareja 2 ${sello}`).getByRole("button", { name: "Cancelada" }).click();
-  await veinte.getByText("Mesas de 2: 1 libre de 3").waitFor();
-  ok("cancelar libera la mesa (quien llegó la sigue ocupando)", true);
+  await tile(`Pareja 2 ${sello}`).click();
+  await pagina.getByRole("button", { name: "Cancelar reserva" }).click();
+  await pagina.getByRole("button", { name: "Cancelada", exact: true }).click();
+  await pagina.getByRole("button", { name: /^Mesa de 2 libre/ }).waitFor();
+  ok("cancelar libera la mesa (quien llegó la sigue ocupando)", (await pagina.getByRole("button", { name: /^Mesa de 2 libre/ }).count()) === 1);
+  ok("la cancelada figura aparte, sin mesa", await pagina.getByRole("region", { name: "Sin mesa" }).getByText(`Pareja 2 ${sello}`).isVisible());
 
-  // Una reserva por teléfono, cargada a mano en la mesa que se liberó.
-  await pagina.getByRole("button", { name: "Nueva reserva" }).click();
+  // Tocar la mesa libre carga una reserva con ese horario, sector y tamaño.
+  await pagina.getByRole("button", { name: /^Mesa de 2 libre/ }).click();
+  ok("la carga viene con 2 personas", (await pagina.getByRole("spinbutton", { name: "Personas" }).inputValue()) === "2");
   await pagina.getByLabel("A nombre de").fill(`Teléfono ${sello}`);
   await pagina.getByLabel("Teléfono (opcional)").fill("11 5555 0000");
-  await pagina.getByRole("combobox", { name: "Horario" }).click();
-  await pagina.getByRole("option", { name: "20:00" }).click();
   await pagina.getByRole("button", { name: "Guardar" }).click();
-  await veinte.getByText(`Teléfono ${sello}`).waitFor();
-  ok("la reserva cargada a mano aparece a las 20", await veinte.getByText("Mesas de 2: 0 libres de 3").isVisible());
+  await tile(`Teléfono ${sello}`).waitFor();
+  ok("la reserva cargada a mano ocupa esa mesa", (await pagina.getByRole("button", { name: /^Mesa de 2 libre/ }).count()) === 0);
 
   // El detalle de la reserva dice cuándo y para cuántos.
-  await fila(`Pareja 3 ${sello}`).getByRole("link", { name: `Pareja 3 ${sello}` }).click();
+  await tile(`Pareja 3 ${sello}`).click();
+  await pagina.getByRole("link", { name: "Ver" }).click();
   await pagina.getByText("· 2 personas · ", { exact: false }).first().waitFor();
   const cabecera = await pagina.locator("dl").first().innerText();
   ok("el detalle muestra fecha, hora y personas", /· 20:00\s*· 2 personas · \S/.test(cabecera), cabecera.slice(0, 120));
+
+  // Las otras vistas siguen estando.
+  await pagina.goto("/oportunidades");
+  await pagina.getByRole("tab", { name: "Lista" }).click();
+  await pagina.getByText(`Pareja 3 ${sello}`).first().waitFor();
+  ok("la Lista muestra las reservas", true);
+  await pagina.getByRole("tab", { name: "Mosaico" }).click();
 
   // Ajustes → Reservas.
   await pagina.goto("/settings/reservas");

@@ -16,6 +16,8 @@ const schema = z.object({
   observaciones: z.string().trim().max(500).nullable().optional(),
   /** Una reserva por teléfono o en el local puede ir fuera de los horarios reservables. */
   forzarHorario: z.boolean().optional(),
+  /** El sector de la mesa libre que se tocó en el mosaico. */
+  sector: z.string().trim().min(1).max(40).nullable().optional(),
 });
 
 /** 071 — Una reserva cargada a mano (teléfono, en el local). Misma regla de cupo. */
@@ -36,6 +38,7 @@ export const POST = withAuth(async (session, req: Request) =>
       observaciones: d.observaciones ?? null,
       actor: { fuente: "persona", userId: session.userId },
       forzarHorario: d.forzarHorario ?? false,
+      sector: d.sector ?? null,
     });
     return Response.json({ reserva }, { status: 201 });
   })
