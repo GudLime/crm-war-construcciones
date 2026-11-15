@@ -60,7 +60,7 @@ defecto, para que el próximo restaurante lo tenga con solo configurarlo. Lo
 | Estado | Abierta | Quién lo pone |
 |---|---|---|
 | Confirmada | Sí | El flujo al crearla, o una persona al cargarla a mano |
-| Llegó | Cerrada (ganada) | El equipo, desde la vista del día |
+| Asistió | Cerrada (ganada) | El equipo, desde la vista del día |
 | Cancelada | Cerrada | La persona desde WhatsApp, o el equipo |
 | No vino | Cerrada | El equipo, desde la vista del día |
 
@@ -108,7 +108,7 @@ en la bienvenida.
 
 Pantalla «Reservas de hoy» (y de otro día): por horario, las reservas con
 personas, nombre, sector y teléfono, el cupo que queda por tipo de mesa, y
-botones Llegó · No vino · Cancelar · Cambiar sector. Desde ahí se carga una
+botones Asistió · No vino · Cancelar · Cambiar sector. Desde ahí se carga una
 reserva a mano (las que entran por teléfono), con la misma regla de cupo.
 
 ## Calendario
@@ -167,12 +167,12 @@ cualquier otro, redirige a la plantilla de evento de Google Calendar
    API: `/api/reservas` (alta manual), `/api/reservas/[id]` (cambio de
    sector), `/api/reservas/dia`, `/api/reservas/disponibilidad`,
    `/api/reservas/configuracion`. Pantallas: «Hoy» (`/reservas`: cupo libre
-   por horario, Llegó, No vino, Cancelada con motivo, mover de sector, carga
+   por horario, Asistió, No vino, Cancelada con motivo, mover de sector, carga
    a mano) y Ajustes → Reservas, con el sector de cada fila de mesas elegido de
    Configuración → Sectores (`reserva_sector`, migración 0056: renombrar un
    sector lo cambia en sus mesas y reservas, no se borra uno con mesas, y el
    orden decide el sector cuando empatan); el detalle de la reserva muestra fecha, hora,
-   personas y sector. Una cancelada libera la mesa; una que llegó la sigue
+   personas y sector. Una cancelada libera la mesa; una que asistió la sigue
    ocupando. Pruebas: `tests/unit/reservas.test.ts` y
    `scripts/e2e-reservas.mjs`.
    **Vista Mosaico** (reemplaza a «Hoy»): con la bandera, la página Reservas
@@ -181,7 +181,7 @@ cualquier otro, redirige a la plantilla de evento de Google Calendar
    de llegada (`sentar` en `src/lib/reservas.ts`; las mesas no tienen nombre
    porque se reserva cupo). Un grupo de 5 o 6 se ve como dos mesas juntas.
    Tocar una mesa libre abre la carga con ese horario, sector y tamaño (el alta
-   acepta `sector`); tocar una reserva da Llegó, No vino, Cancelada, cambio de
+   acepta `sector`); tocar una reserva da Asistió, No vino, Cancelada, cambio de
    sector y Ver. Las canceladas y las que no vinieron van aparte, sin mesa.
    `/reservas` redirige a Reservas.
 4. WhatsApp: mensajes interactivos, id del botón en el despacho, API del

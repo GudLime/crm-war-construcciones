@@ -3,7 +3,7 @@
  * de restaurante, carga el cupo de Beba, llena un horario hasta que no queda
  * lugar, comprueba las reglas (mesa de 2 para 1 o 2 personas, 4 + 2 para 5 o 6,
  * derivar a más de 6, nada fuera de los 7 días) y maneja el día desde la
- * vista Mosaico de Reservas: Llegó, Cancelada (libera la mesa) y una reserva
+ * vista Mosaico de Reservas: Asistió, Cancelada (libera la mesa) y una reserva
  * cargada tocando una mesa libre.
  *
  * Uso: app corriendo con RESERVAS=on y la BD migrada, sin reservas para mañana;
@@ -157,15 +157,15 @@ try {
   ok("quedan las tres mesas de 4", (await pagina.getByRole("button", { name: /^Mesa de 4 libre/ }).count()) === 3);
 
   await tile(`Pareja 1 ${sello}`).click();
-  await pagina.getByRole("button", { name: "Llegó", exact: true }).click();
-  await pagina.getByRole("button", { name: new RegExp(`^Pareja 1 ${sello}`) }).getByText("llegó").waitFor();
-  ok("marca Llegó y la mesa lo muestra", true);
+  await pagina.getByRole("button", { name: "Asistió", exact: true }).click();
+  await pagina.getByRole("button", { name: new RegExp(`^Pareja 1 ${sello}`) }).getByText("asistió").waitFor();
+  ok("marca Asistió y la mesa lo muestra", true);
 
   await tile(`Pareja 2 ${sello}`).click();
   await pagina.getByRole("button", { name: "Cancelar reserva" }).click();
   await pagina.getByRole("button", { name: "Cancelada", exact: true }).click();
   await pagina.getByRole("button", { name: /^Mesa de 2 libre/ }).waitFor();
-  ok("cancelar libera la mesa (quien llegó la sigue ocupando)", (await pagina.getByRole("button", { name: /^Mesa de 2 libre/ }).count()) === 1);
+  ok("cancelar libera la mesa (quien asistió la sigue ocupando)", (await pagina.getByRole("button", { name: /^Mesa de 2 libre/ }).count()) === 1);
   ok("la cancelada figura aparte, sin mesa", await pagina.getByRole("region", { name: "Sin mesa" }).getByText(`Pareja 2 ${sello}`).isVisible());
 
   // Tocar la mesa libre carga una reserva con ese horario, sector y tamaño.

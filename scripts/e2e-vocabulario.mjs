@@ -1,6 +1,6 @@
 /**
  * 071 — Self-test del vocabulario configurable: con un `CLIENTE_CONFIG` de
- * restaurante (Reserva, Confirmada → Llegó, Cancelada, No vino, sin lo
+ * restaurante (Reserva, Confirmada → Asistió, Cancelada, No vino, sin lo
  * inmobiliario), la app real tiene que hablar de reservas en todas las
  * pantallas, no mostrar edificios ni tipo de contacto, y rechazar por API
  * una etapa o un motivo que no son de esta instancia.
@@ -77,11 +77,11 @@ try {
   ok("la lista no tiene columnas inmobiliarias", !/Ambientes|Interés|Unidades/.test(lista));
   ok("sin cierre por silencio no hay pestaña «Para cerrar»", !/Para cerrar/.test(lista));
 
-  // Página de la reserva: barra de avance Confirmada → Llegó y cierres propios.
+  // Página de la reserva: barra de avance Confirmada → Asistió y cierres propios.
   await pagina.goto(`/oportunidades/${reservaId}`);
   await pagina.getByRole("list", { name: "Avance" }).waitFor({ timeout: 15000 });
   const avance = await pagina.getByRole("list", { name: "Avance" }).innerText();
-  ok("la barra de avance es Confirmada → Llegó → Cerrar", /Confirmada[\s\S]*Llegó[\s\S]*Cerrar/.test(avance), avance);
+  ok("la barra de avance es Confirmada → Asistió → Cerrar", /Confirmada[\s\S]*Asistió[\s\S]*Cerrar/.test(avance), avance);
   ok("la barra no tiene etapas de la constructora", !/En charlas|Visitó|Reservó/.test(avance), avance);
   const encabezado = await pagina.locator("main").innerText();
   ok("la página no muestra Interés, Ambientes ni Tipo", !/\bInterés\b|\bAmbientes\b|\bTipo\b/.test(encabezado));
