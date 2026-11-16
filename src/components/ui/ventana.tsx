@@ -2,7 +2,11 @@
 
 import { X } from "lucide-react";
 import { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
+
+/** Las ventanas abiertas, de abajo hacia arriba: Escape cierra solo la de arriba. */
+const pila: symbol[] = [];
 
 /**
  * Una ventana flotante sobre la pantalla (modal): título, cerrar con la X,
@@ -16,6 +20,7 @@ export function Ventana({
   onCerrar,
   children,
   className,
+  encima = false,
 }: {
   titulo: React.ReactNode;
   detalle?: React.ReactNode;
@@ -24,6 +29,8 @@ export function Ventana({
   onCerrar: () => void;
   children: React.ReactNode;
   className?: string;
+  /** Se abre sobre otra ventana: oscurece menos lo de atrás. */
+  encima?: boolean;
 }) {
   const id = useId();
   const caja = useRef<HTMLDivElement>(null);
@@ -31,23 +38,35 @@ export function Ventana({
   cerrar.current = onCerrar;
 
   useEffect(() => {
+    const yo = Symbol("ventana");
+    pila.push(yo);
     const anterior = document.activeElement as HTMLElement | null;
     const enfocable = caja.current?.querySelector<HTMLElement>("[autofocus], input, select, textarea, button");
     (enfocable ?? caja.current)?.focus();
     const onKey = (e: KeyboardEvent) => {
       // Un desplegable abierto adentro se cierra primero con su propio Escape.
-      if (e.key === "Escape" && !e.defaultPrevented) cerrar.current();
+      if (e.key === "Escape" && !e.defaultPrevented && pila.at(-1) === yo) {
+        e.preventDefault();
+        cerrar.current();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
+      pila.splice(pila.indexOf(yo), 1);
       anterior?.focus?.();
     };
   }, []);
 
-  return (
+  // Va al final del documento: así una ventana abierta desde un formulario no
+  // queda adentro de ese formulario, y la de arriba tapa a la de abajo.
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-overlay p-0 sm:items-center sm:p-4"
+      className={cn(
+        "fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4",
+        encima ? "bg-black/25" : "bg-overlay"
+      )}
       role="dialog"
       aria-modal="true"
       aria-labelledby={id}
@@ -82,6 +101,7 @@ export function Ventana({
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

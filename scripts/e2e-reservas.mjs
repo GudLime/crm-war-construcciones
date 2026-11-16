@@ -168,7 +168,7 @@ try {
   await pagina.getByRole("tab", { name: /^20:00/ }).click();
   const tile = (nombre) => pagina.getByRole("button", { name: new RegExp(`^${nombre}, `) });
   const libres = (cap) => pagina.getByRole("img", { name: new RegExp(`^Mesa de ${cap} libre`) });
-  const ventana = pagina.getByRole("dialog");
+  const ventana = pagina.getByRole("dialog").first();
   await tile(`Pareja 1 ${sello}`).waitFor();
   ok("a las 20 están sentadas las tres parejas", (await pagina.getByRole("button", { name: new RegExp(`${sello}, 2 personas`) }).count()) === 3);
   ok("no queda ninguna mesa de 2 libre", (await libres(2).count()) === 0);
@@ -180,18 +180,21 @@ try {
   await tile(`Pareja 1 ${sello}`).click();
   await ventana.waitFor();
   ok("la reserva se abre en una ventana", await ventana.getByRole("heading", { name: `Pareja 1 ${sello}` }).isVisible());
+  const arriba = await ventana.innerText();
+  ok("arriba van hora, personas y mesas", /Hora\s*20:00/.test(arriba) && /Personas\s*2/.test(arriba) && /Mesas\s*2/.test(arriba), arriba);
   ok("el sector no es un desplegable hasta tocar Editar", (await ventana.getByRole("combobox", { name: "Sector" }).count()) === 0);
-  const sectorAntes = await ventana.locator("dd").last().innerText();
+  ok("cancelar no está a mano sin Editar", (await ventana.getByRole("button", { name: "Cancelar reserva" }).count()) === 0);
   await ventana.getByRole("button", { name: "Editar" }).click();
-  ok("con Editar aparece el desplegable", await ventana.getByRole("combobox", { name: "Sector" }).isVisible());
-  await ventana.getByRole("button", { name: "Cancelar", exact: true }).click();
-  ok("cancelar la edición deja el sector como estaba", (await ventana.locator("dd").last().innerText()) === sectorAntes);
+  ok("con Editar aparecen el sector y Cancelar reserva", (await ventana.getByRole("combobox", { name: "Sector" }).isVisible()) && (await ventana.getByRole("button", { name: "Cancelar reserva" }).isVisible()));
+  await ventana.getByRole("button", { name: "Listo", exact: true }).click();
+  ok("Listo cierra la edición", (await ventana.getByRole("combobox", { name: "Sector" }).count()) === 0);
   await ventana.getByRole("button", { name: "Asistió", exact: true }).click();
   await ventana.waitFor({ state: "detached" });
   await tile(`Pareja 1 ${sello}`).getByText("asistió").waitFor();
   ok("marca Asistió y la mesa lo muestra", true);
 
   await tile(`Pareja 2 ${sello}`).click();
+  await ventana.getByRole("button", { name: "Editar" }).click();
   await ventana.getByRole("button", { name: "Cancelar reserva" }).click();
   await ventana.getByRole("button", { name: "Cancelada", exact: true }).click();
   await libres(2).first().waitFor();
@@ -202,8 +205,20 @@ try {
   await pagina.getByRole("button", { name: "Nueva reserva" }).click();
   await ventana.waitFor();
   ok("«Nueva reserva» abre una ventana", await ventana.getByRole("heading", { name: "Nueva reserva" }).isVisible());
-  await ventana.getByLabel("A nombre de").fill(`Teléfono ${sello}`);
-  await ventana.getByLabel("Teléfono (opcional)").fill("11 5555 0000");
+  const buscar = ventana.getByRole("combobox", { name: "Buscar contacto" });
+  await buscar.fill(`Pareja 3 ${sello}`);
+  await ventana.getByRole("option", { name: new RegExp(`Pareja 3 ${sello}`) }).waitFor();
+  ok("el buscador encuentra un contacto que existe", true);
+  await buscar.fill(`Teléfono ${sello}`);
+  await ventana.getByText(`No hay contactos con «Teléfono ${sello}».`).waitFor();
+  await ventana.getByRole("button", { name: "Crear contacto" }).click();
+  const alta = pagina.getByRole("dialog", { name: "Nuevo contacto" });
+  await alta.waitFor();
+  ok("«Crear contacto» abre su ventana encima, con el nombre buscado", (await alta.getByLabel("Nombre").inputValue()) === "Teléfono" && (await alta.getByLabel("Apellido").inputValue()) === sello);
+  await alta.getByLabel("Teléfono").fill(`11 5${String(Date.now()).slice(-7)}`);
+  await alta.getByRole("button", { name: "Crear contacto" }).click();
+  await alta.waitFor({ state: "detached" });
+  ok("el contacto nuevo queda elegido", await ventana.getByText(`Teléfono ${sello}`).first().isVisible());
   await ventana.getByRole("combobox", { name: "Horario" }).click();
   await pagina.getByRole("option", { name: "20:00" }).click();
   await ventana.getByRole("button", { name: "Guardar" }).click();
@@ -226,7 +241,7 @@ try {
   await pagina.getByRole("tab", { name: "Mosaico" }).click();
 
   // Contactos de un restaurante: números, segmento, vistas, notas fijas y promociones.
-  const tel = `54911${String(Date.now()).slice(-8)}`;
+  const tel = `549115${String(Date.now()).slice(-7)}`;
   r = await reservar({ nombre: `Habitual ${sello}`, telefono: tel, hora: "12:00", personas: 2, fecha: fechaBA(2) });
   const habitualId = (await r.json()).reserva?.contactId;
   ok("una reserva con teléfono crea su contacto", r.ok() && !!habitualId);
@@ -240,7 +255,7 @@ try {
   await api(`/api/oportunidades/${op1}/estado`, { method: "PATCH", body: { estado: "compro" } });
   await asistio({ nombre: `Habitual ${sello}`, contactId: habitualId, hora: "12:00", personas: 2, fecha: fechaBA(3) });
   await asistio({ nombre: `Habitual ${sello}`, contactId: habitualId, hora: "12:00", personas: 2, fecha: fechaBA(4) });
-  const faltona = await (await reservar({ nombre: `Faltona ${sello}`, telefono: `54911${String(Date.now() + 7).slice(-8)}`, hora: "12:00", personas: 2, fecha: fechaBA(2) })).json();
+  const faltona = await (await reservar({ nombre: `Faltona ${sello}`, telefono: `549115${String(Date.now() + 7).slice(-7)}`, hora: "12:00", personas: 2, fecha: fechaBA(2) })).json();
   await api(`/api/oportunidades/${faltona.reserva.oportunidadId}/estado`, { method: "PATCH", body: { estado: "no_calificado" } });
   await api(`/api/contacts/${habitualId}`, { method: "PATCH", body: { notes: "Celíaca" } });
 
@@ -287,8 +302,10 @@ try {
   const ficha = await pagina.locator("main").innerText();
   ok("la ficha tiene sus números y su historial", /Visitas\s*3/.test(ficha) && (ficha.match(/· 12:00/g) ?? []).length >= 3, ficha.slice(0, 400));
   ok("las notas se llaman Notas fijas", /Notas fijas/i.test(ficha));
-  await pagina.getByRole("switch", { name: "Acepta promociones" }).click();
-  await pagina.getByText("Acepta promociones").first().waitFor();
+  await Promise.all([
+    pagina.waitForResponse((res) => res.url().includes(`/api/reservas/comensales/${habitualId}`) && res.request().method() === "PATCH"),
+    pagina.getByRole("switch", { name: "Acepta promociones" }).click(),
+  ]);
   r = await api(`/api/reservas/comensales/${habitualId}`);
   ok("queda marcado que acepta promociones", (await r.json()).comensal?.aceptaPromociones === true);
   await pagina.goto("/contacts");

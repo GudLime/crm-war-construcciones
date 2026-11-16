@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ChevronLeft, ChevronRight, ExternalLink, Pencil, Star, StickyNote } from "lucide-react";
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, ExternalLink, Pencil, Star, StickyNote, X } from "lucide-react";
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
 import { Ventana } from "@/components/ui/ventana";
+import { ElegirContacto, type ContactoElegido } from "@/components/reservas/elegir-contacto";
 import { useVocabulario } from "@/components/vocabulario";
-import { Acciones, Campo, EstadoPill } from "@/components/ventas/ui";
+import { Campo, EstadoPill } from "@/components/ventas/ui";
 import { SEGMENTOS, aMinutos, fechaCorta, sentar, sumarDias, type Segmento } from "@/lib/reservas";
 import { formatearTelefono } from "@/lib/telefono-formato";
 import { ESTADOS_ABIERTOS } from "@/lib/ventas";
@@ -51,8 +52,7 @@ type Dia = {
   horarios: Horario[];
 };
 type Formulario = {
-  nombre: string;
-  telefono: string;
+  contacto: ContactoElegido | null;
   hora: string;
   sector: string;
   personas: string;
@@ -61,6 +61,7 @@ type Formulario = {
 
 /** Las que ocupan mesa: Confirmada (abiertas) y Llegó. */
 const OCUPA = new Set<string>([...ESTADOS_ABIERTOS, "compro"]);
+const ESTADOS_ABIERTOS_SET = new Set<string>(ESTADOS_ABIERTOS);
 const CUALQUIERA = "";
 
 /** El horario que conviene ver: el que está en curso o el próximo; si ya pasaron todos, el último. */
@@ -103,10 +104,15 @@ export function SalonDelDia({ nuevaPedida }: { nuevaPedida: number }) {
   useEffect(() => {
     if (!nuevaPedida) return;
     setError(null);
-    setForm({ nombre: "", telefono: "", hora: hora ?? "", sector: CUALQUIERA, personas: "2", observaciones: "" });
+    setForm({ contacto: null, hora: hora ?? "", sector: CUALQUIERA, personas: "2", observaciones: "" });
     // Solo cuando se pide de nuevo, no cuando cambia el horario.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nuevaPedida]);
+
+  // Si se abrió la carga antes de que llegara el día, toma el horario en cuanto llega.
+  useEffect(() => {
+    if (hora) setForm((f) => (f && !f.hora ? { ...f, hora } : f));
+  }, [hora]);
 
   const irA = (fecha: string) => {
     setElegida(null);
@@ -129,10 +135,8 @@ export function SalonDelDia({ nuevaPedida }: { nuevaPedida: number }) {
     { titulo: voc.plural, valor: ocupanDelDia.length },
     { titulo: "Personas", valor: ocupanDelDia.reduce((a, r) => a + r.personas, 0) },
     { titulo: nombreEstado(voc, "compro"), valor: delDia.filter((r) => r.estado === "compro").length, tono: "text-success-text" },
-    {
-      titulo: hora ? `Mesas libres a las ${hora}` : "Mesas libres",
-      valor: salon.reduce((a, s) => a + s.libres, 0),
-    },
+    // Las confirmadas que todavía no llegaron.
+    { titulo: "Por asistir", valor: delDia.filter((r) => ESTADOS_ABIERTOS_SET.has(r.estado)).length },
   ];
 
   async function cambiarEstado(r: Reserva, estado: string, motivoCierre?: string) {
@@ -171,12 +175,16 @@ export function SalonDelDia({ nuevaPedida }: { nuevaPedida: number }) {
     e.preventDefault();
     if (!form || !dia) return;
     setError(null);
+    if (!form.contacto) {
+      setError("Elegí el contacto o creá uno nuevo");
+      return;
+    }
     const res = await fetch("/api/reservas", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        nombre: form.nombre,
-        telefono: form.telefono || null,
+        nombre: form.contacto.name,
+        contactId: form.contacto.id,
         fecha: dia.fecha,
         hora: form.hora,
         personas: Number(form.personas),
@@ -272,22 +280,10 @@ export function SalonDelDia({ nuevaPedida }: { nuevaPedida: number }) {
       {form && (
         <Ventana titulo={`Nueva ${singular}`} detalle={fechaCorta(dia.fecha)} onCerrar={() => setForm(null)}>
           <form onSubmit={(e) => void crear(e)} className="grid gap-3 sm:grid-cols-2">
-            <Campo label="A nombre de">
-              <Input
-                required
-                autoFocus
-                value={form.nombre}
-                onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-              />
-            </Campo>
-            <Campo label="Teléfono (opcional)">
-              <Input
-                value={form.telefono}
-                inputMode="tel"
-                placeholder="11 2345 6789"
-                onChange={(e) => setForm({ ...form, telefono: e.target.value })}
-              />
-            </Campo>
+            <div className="space-y-1.5 sm:col-span-2">
+              <span className="text-[12px] font-semibold text-text-2">Contacto</span>
+              <ElegirContacto value={form.contacto} onChange={(c) => setForm({ ...form, contacto: c })} />
+            </div>
             <Campo label="Personas">
               <Input
                 type="number"
@@ -323,14 +319,15 @@ export function SalonDelDia({ nuevaPedida }: { nuevaPedida: number }) {
                 onChange={(e) => setForm({ ...form, observaciones: e.target.value })}
               />
             </Campo>
-            <Acciones error={error}>
+            {error && <p className="text-sm text-danger-text sm:col-span-2">{error}</p>}
+            <div className="mt-2 flex gap-2 sm:col-span-2">
               <Button type="submit" size="sm" disabled={!form.hora}>
                 Guardar
               </Button>
               <Button type="button" variant="ghost" size="sm" onClick={() => setForm(null)}>
                 Cancelar
               </Button>
-            </Acciones>
+            </div>
           </form>
         </Ventana>
       )}
@@ -548,8 +545,9 @@ function MotivoDeCancelacion({
 }
 
 /**
- * La reserva en una ventana: sus datos, el sector fijo (se cambia con el lápiz
- * de Editar) y lo que se hace con ella en el salón.
+ * La reserva en una ventana: arriba hora, personas y mesas en grande; abajo
+ * teléfono, cómo llegó, quién es y sus notas; y Asistió o No vino a mano. El
+ * sector y la cancelación quedan detrás de Editar (lápiz).
  */
 function VentanaDeReserva({
   reserva: r,
@@ -574,6 +572,7 @@ function VentanaDeReserva({
   const [cancelando, setCancelando] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const abierta = OCUPA.has(r.estado);
+  const porAsistir = ESTADOS_ABIERTOS_SET.has(r.estado);
 
   async function guardarSector() {
     if (sector === r.sector) return setEditando(false);
@@ -583,21 +582,17 @@ function VentanaDeReserva({
     if (ok) setEditando(false);
   }
 
+  const llegoPor: Record<string, string> = { whatsapp: "WhatsApp", telefono: "Teléfono", manual: "Carga manual" };
+  const visitas = r.persona.visitasAntes;
   const filas: [string, React.ReactNode][] = [
-    ["Cuándo", `${fechaCorta(fecha)} · ${hora}`],
-    ["Personas", String(r.personas)],
-    ["Mesas", r.mesas.map((m) => `de ${m.capacidad}`).join(" + ")],
     ...(r.telefono ? [["Teléfono", formatearTelefono(r.telefono)] as [string, React.ReactNode]] : []),
-    ...(r.canal === "whatsapp" ? [["Llegó por", "WhatsApp"] as [string, React.ReactNode]] : []),
-    ...(r.observaciones ? [["Observaciones", r.observaciones] as [string, React.ReactNode]] : []),
+    ["Llegó por", llegoPor[r.canal] ?? r.canal],
     [
       "Persona",
-      <span key="persona" className="inline-flex flex-wrap items-center gap-1.5">
+      <span key="persona">
         {SEGMENTOS.find((x) => x.value === r.persona.segmento)?.label}
         <span className="font-normal text-text-3">
-          {r.persona.visitasAntes === 0
-            ? "· primera vez"
-            : `· vino ${r.persona.visitasAntes} ${r.persona.visitasAntes === 1 ? "vez" : "veces"}`}
+          {visitas === 0 ? " · primera vez" : ` · vino ${visitas} ${visitas === 1 ? "vez" : "veces"}`}
         </span>
       </span>,
     ],
@@ -614,9 +609,15 @@ function VentanaDeReserva({
     ...(r.notas ? [["Notas", r.notas] as [string, React.ReactNode]] : []),
   ];
 
+  const tarjetas: { titulo: string; valor: string; detalle: string }[] = [
+    { titulo: "Hora", valor: hora, detalle: fechaCorta(fecha) },
+    { titulo: "Personas", valor: String(r.personas), detalle: r.observaciones ?? "" },
+    { titulo: "Mesas", valor: r.mesas.map((m) => m.capacidad).join(" + "), detalle: r.sector },
+  ];
+
   return (
     <Ventana
-      titulo={r.nombre}
+      titulo={<span className="text-[20px]">{r.nombre}</span>}
       detalle={<EstadoPill opciones={opcionesEstado(voc)} value={r.estado} />}
       accion={
         abierta && !editando ? (
@@ -627,83 +628,95 @@ function VentanaDeReserva({
       }
       onCerrar={onCerrar}
     >
-      <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 text-sm">
-        {filas.slice(0, 3).map(([k, v]) => (
-          <Fragment key={k}>
-            <dt className="text-text-3">{k}</dt>
-            <dd className="font-medium">{v}</dd>
-          </Fragment>
+      <div className="mb-5 grid grid-cols-3 gap-2">
+        {tarjetas.map((t) => (
+          <div key={t.titulo} className="flex min-w-0 flex-col gap-0.5 rounded-xl bg-subtle px-3.5 py-3">
+            <span className="text-[12px] font-semibold text-text-3">{t.titulo}</span>
+            <span className="text-[30px] font-bold leading-[1.1] tracking-tight tabular-nums">{t.valor}</span>
+            <span className="truncate text-[12px] text-text-3" title={t.detalle}>
+              {t.detalle || "\u00a0"}
+            </span>
+          </div>
         ))}
-        <dt className="self-center text-text-3">Sector</dt>
-        <dd className="font-medium">
-          {editando ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Select aria-label="Sector" value={sector} onValueChange={setSector} className="h-8 w-48">
-                {sectores.map((x) => (
-                  <option key={x} value={x}>
-                    {x}
-                  </option>
-                ))}
-              </Select>
-              <Button size="sm" disabled={ocupado} onClick={() => void guardarSector()}>
-                Guardar
+      </div>
+
+      {editando && (
+        <div className="mb-5 space-y-3 rounded-xl border px-3.5 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-16 text-sm text-text-3">Sector</span>
+            <Select aria-label="Sector" value={sector} onValueChange={setSector} className="h-8 w-48">
+              {sectores.map((x) => (
+                <option key={x} value={x}>
+                  {x}
+                </option>
+              ))}
+            </Select>
+            <Button size="sm" disabled={ocupado} onClick={() => void guardarSector()}>
+              Guardar
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setSector(r.sector);
+                setEditando(false);
+                setCancelando(false);
+              }}
+            >
+              Listo
+            </Button>
+          </div>
+          <div className="border-t pt-3">
+            {cancelando ? (
+              <MotivoDeCancelacion
+                motivos={voc.motivos}
+                etiqueta={nombreEstado(voc, "perdido")}
+                onConfirmar={(motivo) => void onEstado("perdido", motivo)}
+                onVolver={() => setCancelando(false)}
+              />
+            ) : (
+              <Button size="sm" variant="ghost" className="text-danger-text" onClick={() => setCancelando(true)}>
+                Cancelar {enFrase(voc.singular)}
               </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setSector(r.sector);
-                  setEditando(false);
-                }}
-              >
-                Cancelar
-              </Button>
-            </div>
-          ) : (
-            r.sector
-          )}
-        </dd>
-        {filas.slice(3).map(([k, v]) => (
+            )}
+          </div>
+        </div>
+      )}
+
+      <dl className="grid grid-cols-[120px_1fr] gap-x-4 gap-y-2.5 text-[15px]">
+        {filas.map(([k, v]) => (
           <Fragment key={k}>
             <dt className="text-text-3">{k}</dt>
-            <dd className="font-medium">{v}</dd>
+            <dd className="font-semibold">{v}</dd>
           </Fragment>
         ))}
       </dl>
 
       <div className="mt-5 flex flex-wrap items-center gap-2 border-t pt-4">
-        {cancelando ? (
-          <MotivoDeCancelacion
-            motivos={voc.motivos}
-            etiqueta={nombreEstado(voc, "perdido")}
-            onConfirmar={(motivo) => void onEstado("perdido", motivo)}
-            onVolver={() => setCancelando(false)}
-          />
-        ) : (
+        {porAsistir && (
           <>
-            {abierta && r.estado !== "compro" && (
-              <>
-                <Button size="sm" onClick={() => void onEstado("compro")}>
-                  {nombreEstado(voc, "compro")}
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => void onEstado("no_calificado")}>
-                  {nombreEstado(voc, "no_calificado")}
-                </Button>
-              </>
-            )}
-            {abierta && (
-              <Button size="sm" variant="ghost" onClick={() => setCancelando(true)}>
-                Cancelar {enFrase(voc.singular)}
-              </Button>
-            )}
-            <Link
-              href={`/oportunidades/${r.oportunidadId}`}
-              className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "ml-auto")}
+            <button
+              type="button"
+              onClick={() => void onEstado("compro")}
+              className="inline-flex h-10 items-center gap-1.5 rounded-full bg-success-text px-[18px] text-[15px] font-semibold text-white hover:opacity-90"
             >
-              <ExternalLink className="size-3.5" /> Ver
-            </Link>
+              <Check className="size-4" strokeWidth={2.5} /> {nombreEstado(voc, "compro")}
+            </button>
+            <button
+              type="button"
+              onClick={() => void onEstado("no_calificado")}
+              className="inline-flex h-10 items-center gap-1.5 rounded-full bg-danger-text px-[18px] text-[15px] font-semibold text-white hover:opacity-90"
+            >
+              <X className="size-4" strokeWidth={2.5} /> {nombreEstado(voc, "no_calificado")}
+            </button>
           </>
         )}
+        <Link
+          href={`/oportunidades/${r.oportunidadId}`}
+          className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "ml-auto")}
+        >
+          <ExternalLink className="size-3.5" /> Ver
+        </Link>
       </div>
     </Ventana>
   );

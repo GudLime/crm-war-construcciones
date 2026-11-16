@@ -236,6 +236,23 @@ Para después: cumpleaños (pedirlo en el flujo de WhatsApp), envío de campaña
 a un segmento, unir contactos repetidos, feedback después de la visita, etapa
 Consulta (cuando el flujo registre las reservas que no se terminaron).
 
+## Ajustes del diseño (Claude Design, 15 de noviembre)
+
+Del canvas «Beba · Reservas»:
+
+- Contador «Por asistir» (las confirmadas del día que todavía no llegaron) en
+  lugar de las mesas libres del horario.
+- Ventana de una reserva: hora, personas y mesas en grande arriba (con la
+  fecha, las observaciones y el sector debajo de cada número); después
+  teléfono, cómo llegó, quién es y sus notas; Asistió (verde) y No vino (rojo)
+  como botones grandes. El sector y la cancelación quedan detrás de Editar.
+- Nueva reserva: el contacto se elige con un buscador (nombre o teléfono) que
+  muestra teléfono y segmento; sin resultados ofrece «Crear contacto», que
+  abre su ventana encima (nombre, apellido, teléfono y notas fijas) y deja al
+  contacto elegido. Si el teléfono ya era de alguien, se elige esa persona.
+  Las ventanas se apilan (`src/components/ui/ventana.tsx`, Escape cierra la de
+  arriba). Buscador en `src/components/reservas/elegir-contacto.tsx`.
+
 ## Fuera de alcance por ahora
 
 Mesas específicas y plano del salón · cupo por personas y mesas combinables ·

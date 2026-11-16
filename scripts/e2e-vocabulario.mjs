@@ -40,7 +40,7 @@ try {
   ok("registro o login", r.ok(), await r.text());
 
   // Un contacto y su reserva, por API (lo que después hará el flujo).
-  const telefono = `54911${String(Date.now()).slice(-8)}`;
+  const telefono = `549115${String(Date.now()).slice(-7)}`;
   r = await api("/api/contacts", { method: "POST", body: { name: "Lucía Pérez", phone: telefono } });
   const contacto = await r.json();
   ok("alta de contacto", r.ok(), JSON.stringify(contacto));
