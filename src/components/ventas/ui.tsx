@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { DEFAULT_CURRENCY, formatMoneyCents } from "@/lib/money";
 import { cn } from "@/lib/utils";
+import { varsDeEtapa } from "@/lib/colores-etapa";
 import { etiqueta } from "@/lib/ventas";
 
 export async function mensajeDe(res: Response): Promise<string> {
@@ -76,6 +77,26 @@ export function EstadoPill({
         ? "destructive"
         : "secondary";
   return <Badge variant={variant}>{etiqueta(opciones, value)}</Badge>;
+}
+
+/** La etapa de una oportunidad, en su color (lib/colores-etapa). */
+export function EtapaPill({
+  opciones,
+  value,
+  className,
+}: {
+  opciones: readonly { value: string; label: string }[];
+  value: string;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn("pildora-etapa inline-flex items-center rounded-full px-2.5 py-0.5 text-[12px] font-semibold", className)}
+      style={varsDeEtapa(value) as React.CSSProperties}
+    >
+      {etiqueta(opciones, value)}
+    </span>
+  );
 }
 
 export function Pagina({

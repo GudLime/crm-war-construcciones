@@ -546,3 +546,28 @@
     opacity: 1;
   }
 }
+
+/* Color por etapa (lib/colores-etapa.ts): fondo lavado de filas y tarjetas, y la píldora. */
+.fondo-etapa {
+  background: var(--et-lavado);
+}
+.fondo-etapa:hover {
+  filter: brightness(0.97);
+}
+.borde-etapa {
+  border-color: color-mix(in srgb, var(--et-solido) 20%, transparent);
+}
+.pildora-etapa {
+  background: var(--et-tinte);
+  color: var(--et-texto);
+}
+:root[data-theme="dark"] .fondo-etapa {
+  background: color-mix(in srgb, var(--et-solido) 9%, transparent);
+}
+:root[data-theme="dark"] .fondo-etapa:hover {
+  filter: brightness(1.15);
+}
+:root[data-theme="dark"] .pildora-etapa {
+  background: color-mix(in srgb, var(--et-solido) 24%, transparent);
+  color: color-mix(in srgb, var(--et-solido) 40%, #ffffff);
+}

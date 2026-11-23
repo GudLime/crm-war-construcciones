@@ -488,3 +488,14 @@ debajo de Tareas con la pastilla de sin asignar). Spec:
 - **Ajustes → Ventas → Asignaciones** (`vendedores-asignacion.tsx`,
   `/api/settings/ventas/vendedores`): el orden (define la tecla) y quién
   recibe. El tope no se configura.
+
+## Color por etapa (cambios 23/11, punto 5)
+
+`lib/colores-etapa.ts` (`COLOR_ETAPA`, `colorDeEtapa`, `varsDeEtapa`): sólido,
+tinte, texto, lavado y texto sobre el sólido por etapa (Recibido verde, En
+charlas celeste, Conoce información amarillo, Visitó rojo, Reservó violeta,
+Compró rosa, Perdido y No calificado gris; una etapa propia de un cliente cae
+en el gris). Lo usan la barra de avance (actual en sólido, pasadas en tinte),
+`EtapaPill`, los puntos del Pipeline, el fondo lavado de filas y tarjetas de
+Oportunidades (`.fondo-etapa`, `.borde-etapa` en `globals.css`, con modo
+oscuro) y las bandas del embudo de Resultados.
