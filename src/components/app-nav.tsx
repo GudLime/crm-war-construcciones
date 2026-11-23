@@ -22,6 +22,7 @@ import { cn, initials } from "@/lib/utils";
 import { appNavGroups, isNavActive, SETTINGS_ITEM, type NavItem } from "@/lib/nav";
 import { useVocabulario } from "@/components/vocabulario";
 import { canConfigure } from "@/lib/auth/roles";
+import { EVENTO_ASIGNACIONES } from "@/lib/asignaciones";
 import type { ObjetoMenuDto } from "@/lib/motor/dto";
 import { signOut } from "@/lib/auth/client";
 import { useEvents } from "@/components/use-events";
@@ -143,6 +144,31 @@ export function AppNav({
 
   useEffect(() => setSonido(sonidoActivado()), []);
 
+  // Asignaciones — cuántas siguen sin nadie a cargo (solo el admin reparte).
+  const [sinAsignar, setSinAsignar] = useState(0);
+  const admin = canConfigure(role);
+  const pedirSinAsignar = useCallback(async () => {
+    if (!admin) return;
+    const res = await fetch("/api/asignaciones/contador").catch(() => null);
+    if (!res?.ok) return;
+    const data = (await res.json().catch(() => null)) as { sinAsignar?: number } | null;
+    setSinAsignar(Number(data?.sinAsignar ?? 0));
+  }, [admin]);
+  useEffect(() => {
+    void pedirSinAsignar();
+    const cada = window.setInterval(() => void pedirSinAsignar(), 60_000);
+    const alVolver = () => {
+      if (document.visibilityState === "visible") void pedirSinAsignar();
+    };
+    window.addEventListener(EVENTO_ASIGNACIONES, alVolver);
+    document.addEventListener("visibilitychange", alVolver);
+    return () => {
+      window.clearInterval(cada);
+      window.removeEventListener(EVENTO_ASIGNACIONES, alVolver);
+      document.removeEventListener("visibilitychange", alVolver);
+    };
+  }, [pedirSinAsignar, pathname]);
+
   useDesbloquearAudio();
   useTituloNoLeidos(chats);
 
@@ -219,6 +245,11 @@ export function AppNav({
             {unread}
           </span>
         )}
+        {item.contador && sinAsignar > 0 && (
+          <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-warning-tint px-1.5 text-[10.5px] font-bold text-warning-text">
+            {sinAsignar > 99 ? "99+" : sinAsignar}
+          </span>
+        )}
       </Link>
     );
   }
@@ -270,6 +301,7 @@ export function AppNav({
       groups={groups}
       pathname={pathname}
       unread={unread}
+      sinAsignar={sinAsignar}
       userName={userName}
       role={role}
       apariencia={apariencia}
@@ -396,6 +428,7 @@ function Riel({
   groups,
   pathname,
   unread,
+  sinAsignar,
   userName,
   role,
   apariencia,
@@ -408,6 +441,7 @@ function Riel({
   groups: ReturnType<typeof appNavGroups>;
   pathname: string;
   unread: number;
+  sinAsignar: number;
   userName: string;
   role: string;
   apariencia: Apariencia;
@@ -463,6 +497,16 @@ function Riel({
             )}
           >
             {unread > 99 ? "99+" : unread}
+          </span>
+        )}
+        {item.contador && sinAsignar > 0 && (
+          <span
+            className={cn(
+              "flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1.5 text-[10.5px] font-bold",
+              active ? "bg-brand-veil text-brand-fg" : "bg-warning-tint text-warning-text"
+            )}
+          >
+            {sinAsignar > 99 ? "99+" : sinAsignar}
           </span>
         )}
       </Link>

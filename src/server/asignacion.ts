@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import {
@@ -8,6 +8,7 @@ import {
   esDeMeta,
   type Asignacion,
 } from "@/lib/asignacion";
+import { aplicarResponsable } from "@/server/responsables";
 
 /**
  * 0051 — Asignación automática de los leads de Meta por edificio (Ajustes →
@@ -115,19 +116,15 @@ export async function asignarLeadDeMeta(organizationId: string, oportunidadId: s
       if (!miembro) return null;
     }
     // Solo si sigue sin nadie a cargo (otro proceso pudo asignarla mientras tanto).
-    const sinNadie = and(
-      scoped(schema.oportunidad.organizationId, organizationId, eq(schema.oportunidad.id, oportunidadId)),
-      isNull(schema.oportunidad.responsableUserId),
-      eq(schema.oportunidad.responsableIa, false)
-    );
-    const cambios =
-      destino === ASIGNAR_A_IA ? { responsableIa: true } : { responsableUserId: destino };
-    const hecho = await db
-      .update(schema.oportunidad)
-      .set({ ...cambios, responsableDesde: new Date(), updatedAt: new Date() })
-      .where(sinNadie)
-      .returning({ id: schema.oportunidad.id });
-    return hecho.length ? destino : null;
+    const hecho = await aplicarResponsable({
+      organizationId,
+      oportunidadId,
+      destino: destino === ASIGNAR_A_IA ? { userId: null, ia: true } : { userId: destino, ia: false },
+      como: "auto",
+      actor: { fuente: "sistema" },
+      soloSiSinNadie: true,
+    });
+    return hecho?.cambio ? destino : null;
   } catch (err) {
     console.error("[asignacion] no se pudo asignar:", err instanceof Error ? err.message : err);
     return null;

@@ -141,6 +141,9 @@ export const oportunidad = pgTable(
     responsableIa: boolean("responsable_ia").notNull().default(false),
     /** 0053 — Desde cuándo la lleva quien la lleva (Inicio: «asignada hace X»). */
     responsableDesde: timestamp("responsable_desde"),
+    /** 0060 — Cómo llegó a quien la lleva: la regla automática, el admin a mano o la IA. */
+    asignadaPor: text("asignada_por", { enum: ["auto", "manual", "ia"] }),
+    asignadaPorUserId: text("asignada_por_user_id").references(() => user.id, { onDelete: "set null" }),
     valorCents: integer("valor_cents"),
     moneda: text("moneda"),
     /**
@@ -418,6 +421,8 @@ export const oportunidadEvento = pgTable(
         "formulario",
         "primer_contacto",
         "primera_respuesta",
+        // 0060 — Cambió quién la lleva (datos: como, desde, hacia).
+        "responsable",
       ],
     }).notNull(),
     estadoDesde: text("estado_desde"),
@@ -469,6 +474,11 @@ export const ventasAjustes = pgTable("ventas_ajustes", {
   direccionOficina: text("direccion_oficina").notNull().default(""),
   /** 0059 — Si ya se cargaron las plantillas de tareas de fábrica. */
   plantillasSembradas: boolean("plantillas_sembradas").notNull().default(false),
+  /** 0060 — Asignaciones: quién recibe y en qué orden (define su tecla). Vacío = por rol. */
+  asignacionVendedores: jsonb("asignacion_vendedores")
+    .$type<{ userId: string; recibe: boolean }[]>()
+    .notNull()
+    .default([]),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 

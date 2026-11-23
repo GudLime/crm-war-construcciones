@@ -47,7 +47,8 @@ export type EventoCorto = {
     | "reabierta"
     | "formulario"
     | "primer_contacto"
-    | "primera_respuesta";
+    | "primera_respuesta"
+    | "responsable";
   estadoDesde: string | null;
   estadoHasta: string | null;
   motivo: string | null;
@@ -239,6 +240,19 @@ function deEvento(e: EventoCorto, voc: Vocabulario = VOCABULARIO_POR_DEFECTO): I
       return { ...base, icono: "contacto", titulo: "Primer contacto", detalle: null };
     case "primera_respuesta":
       return { ...base, icono: "contacto", tono: "ok", quien: null, titulo: "Primera respuesta del cliente", detalle: null };
+    case "responsable": {
+      // 0060 — Cambió quién la lleva: los nombres van como foto en `datos`.
+      const d = (e.datos ?? {}) as { como?: string; desde?: { nombre?: string | null }; hacia?: { nombre?: string | null } };
+      const hacia = d.hacia?.nombre ?? null;
+      const desde = d.desde?.nombre ?? null;
+      const como = d.como === "auto" ? "Asignación automática" : d.como === "deshacer" ? "Se deshizo un cambio" : null;
+      return {
+        ...base,
+        icono: "contacto",
+        titulo: hacia ? `Se asignó a ${hacia}` : "Quedó sin asignar",
+        detalle: [desde ? `Antes: ${desde}` : null, como].filter(Boolean).join(" · ") || null,
+      };
+    }
     default:
       return null;
   }
