@@ -46,6 +46,8 @@ const prefixes = {
   departamento: "dpt",
   oportunidad: "opt",
   tareaVenta: "trv",
+  // 0059 — Plantillas de tareas sugeridas
+  tareaPlantilla: "tpl",
   // War — leads de formularios (Make)
   oportunidadLead: "olead",
   oportunidadEvento: "oev",

@@ -386,3 +386,17 @@ dos pestañas: **Visita** (en un edificio, por defecto el de la oportunidad) y
 Ventas). Con la Agenda prendida y contacto, crea una **cita** (`booking`, con
 `ubicacion`, que el conector de Google manda como `location` del evento); si no,
 una tarea `visita`/`reunion` con `tarea_venta.ubicacion` y `edificio_id`.
+
+## Plantillas de tareas sugeridas (0059)
+
+Configuración → Plantillas de tareas (`/settings/tareas`, solo admin, para todo
+el equipo). Cada plantilla se sugiere en una **situación fija** de la
+oportunidad (`lib/sugerencias.ts`: `sin_contacto`, `no_contesta` con N días,
+`conoce`, `visita_agendada`, `visito`, `no_vino`, `reservo`, `compro`), con su
+vencimiento (hoy · mañana · +N · el día antes de la visita) y un mensaje con
+variables (`{nombre}`, `{vendedor}`, `{edificio}`, `{unidad}`,
+`{fecha_visita}`). Las de fábrica se cargan la primera vez que se piden
+(`ventas_ajustes.plantillas_sembradas`). La función pura `sugerencias()`
+devuelve hasta 3 y no repite una plantilla con tarea abierta
+(`tarea_venta.plantilla_id`) ni una descartada en la misma etapa
+(`oportunidad_sugerencia_descartada`). Nunca crea tareas sola.
