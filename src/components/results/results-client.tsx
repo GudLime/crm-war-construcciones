@@ -1,18 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type {
-  AdsBlockDto,
-  BotBlockDto,
-  HygieneBlockDto,
-  SalesBlockDto,
-} from "@/lib/analytics";
-import { AdsSection } from "./ads-section";
-import { BotSection } from "./bot-section";
+import type { HygieneBlockDto, SalesBlockDto } from "@/lib/analytics";
+import { parametrosResultados, rangoDeAtajo, FECHAS_POR_DEFECTO } from "@/lib/resultados";
+import { BarraResultados, type EstadoBarra } from "./barra-resultados";
 import { HygieneSection } from "./hygiene-section";
 import { OportunidadesSection, type Consulta } from "./oportunidades-section";
 import type { EstadisticasOportunidadesDto } from "@/lib/estadisticas-oportunidades";
-import { defaultRange, RangePicker, type Range } from "./range-picker";
 import { SalesSection } from "./sales-section";
 import { useVocabulario } from "@/components/vocabulario";
 import { nombrePantalla } from "@/lib/vocabulario";
@@ -66,9 +60,7 @@ async function cargar<T>(
  */
 export function ResultsClient({
   currency,
-  agenda,
   today,
-  timezone,
   admin = true,
 }: {
   /** Visibilidad por rol: el operador ve solo las estadísticas de sus oportunidades. */
@@ -80,10 +72,13 @@ export function ResultsClient({
   timezone: string;
 }) {
   const voc = useVocabulario();
-  const [range, setRange] = useState<Range>(() => defaultRange(today));
+  // Rediseño — la barra de período, edificio y filtros manda en toda la página.
+  const [barra, setBarra] = useState<EstadoBarra>(() => ({
+    rango: rangoDeAtajo(FECHAS_POR_DEFECTO, today),
+    edificioIds: [],
+    filtros: {},
+  }));
   const [sales, setSales] = useState<Block<SalesBlockDto>>(inicial);
-  const [ads, setAds] = useState<Block<AdsBlockDto>>(inicial);
-  const [bot, setBot] = useState<Block<BotBlockDto>>(inicial);
   const [hygiene, setHygiene] = useState<Block<HygieneBlockDto>>(inicial);
   const [ops, setOps] = useState<Block<EstadisticasOportunidadesDto>>(inicial);
   // `verPor` undefined = todavía no eligió: arranca con el de la configuración del cliente.
@@ -92,22 +87,21 @@ export function ResultsClient({
   useEffect(() => {
     const ctl = new AbortController();
     if (!admin) return () => ctl.abort();
-    const q = `from=${range.from}&to=${range.to}`;
-    void cargar(`/api/analytics/sales?${q}`, setSales, ctl.signal);
-    void cargar(`/api/analytics/ads?${q}`, setAds, ctl.signal);
-    void cargar(`/api/analytics/bot?${q}`, setBot, ctl.signal);
+    // «Origen y anuncios» y «El agente» salieron por ahora (sus endpoints siguen).
+    const q = parametrosResultados(barra.rango, barra.edificioIds, barra.filtros);
+    void cargar(`/api/analytics/sales?${q.toString()}`, setSales, ctl.signal);
     return () => ctl.abort();
-  }, [range, admin]);
+  }, [barra, admin]);
 
   // Paso 7 — Oportunidades: depende del rango y de «Ver por» / filtros.
   useEffect(() => {
     const ctl = new AbortController();
-    const p = new URLSearchParams({ from: range.from, to: range.to });
+    const p = parametrosResultados(barra.rango, barra.edificioIds, barra.filtros);
     if (consulta.verPor !== undefined) p.set("verPor", consulta.verPor ?? "");
     for (const [k, v] of Object.entries(consulta.filtros)) if (v.length) p.set(`f.${k}`, v.join(","));
     void cargar(`/api/analytics/oportunidades?${p.toString()}`, setOps, ctl.signal);
     return () => ctl.abort();
-  }, [range, consulta]);
+  }, [barra, consulta]);
 
   // La higiene describe el AHORA: no depende del rango elegido.
   useEffect(() => {
@@ -122,19 +116,17 @@ export function ResultsClient({
         <div className="min-w-0">
           <h2 className="text-[17px] font-bold tracking-tight">{nombrePantalla(voc, "results", "Resultados")}</h2>
           <p className="text-xs text-text-3">
-            {voc.plural}, ventas, el trabajo del agente, de dónde llegan y qué se está cayendo.
+            {voc.plural}, ventas y qué se está cayendo.
           </p>
         </div>
-        <RangePicker value={range} onChange={setRange} today={today} timezone={timezone} />
       </header>
+      <BarraResultados hoy={today} admin={admin} valor={barra} onCambio={setBarra} />
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3 sm:p-6">
         <OportunidadesSection {...ops} consulta={consulta} onConsulta={setConsulta} />
         {admin && (
           <>
             <SalesSection {...sales} currency={currency} />
-            <AdsSection {...ads} />
-            <BotSection {...bot} agenda={agenda} />
             <HygieneSection {...hygiene} currency={currency} />
           </>
         )}
