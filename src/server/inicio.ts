@@ -298,6 +298,7 @@ export async function tuDia(organizationId: string, userId: string, ahora = new 
         id: t.id,
         titulo: t.titulo,
         tipo: t.tipo,
+        oportunidadId: t.oportunidadId,
         fecha: t.fecha,
         contacto: schema.contact.name,
         edificio: edificioDe(t.contactId),
@@ -338,6 +339,7 @@ export async function tuDia(organizationId: string, userId: string, ahora = new 
       tipo: x.tipo,
       contacto: x.contacto,
       edificio: x.edificio,
+      oportunidadId: x.oportunidadId,
     })),
     ...citas.map((x) => ({
       clase: "cita" as const,

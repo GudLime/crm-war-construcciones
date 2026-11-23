@@ -4,6 +4,7 @@ import { scoped } from "@/lib/db/tenant";
 import { ASIGNAR_A_IA } from "@/lib/asignacion";
 import type { Anterior } from "@/lib/asignaciones";
 import { registrarEvento, type Actor } from "@/server/oportunidad-historial";
+import { tareasAlAsignar } from "@/server/tareas-automaticas";
 
 /** 0050 — Responsable de la oportunidad: los usuarios del equipo. */
 
@@ -115,6 +116,15 @@ export async function aplicarResponsable(input: {
       hacia: { userId, ia, nombre: nombre(userId, ia) },
     },
   });
+  // 0061 — Las plantillas «al asignar» (primera llamada…) crean o pasan su tarea.
+  if (input.como !== "deshacer") {
+    await tareasAlAsignar({
+      organizationId,
+      oportunidadId,
+      antes: { userId: anterior.userId, ia: anterior.ia },
+      despues: { userId, ia },
+    });
+  }
   return { anterior, cambio: true };
 }
 

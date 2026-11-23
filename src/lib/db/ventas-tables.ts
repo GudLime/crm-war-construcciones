@@ -528,7 +528,8 @@ export const vistaUltima = pgTable(
 /**
  * 0059 — Plantillas de tareas sugeridas (Configuración → Plantillas de tareas,
  * las arma el admin para todo el equipo). Cada una se sugiere en una situación
- * fija de la oportunidad (`lib/sugerencias.ts`); nunca crean tareas solas.
+ * fija de la oportunidad (`lib/sugerencias.ts`). Las de «al asignar» (0061) se
+ * crean solas cuando a la oportunidad se le asigna una persona.
  */
 export const tareaPlantilla = pgTable(
   "tarea_plantilla",
@@ -547,6 +548,8 @@ export const tareaPlantilla = pgTable(
     mensaje: text("mensaje"),
     activa: boolean("activa").notNull().default(true),
     orden: integer("orden").notNull().default(0),
+    /** 0061 — Solo para estos orígenes (vacío = todos). */
+    origenes: jsonb("origenes").$type<string[]>().notNull().default([]),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

@@ -26,6 +26,7 @@ import type { FormaDeVer } from "@/lib/oportunidades-lista";
 import { agruparTareas, fechaPropuesta, grupoConAlta, type GrupoTarea } from "@/lib/tareas-grupos";
 import { cn } from "@/lib/utils";
 import { ESTADOS_TAREA, TIPOS_TAREA, etiqueta } from "@/lib/ventas";
+import { ResultadoLlamada } from "./resultado-llamada";
 import type { OportunidadDto, TareaDto } from "@/server/ventas";
 import { SelectorDeForma } from "./oportunidades-vistas";
 import { PildoraEdificio } from "./pildora-edificio";
@@ -490,6 +491,20 @@ export function TareasClient() {
 
       {abierto && (
         <Ficha titulo={soloLectura ? "Visita de otra persona (solo lectura)" : editando ? "Editar tarea" : "Nueva tarea"}>
+          {editando && !soloLectura && form.tipo === "llamada" && form.estado === "realizar" && (
+            // 0061 — Una llamada se cierra diciendo cómo salió.
+            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg bg-subtle px-3 py-2.5 text-[13px]">
+              <span className="font-medium">¿Cómo salió la llamada?</span>
+              <ResultadoLlamada
+                tareaId={editando}
+                oportunidadId={form.oportunidadId || null}
+                onListo={async () => {
+                  setAbierto(false);
+                  await cargar();
+                }}
+              />
+            </div>
+          )}
           <form onSubmit={guardar} className={grilla}>
             <fieldset disabled={soloLectura} className="contents">
             <Campo label="Qué hay que hacer" className="sm:col-span-2">

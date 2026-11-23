@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  aplicaAlOrigen,
   completarMensaje,
+  PLANTILLA_LLAMADA_SIN_ATENDER,
   PLANTILLAS_DE_FABRICA,
   sugerencias,
   vencimiento,
@@ -110,6 +112,7 @@ describe("tareas sugeridas por situación", () => {
       mensaje: null,
       activa: true,
       orden: i,
+      origenes: [],
     }));
     expect(sugerencias(muchas, ctx({ estado: "visito" }))).toHaveLength(3);
   });
@@ -128,5 +131,46 @@ describe("mensaje y vencimiento", () => {
     expect(vencimiento("+7", "2026-11-28", null)).toBe("2026-12-05");
     expect(vencimiento("antes_visita", "2026-11-20", "2026-11-21T14:00:00Z")).toBe("2026-11-20");
     expect(vencimiento("antes_visita", "2026-11-20", null)).toBeNull();
+  });
+});
+
+describe("0061 — primera llamada", () => {
+  const llamar: Plantilla = { ...PLANTILLA_LLAMADA_SIN_ATENDER, id: "tpl_aviso" };
+  const conAviso = [...plantillas, llamar];
+  const op = { estado: "en_charlas", responsableId: "usr_1", primerContactoAt: "2026-11-19T10:00:00Z" };
+
+  it("llamada sin atender: se sugiere avisar por WhatsApp", () => {
+    const s = sugerencias(
+      conAviso,
+      ctx({ estado: "en_charlas", oportunidad: op, ultimaLlamada: { estado: "no_responde", at: "2026-11-20T12:00:00Z" } })
+    );
+    expect(s.map((x) => x.titulo)).toContain("Avisar que lo llamamos");
+  });
+
+  it("si escribió después de la llamada, o la atendió, no", () => {
+    const despues = sugerencias(
+      conAviso,
+      ctx({
+        estado: "en_charlas",
+        oportunidad: op,
+        ultimaLlamada: { estado: "no_responde", at: "2026-11-20T12:00:00Z" },
+        ultimoEntranteAt: "2026-11-20T12:30:00Z",
+      })
+    );
+    expect(despues.map((x) => x.titulo)).not.toContain("Avisar que lo llamamos");
+    const atendio = sugerencias(conAviso, ctx({ estado: "en_charlas", oportunidad: op, ultimaLlamada: { estado: "listo", at: "2026-11-20T12:00:00Z" } }));
+    expect(atendio.map((x) => x.titulo)).not.toContain("Avisar que lo llamamos");
+  });
+
+  it("las «al asignar» nunca se sugieren y el origen filtra", () => {
+    const alAsignar: Plantilla = { ...llamar, id: "tpl_aa", nombre: "Primera llamada", tipo: "llamada", situacion: "al_asignar" };
+    const soloCartel: Plantilla = { ...plantillas[0]!, id: "tpl_cartel", nombre: "Solo cartel", origenes: ["Cartel"] };
+    const base = { estado: "recibido", responsableId: "usr_1", primerContactoAt: null };
+    const meta = sugerencias([alAsignar, soloCartel], ctx({ estado: "recibido", oportunidad: { ...base, origen: "Meta Ads" } }));
+    expect(meta).toEqual([]);
+    const cartel = sugerencias([alAsignar, soloCartel], ctx({ estado: "recibido", oportunidad: { ...base, origen: "cartel" } }));
+    expect(cartel.map((x) => x.titulo)).toEqual(["Solo cartel"]);
+    expect(aplicaAlOrigen({ origenes: [] }, null)).toBe(true);
+    expect(aplicaAlOrigen({ origenes: ["Referido"] }, null)).toBe(false);
   });
 });

@@ -54,6 +54,7 @@ import { BotonesNuevaTarea } from "@/components/ventas/nueva-tarea";
 import { SugeridasParaEstaEtapa } from "@/components/ventas/sugeridas";
 import { cn } from "@/lib/utils";
 import { colorDeEtapa } from "@/lib/colores-etapa";
+import { ResultadoLlamada } from "./resultado-llamada";
 import {
   TIPOS_CONTACTO,
   TIPOS_OPORTUNIDAD,
@@ -965,7 +966,7 @@ function Timeline({
               ) : (
                 <ol className="space-y-1">
                   {proximos.map((p) => (
-                    <ProximoFila key={p.id} paso={p} onMarcar={marcar} />
+                    <ProximoFila key={p.id} paso={p} onMarcar={marcar} onCambio={onCambio} />
                   ))}
                 </ol>
               )}
@@ -1026,9 +1027,11 @@ function Timeline({
 function ProximoFila({
   paso,
   onMarcar,
+  onCambio,
 }: {
   paso: ProximoPaso;
   onMarcar: (t: TareaCorta, estado: "listo" | "no_responde") => Promise<void>;
+  onCambio: () => void | Promise<void>;
 }) {
   const esTarea = paso.clase === "tarea";
   const Icono = esTarea ? ICONO_TAREA[paso.tarea.tipo] : CalendarClock;
@@ -1063,7 +1066,16 @@ function ProximoFila({
           )}
         </div>
         <p className="mt-0.5 text-[12px] text-text-3">{detalle}</p>
-        {esTarea && (
+        {esTarea && paso.tarea.tipo === "llamada" && (
+          // 0061 — Una llamada se cierra diciendo cómo salió.
+          <ResultadoLlamada
+            className="mt-1.5"
+            tareaId={paso.tarea.id}
+            oportunidadId={paso.tarea.oportunidadId}
+            onListo={onCambio}
+          />
+        )}
+        {esTarea && paso.tarea.tipo !== "llamada" && (
           <div className="mt-1.5 flex gap-1.5">
             <button
               type="button"

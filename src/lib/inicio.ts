@@ -51,6 +51,8 @@ export type ItemDelDia = {
   tipo: string;
   contacto: string | null;
   edificio: string | null;
+  /** 0061 — Para cerrar una llamada con «Atendió» (la ventana del cliente la usa). */
+  oportunidadId?: string | null;
 };
 
 /** Una oportunidad en las listas de Inicio (Nuevas para vos, Leads calientes). */

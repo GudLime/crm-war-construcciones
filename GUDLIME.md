@@ -499,3 +499,25 @@ en el gris). Lo usan la barra de avance (actual en sólido, pasadas en tinte),
 `EtapaPill`, los puntos del Pipeline, el fondo lavado de filas y tarjetas de
 Oportunidades (`.fondo-etapa`, `.borde-etapa` en `globals.css`, con modo
 oscuro) y las bandas del embudo de Resultados.
+
+## Workflow de la primera llamada (0061, cambios 23/11 punto 4)
+
+- **Plantillas por origen:** `tarea_plantilla.origenes` (vacío = todos;
+  `aplicaAlOrigen` compara sin tildes ni mayúsculas). Vale para sugerir y para
+  crear.
+- **«Al asignarle responsable»** (situación `al_asignar`): no se sugiere, se
+  crea sola (`server/tareas-automaticas.ts`, llamado desde
+  `aplicarResponsable`). De nadie a una persona crea la tarea a su nombre (sin
+  duplicar la abierta); de una persona a otra le pasa las abiertas; a la IA,
+  nada. Un fallo nunca rompe la asignación.
+- **Cómo salió la llamada** (`resultado-llamada.tsx`, `POST
+  /api/tareas/[id]/llamada`): «No atendió» → `no_responde` (intento);
+  «Atendió» → `listo`, primer contacto y, si estaba en Recibido, a En charlas.
+  En Próximos pasos, Tareas y el Tu día de Inicio.
+- **La ventana de «Atendió»** pide el comentario (va a la tarea) y tiene un
+  lugar para el cliente: `components/extensiones/llamada-atendida.tsx`
+  (`ExtraLlamadaAtendida`). **El núcleo no vuelve a tocar ese archivo**: cada
+  cliente lo reemplaza con lo suyo (en WAR, «¿Qué buscaba?»).
+- **«Llamada sin atender»**: la última llamada marcada quedó «No atendió» y el
+  cliente no escribió después → plantilla de fábrica «Avisar que lo llamamos»
+  (la migración la siembra en las organizaciones que ya tenían plantillas).
