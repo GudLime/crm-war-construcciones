@@ -140,6 +140,7 @@ describe("ajustes en tres secciones", () => {
         "/settings/quick-replies",
         "/settings/origenes",
         "/settings/ventas",
+        "/settings/tareas",
         "/settings/team",
         "/settings/ads",
       ].sort()
