@@ -335,19 +335,42 @@ export const PANTALLAS_MENU = [
 ] as const;
 export type PantallaMenu = (typeof PANTALLAS_MENU)[number];
 /** Las que se pueden apagar: su página deja de existir y su rastro en otras pantallas también. */
-export const PANTALLAS_OCULTABLES = ["inicio", "pipeline", "tareas"] as const;
+export const PANTALLAS_OCULTABLES = ["inicio", "pipeline", "tareas", "bookings"] as const;
 
 /**
  * 071 — El menú de este cliente. `trabajo` arma el grupo Trabajo con esas
  * pantallas, en ese orden (las saca de su grupo de siempre; un grupo que queda
  * vacío no se muestra). `nombres` cambia cómo se llaman. `ocultar` apaga
- * Inicio, el Pipeline de leads o las Tareas: sin Inicio, se entra a la primera
- * pantalla de Trabajo.
+ * Inicio, el Pipeline de leads, las Tareas o las Citas (cambios 23/11: sus
+ * citas siguen en la vista Calendario de Tareas): sin Inicio, se entra a la
+ * primera pantalla de Trabajo.
  */
 const menuSchema = z.object({
   trabajo: z.array(z.enum(PANTALLAS_MENU)).min(1).max(PANTALLAS_MENU.length).optional(),
   nombres: z.partialRecord(z.enum(PANTALLAS_MENU), z.string().trim().min(1).max(30)).optional(),
   ocultar: z.array(z.enum(PANTALLAS_OCULTABLES)).max(PANTALLAS_OCULTABLES.length).optional(),
+});
+
+/**
+ * Cambios 23/11, punto 7 — Los bloques del Inicio, en orden. Sin `inicio`, el
+ * de siempre. `etapas` es el mini dashboard del encabezado (las abiertas de
+ * quien mira por etapa); `tareas`, el widget de la lista continua.
+ */
+export const BLOQUES_INICIO = [
+  "etapas",
+  "tareas",
+  "tarjetas",
+  "derivadas",
+  "nuevas",
+  "calientes",
+  "visitas",
+  "tu_dia",
+  "ventanas",
+  "semana",
+] as const;
+export type BloqueInicio = (typeof BLOQUES_INICIO)[number];
+const inicioSchema = z.object({
+  bloques: z.array(z.enum(BLOQUES_INICIO)).min(1).max(BLOQUES_INICIO.length),
 });
 
 export const configClienteSchema = z.object({
@@ -365,6 +388,8 @@ export const configClienteSchema = z.object({
   inmobiliario: z.boolean().default(true),
   /** 071 — Orden, nombres y pantallas apagadas del menú (ver arriba). */
   menu: menuSchema.optional(),
+  /** Cambios 23/11 — Qué bloques muestra el Inicio y en qué orden (ver arriba). */
+  inicio: inicioSchema.optional(),
   objetos: z.array(objetoSchema).default([]),
   relaciones: z.array(relacionSchema).default([]),
   reglasEtapa: z.array(reglaEtapaSchema).default([]),

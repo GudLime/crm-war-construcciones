@@ -521,3 +521,56 @@ oscuro) y las bandas del embudo de Resultados.
 - **«Llamada sin atender»**: la última llamada marcada quedó «No atendió» y el
   cliente no escribió después → plantilla de fábrica «Avisar que lo llamamos»
   (la migración la siembra en las organizaciones que ya tenían plantillas).
+
+## Calendario en Tareas (cambios 23/11, punto 2)
+
+- `/tareas` suma la forma **Calendario** (`SelectorDeForma` con
+  `conCalendario`): es el mismo calendario de Citas (`BookingsClient` con
+  `embebido`: vista en `?cal=`, sin pedir citas si la agenda está apagada) con
+  las tareas del filtro de la página como bloques de 30 min en Día y Semana
+  (`TareaCal` en `time-grid.tsx`, barrita del color del tipo; las hechas,
+  atenuadas y tachadas). Tocar una tarea abre su edición; tocar una cita, el
+  panel de siempre (confirmar, reprogramar, cancelar, bloquear).
+- **Citas se puede ocultar** (`menu.ocultar: ["bookings"]`): `/bookings`
+  redirige a `/tareas?vista=calendario`. En el núcleo sigue visible.
+
+## Contactos compacta (cambios 23/11, punto 8)
+
+`GET /api/contacts?pagina=N&porPagina=50&q=&tipo=&fuente=&agente=con|sin&archivados=solo&orden=nombre|telefono|creado:asc|desc`
+devuelve `{ items, total, pagina, porPagina }` (filtros y orden en el
+servidor, `lib/contactos-lista.ts`). Sin `pagina` responde lo de siempre
+(`{ contacts }`, las últimas 200): lo usan otros selectores. La pantalla
+(`contactos-lista.tsx`, fuera del restaurante) es una tabla liviana: buscador
+redondo, pastillas de filtro con ×, «+ Filtro» y «Limpiar», una línea por
+contacto (avatar, nombre, teléfono, alta), orden por columna y páginas de a
+50. En el restaurante sigue la lista de comensales.
+
+## Inicio por bloques (cambios 23/11, punto 7)
+
+En la config del cliente, `inicio.bloques` (`BLOQUES_INICIO`: `etapas`,
+`tareas`, `derivadas`, `nuevas`, `calientes`, `visitas`, `tu_dia`, `ventanas`,
+`semana`) elige qué muestra el Inicio y en qué orden. Sin `inicio`, el de
+siempre. Con bloques: encabezado con la fecha y el saludo grande; `etapas` es
+el mini dashboard (abiertas de quien mira en Recibido, En charlas, Conoce
+información y Visitó, cada número abre Oportunidades filtrada) y `tareas` el
+widget (`tareas-widget.tsx`: lista continua Vencidas → Sin hora → Hoy con la
+línea de «Ahora» → días siguientes, en columnas de 280 px con alto fijo,
+filtros por tipo que restan, «+N más» medido, y cada ítem se despliega con sus
+acciones). `GET /api/inicio` suma `etapas`, `widget` y `hoy` solo si el
+cliente los usa (`etapasDelUsuario`, `widgetDeTareas`).
+
+## Derivaciones de la IA → tarea (0062, cambios 23/11 punto 6)
+
+Cuando el agente deriva (`POST /api/bot/handoff`, o el traspaso por error del
+despacho), `tareaPorDerivacion` (`server/derivaciones.ts`) crea una tarea
+`creada_por = 'ia'` con la `conversation_id`, a nombre de
+`ventas_ajustes.derivaciones_responsable_user_id` (Ajustes → Ventas →
+«Responsable de las derivaciones de la IA»; vacío = sin asignar) y ligada a la
+oportunidad del contacto. Tipo y título según el motivo
+(`lib/derivaciones.ts`): quiere reservar o comprar → «Llamar a {nombre}»;
+pregunta que no sabe → «Contestar consulta»; si no, «Responder a {nombre}»
+(WhatsApp, en 15 min). El comentario lleva el último mensaje y «derivada por
+{agente} · motivo». No se duplica (se actualiza el comentario) y se cierra
+sola cuando una persona responde (`registrarSaliente` →
+`cerrarTareasDeDerivacion`). En Tareas y en el widget del Inicio lleva la
+marca de chispas; en el widget suma «Responder en Bandeja».

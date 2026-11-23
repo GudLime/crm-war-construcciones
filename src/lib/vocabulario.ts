@@ -1,4 +1,4 @@
-import type { ConfigCliente, PantallaMenu } from "@/lib/motor/config";
+import type { BloqueInicio, ConfigCliente, PantallaMenu } from "@/lib/motor/config";
 import {
   CAMINO_OPORTUNIDAD,
   ESTADOS_ABIERTOS,
@@ -47,6 +47,8 @@ export type Vocabulario = {
     nombres: Partial<Record<PantallaMenu, string>>;
     ocultas: PantallaMenu[];
   };
+  /** Cambios 23/11 — Los bloques del Inicio; null = el de siempre. */
+  inicio: { bloques: BloqueInicio[] | null };
 };
 
 export const VOCABULARIO_POR_DEFECTO: Vocabulario = {
@@ -62,11 +64,15 @@ export const VOCABULARIO_POR_DEFECTO: Vocabulario = {
   inmobiliario: true,
   cierrePorSinRespuesta: true,
   menu: { trabajo: null, nombres: {}, ocultas: [] },
+  inicio: { bloques: null },
 };
 
 /** Arma el vocabulario a partir del archivo del cliente. Sin archivo, el de siempre. */
 export function vocabularioDe(
-  config: (Pick<ConfigCliente, "oportunidad" | "inmobiliario"> & Partial<Pick<ConfigCliente, "menu">>) | null | undefined
+  config:
+    | (Pick<ConfigCliente, "oportunidad" | "inmobiliario"> & Partial<Pick<ConfigCliente, "menu" | "inicio">>)
+    | null
+    | undefined
 ): Vocabulario {
   const inmobiliario = config?.inmobiliario ?? true;
   const menu = {
@@ -74,8 +80,9 @@ export function vocabularioDe(
     nombres: { ...(config?.menu?.nombres ?? {}) },
     ocultas: [...new Set(config?.menu?.ocultar ?? [])] as PantallaMenu[],
   };
+  const inicio = { bloques: config?.inicio?.bloques ? [...new Set(config.inicio.bloques)] : null };
   const o = config?.oportunidad;
-  if (!o) return { ...VOCABULARIO_POR_DEFECTO, inmobiliario, menu };
+  if (!o) return { ...VOCABULARIO_POR_DEFECTO, inmobiliario, menu, inicio };
   const estados = o.estados.map((e) => ({ value: e.estado, label: e.nombre }));
   const visibles = new Set(estados.map((e) => e.value));
   return {
@@ -91,6 +98,7 @@ export function vocabularioDe(
     inmobiliario,
     cierrePorSinRespuesta: o.cierrePorSinRespuesta,
     menu,
+    inicio,
   };
 }
 

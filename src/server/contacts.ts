@@ -26,6 +26,7 @@ export function serializeContact(
     // Viaja siempre, aunque esté vacía: la pantalla necesita distinguir "aún
     // no la han llenado" de "este contacto no la trae".
     ficha: (c.ficha as FichaDto | null) ?? {},
+    createdAt: c.createdAt.toISOString(),
   };
 }
 

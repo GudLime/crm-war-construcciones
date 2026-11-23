@@ -1,3 +1,4 @@
+import { tareaPorDerivacion } from "@/server/derivaciones";
 import { and, eq, inArray, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
@@ -387,4 +388,6 @@ export async function pasarAHumano(
     type: "conversation.updated",
     data: { conversation: { id: conversationId, handoffReason: "error" } },
   });
+  // Cambios 23/11 — La derivación también es una tarea.
+  await tareaPorDerivacion({ organizationId, conversationId, codigo: "error", resumen: null });
 }

@@ -8,6 +8,7 @@ import {
   Columns3,
   EyeOff,
   KanbanSquare,
+  CalendarDays,
   LayoutGrid,
   List,
   ChevronLeft,
@@ -242,12 +243,22 @@ function celda(
   }
 }
 
-export function SelectorDeForma({ forma, onCambio }: { forma: FormaDeVer; onCambio: (f: FormaDeVer) => void }) {
-  const opciones: [FormaDeVer, string, typeof List][] = [
+/** Lista · Mosaico · Pipeline (y, en Tareas, Calendario). */
+export function SelectorDeForma<F extends FormaDeVer | "calendario" = FormaDeVer>({
+  forma,
+  onCambio,
+  conCalendario = false,
+}: {
+  forma: F;
+  onCambio: (f: F) => void;
+  conCalendario?: boolean;
+}) {
+  const opciones = [
     ["lista", "Lista", List],
     ["mosaico", "Mosaico", LayoutGrid],
     ["pipeline", "Pipeline", KanbanSquare],
-  ];
+    ...(conCalendario ? [["calendario", "Calendario", CalendarDays]] : []),
+  ] as [F, string, typeof List][];
   return (
     <div role="tablist" aria-label="Forma de ver" className="inline-flex gap-0.5 rounded-full bg-muted p-[3px]">
       {opciones.map(([valor, texto, Icono]) => (
