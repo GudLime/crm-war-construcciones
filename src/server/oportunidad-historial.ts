@@ -1,3 +1,4 @@
+import { cerrarTareasDeDerivacion } from "@/server/derivaciones-cierre";
 import { and, desc, eq, gte, inArray, isNull, lt, lte, or } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
@@ -352,6 +353,8 @@ export async function registrarSaliente(input: {
   at: Date;
   origen: "ai" | "operator" | "manual" | "template";
 }): Promise<void> {
+  // Cambios 23/11 — Una persona respondió: la tarea de la derivación de la IA queda hecha.
+  if (input.origen !== "ai") await cerrarTareasDeDerivacion(input.organizationId, input.conversationId);
   try {
     const [conv] = await getDb()
       .select({ contactId: schema.conversation.contactId, isTest: schema.conversation.isTest })

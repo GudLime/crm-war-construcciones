@@ -3,6 +3,8 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { validarConfig } from "@/lib/motor/config";
 import { columnasEsperadas, sentenciasDdl } from "@/lib/motor/ddl";
+import { appNavGroups } from "@/lib/nav";
+import { vocabularioDe } from "@/lib/vocabulario";
 
 /**
  * WAR — la configuración del cliente (`clientes/war.json`) es válida y no le
@@ -17,6 +19,17 @@ describe("WAR: clientes/war.json", () => {
 
   it("es válida", () => {
     expect(r.ok ? [] : r.errores).toEqual([]);
+  });
+
+  it("cambios 23/11: Trabajo con Oportunidades y Tareas, sin Pipeline ni Citas, e Inicio por bloques", () => {
+    if (!r.ok) return;
+    const voc = vocabularioDe(r.config);
+    const grupos = appNavGroups({ role: "owner", vocabulario: voc, agenda: true });
+    expect(grupos[0]!.items.map((i) => i.href)).toEqual(["/inicio", "/inbox", "/oportunidades", "/tareas", "/asignaciones", "/contacts"]);
+    const todo = grupos.flatMap((g) => g.items.map((i) => i.href));
+    expect(todo).not.toContain("/pipeline");
+    expect(todo).not.toContain("/bookings");
+    expect(voc.inicio.bloques).toEqual(["etapas", "tareas"]);
   });
 
   it("solo agrega: tipo, ambientes, fotos y video en departamento; fotos y video en edificio; y la tabla de vínculos", () => {

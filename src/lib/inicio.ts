@@ -51,6 +51,8 @@ export type ItemDelDia = {
   tipo: string;
   contacto: string | null;
   edificio: string | null;
+  /** 0061 — Para cerrar una llamada con «Atendió» (la ventana del cliente la usa). */
+  oportunidadId?: string | null;
 };
 
 /** Una oportunidad en las listas de Inicio (Nuevas para vos, Leads calientes). */
@@ -107,6 +109,53 @@ export type MetricasSemana = {
 
 export type SemanaDto = { desde: string; actual: MetricasSemana; anterior: MetricasSemana };
 
+/** Cambios 23/11, punto 7 — Una fila del widget «Tareas» del Inicio: una tarea o una cita. */
+export type ItemWidget = {
+  clase: "tarea" | "cita";
+  id: string;
+  /** Instante (ISO), o null si la tarea no tiene hora. */
+  at: string | null;
+  /** Día local AAAA-MM-DD (null = sin fecha). */
+  dia: string | null;
+  /** Hay hora puesta (las que se crean «para hoy» sin hora quedan en «Sin hora»). */
+  conHora: boolean;
+  /** tipo de tarea, o «visita» para las citas. */
+  tipo: string;
+  titulo: string;
+  estado: string;
+  vencida: boolean;
+  /** La creó la IA al derivar (punto 6). */
+  ia: boolean;
+  contacto: string | null;
+  edificio: { nombre: string; color: string | null } | null;
+  oportunidadId: string | null;
+  conversationId: string | null;
+  comentario: string | null;
+  ubicacion: string | null;
+  /** Citas: duración, confirmada y quién la agendó. */
+  minutos: number | null;
+  confirmada: boolean;
+  agendo: "manual" | "ai" | null;
+};
+
+/** Vencidas → sin hora → por día y hora. */
+export function ordenarWidget(items: readonly ItemWidget[]): ItemWidget[] {
+  const peso = (x: ItemWidget) => (x.vencida ? 0 : !x.at ? 1 : 2);
+  return [...items].sort((a, b) => peso(a) - peso(b) || (a.at ?? "").localeCompare(b.at ?? ""));
+}
+
+/** Las secciones del widget, en orden: Vencidas, Sin hora, Hoy y un título por día. */
+export function seccionesWidget(items: readonly ItemWidget[], hoy: string): { clave: string; items: ItemWidget[] }[] {
+  const out: { clave: string; items: ItemWidget[] }[] = [];
+  const push = (clave: string, x: ItemWidget) => {
+    const ultima = out[out.length - 1];
+    if (ultima?.clave === clave) ultima.items.push(x);
+    else out.push({ clave, items: [x] });
+  };
+  for (const x of ordenarWidget(items)) push(x.vencida ? "vencidas" : !x.at ? "sin_hora" : x.dia === hoy ? "hoy" : (x.dia ?? "sin_hora"), x);
+  return out;
+}
+
 export type InicioDto = {
   usuario: { id: string; nombre: string };
   /** Nombre del agente de IA configurado (Agente → nombre). */
@@ -126,6 +175,12 @@ export type InicioDto = {
   sesion: string;
   /** «Ver como» (solo admin): el equipo, para elegir de quién es el Inicio. */
   equipo: { userId: string; nombre: string }[];
+  /** Cambios 23/11 — Las abiertas de esta persona por etapa (mini dashboard). */
+  etapas?: Record<string, number>;
+  /** Cambios 23/11 — Vencidas, sin hora, hoy y los próximos días, citas y tareas juntas. */
+  widget?: ItemWidget[];
+  /** Hoy en la zona del negocio. */
+  hoy?: string;
 };
 
 /** % entero, o null sin base. */

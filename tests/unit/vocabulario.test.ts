@@ -205,6 +205,11 @@ describe("menú del cliente (071)", () => {
     expect(grupos.flatMap((g) => g.items.map((i) => i.href))).toContain("/tareas");
   });
 
+  it("Citas también se puede ocultar (sus citas van al Calendario de Tareas)", () => {
+    expect(validarConfig({ ...RESTAURANTE, menu: { ocultar: ["bookings"] } }).ok).toBe(true);
+    expect(conMenu({ ocultar: ["bookings"] }).menu.ocultas).toContain("bookings");
+  });
+
   it("rechaza una pantalla que no existe o una que no se puede apagar", () => {
     expect(validarConfig({ ...RESTAURANTE, menu: { trabajo: ["cocina"] } }).ok).toBe(false);
     expect(validarConfig({ ...RESTAURANTE, menu: { ocultar: ["inbox"] } }).ok).toBe(false);

@@ -29,6 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SOURCE_LABELS } from "@/server/contact-source";
 import { priorityRank } from "@/server/leads/priority";
 import { PriorityBadge } from "@/components/pipeline/priority-picker";
+import { ContactosLista } from "./contactos-lista";
 import { ImportContactsDialog } from "./import-contacts-dialog";
 import { NewContactDialog } from "./new-contact-dialog";
 import { StartConversation } from "./start-conversation";
@@ -64,6 +65,9 @@ export function ContactsClient({ reservas = false }: { reservas?: boolean }) {
   const [importando, setImportando] = useState(false);
   const [escribiendo, setEscribiendo] = useState<ContactDto | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Cambios 23/11, punto 8 — Fuera del restaurante, la lista compacta paginada en el servidor.
+  const compacta = !reservas;
+  const [version, setVersion] = useState(0);
 
   // Mismo rescate que en la Bandeja: lo tecleado antes de que hidrate el JS
   // se perdía en silencio. Ver conversation-list.tsx.
@@ -82,14 +86,14 @@ export function ContactsClient({ reservas = false }: { reservas?: boolean }) {
 
   useEffect(() => {
     // 071 — Sin Pipeline de leads, no hay etapas del embudo para filtrar.
-    if (pantallaOculta(voc, "pipeline")) return;
+    if (pantallaOculta(voc, "pipeline") || compacta) return;
     void (async () => {
       const res = await fetch("/api/pipeline/stages").catch(() => null);
       if (!res?.ok) return;
       const data = (await res.json()) as { stages: { name: string }[] };
       setStages(data.stages.map((s) => s.name));
     })();
-  }, [voc]);
+  }, [voc, compacta]);
 
   const personaDe = (id: string): Comensal =>
     personas?.porContacto[id] ?? { ...COMENSAL_VACIO, segmento: "nuevo" };
@@ -99,6 +103,10 @@ export function ContactsClient({ reservas = false }: { reservas?: boolean }) {
     personas && vista !== "todos" ? contacts.filter((c) => enVista(personaDe(c.id), vista, personas.hoy)) : contacts;
 
   const refetch = useCallback(async () => {
+    if (compacta) {
+      setVersion((v) => v + 1);
+      return;
+    }
     const params = new URLSearchParams();
     if (query.trim()) params.set("q", query.trim());
     if (stage !== "all") params.set("stage", stage);
@@ -114,7 +122,7 @@ export function ContactsClient({ reservas = false }: { reservas?: boolean }) {
         (a, b) => priorityRank(a.priority ?? null) - priorityRank(b.priority ?? null)
       )
     );
-  }, [query, stage, showArchived]);
+  }, [query, stage, showArchived, compacta]);
 
   useEffect(() => {
     const t = setTimeout(() => void refetch(), 250);
@@ -145,6 +153,7 @@ export function ContactsClient({ reservas = false }: { reservas?: boolean }) {
             Importar
           </Button>
         </div>
+        {!compacta && (
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
           <label className="flex items-center gap-2 text-xs text-muted-foreground">
             <input
@@ -182,9 +191,19 @@ export function ContactsClient({ reservas = false }: { reservas?: boolean }) {
             />
           </div>
         </div>
+        )}
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        {compacta ? (
+          <ContactosLista
+            version={version}
+            onEditar={setEditing}
+            onEscribir={setEscribiendo}
+            onArchivar={(c) => void patch(c.id, { archived: !c.archivedAt })}
+          />
+        ) : (
+          <>
         {personas && contacts.length > 0 && (
           <div role="tablist" aria-label="Vistas de contactos" className="mb-4 flex flex-wrap gap-1.5">
             {VISTAS_COMENSALES.map((v) => (
@@ -328,6 +347,8 @@ export function ContactsClient({ reservas = false }: { reservas?: boolean }) {
               </li>
             ))}
           </ul>
+        )}
+          </>
         )}
       </div>
 

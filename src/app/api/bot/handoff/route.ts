@@ -5,6 +5,7 @@ import { apiError, parseBody } from "@/lib/api";
 import { requireBotKey, resolveInstanceOrg } from "@/server/bot/auth";
 import { publish } from "@/server/events/bus";
 import { resumenDelHandoff, toHandoffReason } from "@/server/bot/handoff";
+import { tareaPorDerivacion } from "@/server/derivaciones";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +75,13 @@ export async function POST(req: Request) {
     publish(organizationId, {
       type: "conversation.updated",
       data: { conversation: { id: conv.id } },
+    });
+    // Cambios 23/11 — La derivación también es una tarea, para que se vea con el resto.
+    await tareaPorDerivacion({
+      organizationId,
+      conversationId: conv.id,
+      codigo: toHandoffReason(body.data.reason),
+      resumen: resumenDelHandoff(body.data.summary, body.data.reason),
     });
   }
   return Response.json({ ok: true });

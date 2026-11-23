@@ -25,7 +25,7 @@ export function vocabulario(): Promise<Vocabulario> {
 }
 
 /** 071 — Una página apagada en el menú de este cliente: no existe. */
-export async function pantallaApagada(p: "inicio" | "pipeline" | "tareas"): Promise<boolean> {
+export async function pantallaApagada(p: "inicio" | "pipeline" | "tareas" | "bookings"): Promise<boolean> {
   return (await vocabulario()).menu.ocultas.includes(p);
 }
 

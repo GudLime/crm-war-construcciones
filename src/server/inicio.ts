@@ -7,6 +7,8 @@ import {
   type DerivadaDto,
   type InicioContadores,
   type ItemDelDia,
+  type ItemWidget,
+  ordenarWidget,
   type OportunidadDeInicio,
   type MetricasSemana,
   type SemanaDto,
@@ -298,6 +300,7 @@ export async function tuDia(organizationId: string, userId: string, ahora = new 
         id: t.id,
         titulo: t.titulo,
         tipo: t.tipo,
+        oportunidadId: t.oportunidadId,
         fecha: t.fecha,
         contacto: schema.contact.name,
         edificio: edificioDe(t.contactId),
@@ -338,6 +341,7 @@ export async function tuDia(organizationId: string, userId: string, ahora = new 
       tipo: x.tipo,
       contacto: x.contacto,
       edificio: x.edificio,
+      oportunidadId: x.oportunidadId,
     })),
     ...citas.map((x) => ({
       clase: "cita" as const,
@@ -651,4 +655,162 @@ export async function tuSemana(organizationId: string, userId: string, ahora = n
     metricas(organizationId, userId, new Date(desde.getTime() - semana), new Date(ahora.getTime() - semana)),
   ]);
   return { desde: lunes, actual, anterior };
+}
+
+/* ------------------------------------------------------------------
+ * Cambios 23/11, punto 7 — Inicio por bloques
+ * ------------------------------------------------------------------ */
+
+/** Las abiertas de esta persona, por etapa (el mini dashboard). */
+export async function etapasDelUsuario(organizationId: string, userId: string): Promise<Record<string, number>> {
+  const op = schema.oportunidad;
+  const filas = await getDb()
+    .select({ estado: op.estado, n: count() })
+    .from(op)
+    .where(scoped(op.organizationId, organizationId, eq(op.responsableUserId, userId), inArray(op.estado, ABIERTAS)))
+    .groupBy(op.estado);
+  return Object.fromEntries(filas.map((f) => [f.estado, Number(f.n)]));
+}
+
+const TOPE_WIDGET = 40;
+
+/**
+ * El widget «Tareas»: vencidas (abiertas de antes de hoy), las de hoy (hechas
+ * también, tachadas) y los próximos días hasta completar ~40 filas, con las
+ * citas de esta persona. Las tareas sin fecha van en «Sin hora».
+ */
+export async function widgetDeTareas(organizationId: string, userId: string, ahora = new Date()) {
+  const db = getDb();
+  const tz = await businessTimezone(organizationId);
+  const hoy = todayInTz(ahora, tz);
+  const inicioHoy = zonedWallClockToUtc(hoy, "00:00", tz) ?? ahora;
+  const hasta = zonedWallClockToUtc(addDaysISO(hoy, 30), "00:00", tz) ?? ahora;
+  const t = schema.tareaVenta;
+  const b = schema.booking;
+  const edificioJson = (contactCol: typeof t.contactId | typeof b.contactId) => sql<{ nombre: string; color: string | null } | null>`(
+    select json_build_object('nombre', e.nombre, 'color', e.color)
+    from ${schema.oportunidad} o
+    join ${schema.edificio} e on e.id = coalesce(o.edificio_id, (
+      select oe.edificio_id from ${schema.oportunidadEdificio} oe
+      where oe.organization_id = ${organizationId} and oe.oportunidad_id = o.id limit 1
+    ))
+    where o.organization_id = ${organizationId} and o.contact_id = ${contactCol}
+    order by (o.responsable_user_id = ${userId}) desc nulls last, o.ultima_interaccion desc
+    limit 1
+  )`;
+  const [tareas, citas] = await Promise.all([
+    db
+      .select({
+        id: t.id,
+        titulo: t.titulo,
+        tipo: t.tipo,
+        estado: t.estado,
+        fecha: t.fecha,
+        comentarios: t.comentarios,
+        ubicacion: t.ubicacion,
+        oportunidadId: t.oportunidadId,
+        contacto: schema.contact.name,
+        edificio: edificioJson(t.contactId),
+        creadaPor: t.creadaPor,
+        conversationId: t.conversationId,
+      })
+      .from(t)
+      .leftJoin(schema.contact, eq(schema.contact.id, t.contactId))
+      .where(
+        scoped(
+          t.organizationId,
+          organizationId,
+          eq(t.responsableUserId, userId),
+          or(
+            // Sin fecha y por hacer.
+            and(isNull(t.fecha), eq(t.estado, "realizar")),
+            // Vencidas: por hacer, de antes de hoy.
+            and(lt(t.fecha, inicioHoy), eq(t.estado, "realizar")),
+            // De hoy en adelante (hechas también: se ven tachadas).
+            and(gte(t.fecha, inicioHoy), lt(t.fecha, hasta))
+          )
+        )
+      )
+      .orderBy(asc(t.fecha))
+      .limit(120),
+    db
+      .select({
+        id: b.id,
+        at: b.scheduledAt,
+        minutos: b.durationMinutes,
+        estado: b.status,
+        source: b.source,
+        confirmadaAt: b.confirmadaAt,
+        conversationId: b.conversationId,
+        contacto: schema.contact.name,
+        edificio: edificioJson(b.contactId),
+        oportunidadId: sql<string | null>`(
+          select o.id from ${schema.oportunidad} o
+          where o.organization_id = ${organizationId} and o.contact_id = ${b.contactId}
+          order by (o.responsable_user_id = ${userId}) desc nulls last, o.ultima_interaccion desc limit 1
+        )`,
+      })
+      .from(b)
+      .leftJoin(schema.contact, eq(schema.contact.id, b.contactId))
+      .where(
+        scoped(
+          b.organizationId,
+          organizationId,
+          eq(b.kind, "session"),
+          ne(b.status, "cancelada"),
+          eq(b.isTest, false),
+          gte(b.scheduledAt, inicioHoy),
+          lt(b.scheduledAt, hasta),
+          contactoDe(organizationId, userId, b.contactId)
+        )
+      )
+      .orderBy(asc(b.scheduledAt))
+      .limit(80),
+  ]);
+  const diaDe = (d: Date) => todayInTz(d, tz);
+  const items: ItemWidget[] = [
+    ...tareas.map((x) => ({
+      clase: "tarea" as const,
+      id: x.id,
+      at: x.fecha?.toISOString() ?? null,
+      dia: x.fecha ? diaDe(x.fecha) : null,
+      conHora: Boolean(x.fecha),
+      tipo: x.tipo,
+      titulo: x.titulo,
+      estado: x.estado,
+      vencida: Boolean(x.fecha && x.fecha < inicioHoy && x.estado === "realizar"),
+      ia: x.creadaPor === "ia",
+      contacto: x.contacto,
+      edificio: x.edificio,
+      oportunidadId: x.oportunidadId,
+      conversationId: x.conversationId,
+      comentario: x.comentarios,
+      ubicacion: x.ubicacion,
+      minutos: null,
+      confirmada: false,
+      agendo: null,
+    })),
+    ...citas.map((x) => ({
+      clase: "cita" as const,
+      id: x.id,
+      at: x.at.toISOString(),
+      dia: diaDe(x.at),
+      conHora: true,
+      tipo: "visita",
+      titulo: x.contacto ? `Visita con ${x.contacto}` : "Visita",
+      estado: x.estado,
+      vencida: false,
+      ia: false,
+      contacto: x.contacto,
+      edificio: x.edificio,
+      oportunidadId: x.oportunidadId,
+      conversationId: x.conversationId,
+      comentario: null,
+      ubicacion: null,
+      minutos: x.minutos,
+      confirmada: Boolean(x.confirmadaAt),
+      agendo: x.source,
+    })),
+  ];
+  return { hoy, items: ordenarWidget(items).slice(0, TOPE_WIDGET) };
 }

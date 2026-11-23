@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import type { GrupoEstadisticasDto } from "@/lib/estadisticas-oportunidades";
 import { cicloPromedio, conversionTotal, etapasDelEmbudo, tonoDeAvance } from "@/lib/embudo-resultados";
 import { cn } from "@/lib/utils";
+import { colorDeEtapa } from "@/lib/colores-etapa";
 
 /**
  * Resultados — «Embudo por etapa»: fila de totales (una columna por etapa con
@@ -46,8 +47,7 @@ export function EmbudoEtapas({ total }: { total: GrupoEstadisticasDto }) {
       `L ${x0} ${MEDIO + h0}`,
       "Z",
     ].join(" ");
-    const opacidad = n > 1 ? 1 - (i / (n - 1)) * 0.66 : 1;
-    return { d, opacidad, e, i };
+    return { d, e, i };
   });
 
   return (
@@ -144,7 +144,7 @@ export function EmbudoEtapas({ total }: { total: GrupoEstadisticasDto }) {
             <div className="relative overflow-hidden rounded-lg bg-[#f8fafc] dark:bg-subtle" style={{ height: ALTO }}>
               <svg viewBox={`0 0 ${ancho} ${ALTO}`} preserveAspectRatio="none" className="absolute inset-0 size-full" aria-hidden>
                 {bandas.map((b) => (
-                  <path key={b.e.estado} d={b.d} fill="var(--accent)" fillOpacity={b.opacidad} />
+                  <path key={b.e.estado} d={b.d} fill={colorDeEtapa(b.e.estado).solido} />
                 ))}
                 {bandas.slice(1).map((b) => (
                   <line key={`s-${b.e.estado}`} x1={b.i * col} x2={b.i * col} y1={0} y2={ALTO} stroke="white" strokeWidth={3} vectorEffect="non-scaling-stroke" />
@@ -152,11 +152,15 @@ export function EmbudoEtapas({ total }: { total: GrupoEstadisticasDto }) {
               </svg>
               <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${Math.max(n, 1)}, minmax(0, 1fr))` }}>
                 {bandas.map((b) => {
-                  const oscura = b.opacidad > 0.6 && b.e.alto >= 36;
+                  // Punto 5 — cada banda en el color de su etapa; el texto, el que va sobre ese sólido.
+                  const dentro = b.e.alto >= 36;
                   return (
                     <div key={b.e.estado} className="flex min-w-0 flex-col justify-center px-2.5">
                       {b.e.alto >= 30 ? (
-                        <div className={cn("text-[11.5px] leading-tight", oscura ? "text-white" : "text-foreground")}>
+                        <div
+                          className={cn("text-[11.5px] leading-tight", !dentro && "text-foreground")}
+                          style={dentro ? { color: colorDeEtapa(b.e.estado).sobreSolido } : undefined}
+                        >
                           <p className="font-semibold">{b.e.delTotal === null ? "—" : `${b.e.delTotal}% del total`}</p>
                           {b.e.deLaAnterior !== null && <p className="opacity-90">← {b.e.deLaAnterior}% de la anterior</p>}
                         </div>

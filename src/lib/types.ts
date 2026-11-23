@@ -154,6 +154,8 @@ export type ContactDto = {
   ficha?: FichaDto;
   /** 027 — El agente no le responde a esta persona: la atiende el dueño. */
   aiPaused?: boolean;
+  /** Cambios 23/11 — Cuándo se dio de alta (columna «Creado»). */
+  createdAt?: string;
 };
 
 /* ============================================================

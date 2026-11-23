@@ -31,7 +31,26 @@ const MIN_EVENT_PX = 18;
 /** Sin horario ni citas, la rejilla abre a esta hora. */
 const DEFAULT_SCROLL_MIN = 8 * 60;
 
-type Placed = DaySegment & { booking: Booking; col: number; cols: number };
+/**
+ * Una tarea en el calendario de Tareas (cambios 23/11, punto 2): llamadas,
+ * mensajes y correos como bloques de 30 min junto a las citas.
+ */
+export type TareaCal = {
+  id: string;
+  titulo: string;
+  tipo: string;
+  estado: string;
+  /** Instante (ISO). */
+  fecha: string;
+  contacto: string | null;
+  edificio: string | null;
+};
+const MIN_TAREA = 30;
+
+type Placed = DaySegment & ({ booking: Booking; tarea?: undefined } | { tarea: TareaCal; booking?: undefined }) & {
+  col: number;
+  cols: number;
+};
 
 export function TimeGrid({
   days,
@@ -46,9 +65,16 @@ export function TimeGrid({
   onSelect,
   onEmptySlot,
   onOpenDay,
+  tareas = [],
+  onSelectTarea,
+  renderIconoTarea,
 }: {
   days: string[];
   bookings: Booking[];
+  /** Calendario de Tareas: las tareas del rango, junto a las citas. */
+  tareas?: TareaCal[];
+  onSelectTarea?: (t: TareaCal) => void;
+  renderIconoTarea?: (tipo: string) => React.ReactNode;
   timezone: string;
   weeklyHours: WeeklyHours;
   today: string;
@@ -67,18 +93,22 @@ export function TimeGrid({
 
   const byDay = useMemo(() => {
     const map = new Map<string, Placed[]>();
-    const segments = new Map<string, (DaySegment & { booking: Booking })[]>();
+    const segments = new Map<string, (DaySegment & ({ booking: Booking } | { tarea: TareaCal }))[]>();
+    const sumar = (seg: DaySegment, x: { booking: Booking } | { tarea: TareaCal }) => {
+      if (!days.includes(seg.day)) return;
+      const list = segments.get(seg.day) ?? [];
+      list.push({ ...seg, ...x });
+      segments.set(seg.day, list);
+    };
     for (const b of bookings) {
-      for (const s of bookingSegments(b.scheduledAtUtc, b.durationMinutes, timezone)) {
-        if (!days.includes(s.day)) continue;
-        const list = segments.get(s.day) ?? [];
-        list.push({ ...s, booking: b });
-        segments.set(s.day, list);
-      }
+      for (const seg of bookingSegments(b.scheduledAtUtc, b.durationMinutes, timezone)) sumar(seg, { booking: b });
     }
-    for (const [day, list] of segments) map.set(day, layoutOverlaps(list));
+    for (const t of tareas) {
+      for (const seg of bookingSegments(t.fecha, MIN_TAREA, timezone)) sumar(seg, { tarea: t });
+    }
+    for (const [day, list] of segments) map.set(day, layoutOverlaps(list) as Placed[]);
     return map;
-  }, [bookings, days, timezone]);
+  }, [bookings, tareas, days, timezone]);
 
   // Abre donde empieza el día de trabajo (o antes, si hay una cita más
   // temprano), una sola vez por rango: un refresco por SSE no debe mover la
@@ -160,6 +190,8 @@ export function TimeGrid({
             selectedId={selectedId}
             onSelect={onSelect}
             onEmptySlot={onEmptySlot}
+            onSelectTarea={onSelectTarea}
+            renderIconoTarea={renderIconoTarea}
           />
         ))}
       </div>
@@ -176,9 +208,13 @@ function DayColumn({
   selectedId,
   onSelect,
   onEmptySlot,
+  onSelectTarea,
+  renderIconoTarea,
 }: {
   day: string;
   placed: Placed[];
+  onSelectTarea?: (t: TareaCal) => void;
+  renderIconoTarea?: (tipo: string) => React.ReactNode;
   weeklyHours: WeeklyHours;
   nowMinutes: number | null;
   /** Columna de semana: en el celular mide ~90 px. */
@@ -209,15 +245,25 @@ function DayColumn({
         />
       ))}
 
-      {placed.map((p) => (
-        <EventBlock
-          key={`${p.booking.id}:${p.day}`}
-          placed={p}
-          narrow={narrow}
-          selected={p.booking.id === selectedId}
-          onSelect={onSelect}
-        />
-      ))}
+      {placed.map((p) =>
+        p.tarea ? (
+          <TareaBlock
+            key={`t:${p.tarea.id}:${p.day}`}
+            placed={p}
+            tarea={p.tarea}
+            onSelect={onSelectTarea}
+            icono={renderIconoTarea?.(p.tarea.tipo)}
+          />
+        ) : (
+          <EventBlock
+            key={`${p.booking.id}:${p.day}`}
+            placed={p as Placed & { booking: Booking }}
+            narrow={narrow}
+            selected={p.booking.id === selectedId}
+            onSelect={onSelect}
+          />
+        )
+      )}
 
       {nowMinutes !== null && (
         <div
@@ -232,13 +278,72 @@ function DayColumn({
   );
 }
 
+/** El color de la barrita según el tipo de tarea. */
+const BARRA_TIPO: Record<string, string> = {
+  llamada: "#2563eb",
+  mensaje: "#16a34a",
+  correo: "#7c3aed",
+  visita: "#ea580c",
+  reunion: "#0891b2",
+  tarea: "#64748b",
+};
+
+function TareaBlock({
+  placed,
+  tarea: t,
+  onSelect,
+  icono,
+}: {
+  placed: Placed;
+  tarea: TareaCal;
+  onSelect?: (t: TareaCal) => void;
+  icono?: React.ReactNode;
+}) {
+  const { startMin, endMin, col, cols } = placed;
+  const top = (startMin / 60) * HOUR_PX;
+  const height = Math.max(MIN_EVENT_PX, ((endMin - startMin) / 60) * HOUR_PX - 2);
+  const hecha = t.estado !== "realizar";
+  const sub = [t.contacto, t.edificio].filter(Boolean).join(" · ");
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect?.(t);
+      }}
+      aria-label={`${t.titulo}, ${hhmm(startMin)}`}
+      title={[t.titulo, sub].filter(Boolean).join(" — ")}
+      className={cn(
+        "absolute z-10 flex overflow-hidden rounded-[6px] border border-border bg-card text-left text-[11px] leading-tight shadow-sm hover:brightness-[0.97]",
+        hecha && "opacity-60"
+      )}
+      style={{
+        top: top + 1,
+        height,
+        left: `calc(${(col / cols) * 100}% + 2px)`,
+        width: `calc(${100 / cols}% - 4px)`,
+      }}
+    >
+      <span aria-hidden className="w-[3px] shrink-0" style={{ background: BARRA_TIPO[t.tipo] ?? BARRA_TIPO.tarea }} />
+      <span className="min-w-0 flex-1 px-1.5 py-0.5">
+        <span className={cn("flex min-w-0 items-center gap-1 font-semibold", hecha && "line-through")}>
+          {icono && <span className="shrink-0 [&>span]:size-4 [&>span]:rounded [&_svg]:size-2.5">{icono}</span>}
+          <span className="shrink-0 font-mono text-[10px] text-text-3">{hhmm(startMin)}</span>
+          <span className="truncate">{t.titulo}</span>
+        </span>
+        {height >= 34 && sub && <span className="block truncate text-[10.5px] text-text-3">{sub}</span>}
+      </span>
+    </button>
+  );
+}
+
 function EventBlock({
   placed,
   narrow,
   selected,
   onSelect,
 }: {
-  placed: Placed;
+  placed: Placed & { booking: Booking };
   narrow: boolean;
   selected: boolean;
   onSelect: (b: Booking) => void;

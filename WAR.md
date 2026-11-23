@@ -573,3 +573,108 @@ debajo de Tareas con la pastilla de sin asignar). Spec:
 - **Ajustes → Ventas → Asignaciones** (`vendedores-asignacion.tsx`,
   `/api/settings/ventas/vendedores`): el orden (define la tecla) y quién
   recibe. El tope no se configura.
+
+## Color por etapa (cambios 23/11, punto 5)
+
+`lib/colores-etapa.ts` (`COLOR_ETAPA`, `colorDeEtapa`, `varsDeEtapa`): sólido,
+tinte, texto, lavado y texto sobre el sólido por etapa (Recibido verde, En
+charlas celeste, Conoce información amarillo, Visitó rojo, Reservó violeta,
+Compró rosa, Perdido y No calificado gris; una etapa propia de un cliente cae
+en el gris). Lo usan la barra de avance (actual en sólido, pasadas en tinte),
+`EtapaPill`, los puntos del Pipeline, el fondo lavado de filas y tarjetas de
+Oportunidades (`.fondo-etapa`, `.borde-etapa` en `globals.css`, con modo
+oscuro) y las bandas del embudo de Resultados.
+
+## Workflow de la primera llamada (0061, cambios 23/11 punto 4)
+
+- **Plantillas por origen:** `tarea_plantilla.origenes` (vacío = todos;
+  `aplicaAlOrigen` compara sin tildes ni mayúsculas). Vale para sugerir y para
+  crear.
+- **«Al asignarle responsable»** (situación `al_asignar`): no se sugiere, se
+  crea sola (`server/tareas-automaticas.ts`, llamado desde
+  `aplicarResponsable`). De nadie a una persona crea la tarea a su nombre (sin
+  duplicar la abierta); de una persona a otra le pasa las abiertas; a la IA,
+  nada. Un fallo nunca rompe la asignación.
+- **Cómo salió la llamada** (`resultado-llamada.tsx`, `POST
+  /api/tareas/[id]/llamada`): «No atendió» → `no_responde` (intento);
+  «Atendió» → `listo`, primer contacto y, si estaba en Recibido, a En charlas.
+  En Próximos pasos, Tareas y el Tu día de Inicio.
+- **La ventana de «Atendió»** pide el comentario (va a la tarea) y tiene un
+  lugar para el cliente: `components/extensiones/llamada-atendida.tsx`
+  (`ExtraLlamadaAtendida`). **El núcleo no vuelve a tocar ese archivo**: cada
+  cliente lo reemplaza con lo suyo (en WAR, «¿Qué buscaba?»).
+- **«Llamada sin atender»**: la última llamada marcada quedó «No atendió» y el
+  cliente no escribió después → plantilla de fábrica «Avisar que lo llamamos»
+  (la migración la siembra en las organizaciones que ya tenían plantillas).
+
+## Calendario en Tareas (cambios 23/11, punto 2)
+
+- `/tareas` suma la forma **Calendario** (`SelectorDeForma` con
+  `conCalendario`): es el mismo calendario de Citas (`BookingsClient` con
+  `embebido`: vista en `?cal=`, sin pedir citas si la agenda está apagada) con
+  las tareas del filtro de la página como bloques de 30 min en Día y Semana
+  (`TareaCal` en `time-grid.tsx`, barrita del color del tipo; las hechas,
+  atenuadas y tachadas). Tocar una tarea abre su edición; tocar una cita, el
+  panel de siempre (confirmar, reprogramar, cancelar, bloquear).
+- **Citas se puede ocultar** (`menu.ocultar: ["bookings"]`): `/bookings`
+  redirige a `/tareas?vista=calendario`. En el núcleo sigue visible.
+
+## Contactos compacta (cambios 23/11, punto 8)
+
+`GET /api/contacts?pagina=N&porPagina=50&q=&tipo=&fuente=&agente=con|sin&archivados=solo&orden=nombre|telefono|creado:asc|desc`
+devuelve `{ items, total, pagina, porPagina }` (filtros y orden en el
+servidor, `lib/contactos-lista.ts`). Sin `pagina` responde lo de siempre
+(`{ contacts }`, las últimas 200): lo usan otros selectores. La pantalla
+(`contactos-lista.tsx`, fuera del restaurante) es una tabla liviana: buscador
+redondo, pastillas de filtro con ×, «+ Filtro» y «Limpiar», una línea por
+contacto (avatar, nombre, teléfono, alta), orden por columna y páginas de a
+50. En el restaurante sigue la lista de comensales.
+
+## Inicio por bloques (cambios 23/11, punto 7)
+
+En la config del cliente, `inicio.bloques` (`BLOQUES_INICIO`: `etapas`,
+`tareas`, `derivadas`, `nuevas`, `calientes`, `visitas`, `tu_dia`, `ventanas`,
+`semana`) elige qué muestra el Inicio y en qué orden. Sin `inicio`, el de
+siempre. Con bloques: encabezado con la fecha y el saludo grande; `etapas` es
+el mini dashboard (abiertas de quien mira en Recibido, En charlas, Conoce
+información y Visitó, cada número abre Oportunidades filtrada) y `tareas` el
+widget (`tareas-widget.tsx`: lista continua Vencidas → Sin hora → Hoy con la
+línea de «Ahora» → días siguientes, en columnas de 280 px con alto fijo,
+filtros por tipo que restan, «+N más» medido, y cada ítem se despliega con sus
+acciones). `GET /api/inicio` suma `etapas`, `widget` y `hoy` solo si el
+cliente los usa (`etapasDelUsuario`, `widgetDeTareas`).
+
+## Derivaciones de la IA → tarea (0062, cambios 23/11 punto 6)
+
+Cuando el agente deriva (`POST /api/bot/handoff`, o el traspaso por error del
+despacho), `tareaPorDerivacion` (`server/derivaciones.ts`) crea una tarea
+`creada_por = 'ia'` con la `conversation_id`, a nombre de
+`ventas_ajustes.derivaciones_responsable_user_id` (Ajustes → Ventas →
+«Responsable de las derivaciones de la IA»; vacío = sin asignar) y ligada a la
+oportunidad del contacto. Tipo y título según el motivo
+(`lib/derivaciones.ts`): quiere reservar o comprar → «Llamar a {nombre}»;
+pregunta que no sabe → «Contestar consulta»; si no, «Responder a {nombre}»
+(WhatsApp, en 15 min). El comentario lleva el último mensaje y «derivada por
+{agente} · motivo». No se duplica (se actualiza el comentario) y se cierra
+sola cuando una persona responde (`registrarSaliente` →
+`cerrarTareasDeDerivacion`). En Tareas y en el widget del Inicio lleva la
+marca de chispas; en el widget suma «Responder en Bandeja».
+
+## WAR — tanda del 23/11 (lo propio de WAR)
+
+- **Menú** (`clientes/war.json` → `menu`): Trabajo = Inicio · Bandeja ·
+  Oportunidades · Tareas (· Asignaciones, admin) · Contactos. Pipeline y Citas
+  ocultos: `/bookings` lleva a `/tareas?vista=calendario`.
+- **Inicio** (`inicio.bloques`): saludo con el mini dashboard por etapa y el
+  widget de Tareas. Los bloques de antes siguen en el código: se vuelven a
+  sumar agregándolos a la lista.
+- **«¿Qué buscaba?»** en la ventana de «Atendió»
+  (`components/extensiones/llamada-atendida.tsx`, archivo propio de WAR que el
+  núcleo no toca): edificio y ambientes (se guardan al tocarlos, como en
+  Interés) y una unidad en particular del interés encadenado (se vincula al
+  Guardar). La tipología «1A» no está: se elige en la oportunidad.
+- **Derivaciones → Gloria** (`war_0011`): si Gloria no tiene usuario todavía,
+  queda vacío y se elige en Ajustes → Ventas.
+- **Primera llamada del cartel:** es configuración. En Ajustes → Plantillas de
+  tareas, una plantilla «Primera llamada», tipo Llamada, «Al asignarle
+  responsable», solo origen Cartel.

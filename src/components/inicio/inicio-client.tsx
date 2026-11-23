@@ -14,7 +14,9 @@ import { TuDia } from "./tu-dia";
 import { TuSemana } from "./tu-semana";
 import { VentanasPorCerrar, VisitasDeHoy } from "./visitas-de-hoy";
 import { useVocabulario } from "@/components/vocabulario";
-import { enFrase, estadoVisible } from "@/lib/vocabulario";
+import { enFrase, estadoVisible, nombreEstado } from "@/lib/vocabulario";
+import { colorDeEtapa } from "@/lib/colores-etapa";
+import { TareasWidget } from "./tareas-widget";
 import { DERIVADA_URGENTE_MIN, fechaLarga, hace, linksPara, saludo, type InicioDto } from "@/lib/inicio";
 
 /** La hora (0–23) en la zona del negocio. */
@@ -146,6 +148,97 @@ export function InicioClient() {
   const links = linksPara(verComo);
   const yo = datos?.usuario.nombre ?? "vos";
   const esperaMin = c?.derivadaMasViejaAt ? (Date.now() - Date.parse(c.derivadaMasViejaAt)) / 60_000 : 0;
+
+  // Cambios 23/11, punto 7 — Un cliente que eligió sus bloques ve el Inicio nuevo.
+  const bloques = voc.inicio.bloques;
+  if (bloques) {
+    const verComoSelect = datos?.admin && datos.equipo.length > 1 && (
+      <Select
+        aria-label="Ver el Inicio de"
+        value={verComo ?? ""}
+        onValueChange={(v) => setVerComo(v || null)}
+        className="h-8 w-auto min-w-[170px] text-[13px]"
+      >
+        <option value="">Ver como: yo</option>
+        {datos.equipo
+          .filter((m) => m.userId !== datos.sesion)
+          .map((m) => (
+            <option key={m.userId} value={m.userId}>
+              Ver como: {m.nombre}
+            </option>
+          ))}
+      </Select>
+    );
+    const responsable = verComo ? encodeURIComponent(verComo) : "me";
+    return (
+      <div className="h-full overflow-y-auto px-4 py-5 sm:px-8 sm:py-7">
+        <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-[14px] text-text-3">{c ? fechaLarga(c.hoy) : " "}</p>
+            <h1 className="text-[36px] font-[750] leading-tight tracking-tight">{titulo}</h1>
+          </div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            {bloques.includes("etapas") && datos?.etapas && (
+              <div className="flex divide-x divide-border rounded-xl border border-border bg-card">
+                {(["recibido", "en_charlas", "conoce_informacion", "visito"] as const)
+                  .filter((e) => estadoVisible(voc, e))
+                  .map((e) => (
+                    <Link
+                      key={e}
+                      href={`/oportunidades?responsable=${responsable}&estado=${e}`}
+                      className="px-4 py-2 text-center hover:bg-subtle"
+                    >
+                      <span className="block text-[22px] font-bold leading-tight tabular-nums">{datos.etapas?.[e] ?? 0}</span>
+                      <span className="inline-flex items-center gap-1 text-[11.5px] text-text-3">
+                        <span className="size-1.5 rounded-full" style={{ background: colorDeEtapa(e).solido }} />
+                        {nombreEstado(voc, e)}
+                      </span>
+                    </Link>
+                  ))}
+              </div>
+            )}
+            {verComoSelect}
+            <Link href="/oportunidades?nueva=1" className={buttonVariants({ size: "sm" })}>
+              <Plus className="h-4 w-4" strokeWidth={1.8} />
+              Nueva {enFrase(voc.singular)}
+            </Link>
+          </div>
+        </header>
+        {error && !datos && <p className="text-sm text-text-3">No se pudo cargar el Inicio. Probá de nuevo en un rato.</p>}
+        {!error && !c && <p className="text-sm text-text-3">Cargando…</p>}
+        {c && datos && (
+          <div className="space-y-[var(--hueco)]">
+            {bloques.map((b) => {
+              switch (b) {
+                case "tareas":
+                  return datos.widget && datos.hoy ? (
+                    <TareasWidget key={b} items={datos.widget} hoy={datos.hoy} zona={c.zona} agente={datos.agente} onCambio={() => void cargar()} />
+                  ) : null;
+                case "derivadas":
+                  return <Derivadas key={b} derivadas={datos.derivadas} total={c.derivadas} agente={datos.agente} onCambio={() => void cargar()} />;
+                case "nuevas":
+                  return <NuevasParaVos key={b} lista={datos.nuevas} total={c.nuevas} href={links.nuevas} iconos={iconos} />;
+                case "calientes":
+                  return conCalientes ? (
+                    <LeadsCalientes key={b} lista={datos.calientes} total={c.calientes} href={links.calientes} iconos={iconos} zona={c.zona} />
+                  ) : null;
+                case "visitas":
+                  return <VisitasDeHoy key={b} visitas={datos.visitas} agente={datos.agente} zona={c.zona} onCambio={() => void cargar()} />;
+                case "tu_dia":
+                  return <TuDia key={b} items={datos.tuDia} zona={c.zona} onCambio={() => void cargar()} />;
+                case "ventanas":
+                  return <VentanasPorCerrar key={b} ventanas={datos.ventanas} />;
+                case "semana":
+                  return <TuSemana key={b} semana={datos.semana} />;
+                default:
+                  return null;
+              }
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <Pagina

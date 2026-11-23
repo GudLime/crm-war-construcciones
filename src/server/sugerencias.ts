@@ -31,6 +31,7 @@ async function contexto(organizationId: string, oportunidadId: string) {
       estado: op.estado,
       responsableUserId: op.responsableUserId,
       primerContactoAt: op.primerContactoAt,
+      origen: op.origen,
       contactId: op.contactId,
       contacto: schema.contact.name,
       vendedor: schema.user.name,
@@ -50,7 +51,7 @@ async function contexto(organizationId: string, oportunidadId: string) {
     .limit(1);
   if (!o) return null;
 
-  const [mensajes, citas, abiertas, descartes, tz] = await Promise.all([
+  const [mensajes, citas, abiertas, descartes, tz, llamadas] = await Promise.all([
     o.contactId
       ? db
           .select({
@@ -108,6 +109,21 @@ async function contexto(organizationId: string, oportunidadId: string) {
         )
       ),
     businessTimezone(organizationId),
+    // 0061 — La última llamada ya marcada (atendida o no).
+    db
+      .select({ estado: schema.tareaVenta.estado, at: schema.tareaVenta.updatedAt })
+      .from(schema.tareaVenta)
+      .where(
+        scoped(
+          schema.tareaVenta.organizationId,
+          organizationId,
+          eq(schema.tareaVenta.oportunidadId, oportunidadId),
+          eq(schema.tareaVenta.tipo, "llamada"),
+          ne(schema.tareaVenta.estado, "realizar")
+        )
+      )
+      .orderBy(desc(schema.tareaVenta.updatedAt))
+      .limit(1),
   ]);
 
   const ahora = new Date();
@@ -124,7 +140,11 @@ async function contexto(organizationId: string, oportunidadId: string) {
         estado: o.estado,
         responsableId: o.responsableUserId,
         primerContactoAt: o.primerContactoAt?.toISOString() ?? null,
+        origen: o.origen,
       },
+      ultimaLlamada: llamadas[0]
+        ? { estado: llamadas[0].estado as "listo" | "no_responde", at: llamadas[0].at.toISOString() }
+        : null,
       datos: { nombre: o.contacto, vendedor: o.vendedor, edificio: o.edificio, unidad: o.unidad },
       ultimoEntranteAt: mensajes[0]?.entrante ?? null,
       ultimoSalienteAt: mensajes[0]?.saliente ?? null,
