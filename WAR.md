@@ -528,3 +528,28 @@ anuncios» y «El agente» dejaron de mostrarse (el código y los endpoints sigu
   tabla de las que visitaron con «Ver las N en Oportunidades →», que abre
   Oportunidades con el filtro `visitaDesde`/`visitaHasta` (chip «Tuvo visita
   realizada»). El endpoint de Ventas sigue, sin mostrarse.
+
+## Asignaciones: la mesa de reparto (0060)
+
+Solo admin (`/asignaciones`; el operador recibe 404 y no ve el ítem, que va
+debajo de Tareas con la pastilla de sin asignar). Spec:
+`claude/asignaciones.md`.
+- **Quién asignó y cómo:** `oportunidad.asignada_por` (`auto` | `manual` |
+  `ia`) y `asignada_por_user_id`. Todo cambio de responsable pasa por
+  `aplicarResponsable` (`server/responsables.ts`), que además deja un evento
+  `responsable` en `oportunidad_evento` con `datos { como, desde, hacia }` (los
+  nombres como foto; se ve en la línea de tiempo). La regla por edificio
+  (`asignarLeadDeMeta`) escribe `auto`; el admin, `manual`.
+- **Mesa** (`server/asignaciones.ts`, `GET /api/asignaciones?edificio=`): las
+  abiertas sin nadie a cargo (de la más vieja a la más nueva), las que asignó
+  la regla en las últimas 24 h (con «Corregida → X» si se cambiaron) y los
+  vendedores con abiertas, sin contactar, visitas de hoy y las asignadas hoy.
+  Tope de carga fijo en 30 (`TOPE_CARGA`): alta desde 65%, saturada desde 85%.
+- **Quién recibe:** `ventas_ajustes.asignacion_vendedores` (orden = tecla
+  1–9). Sin ajuste, los de rol `member`, por nombre (si no hay ninguno, todos).
+- **Sugerencia** (`lib/asignaciones.ts`, `sugerir`): la regla por edificio si
+  apunta a alguien que recibe; si no, el de menos carga sin los saturados. Cada
+  sugerencia suma carga, así «Aceptar todas» reparte.
+- `POST /api/asignaciones { oportunidadIds, userId }` devuelve `cambios` (cómo
+  estaba cada una) y `POST /api/asignaciones/deshacer { cambios }` las vuelve
+  tal cual. Sin aviso al vendedor (decidido 22/11).
