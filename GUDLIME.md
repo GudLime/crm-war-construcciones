@@ -372,3 +372,17 @@ persona, solo admin). Spec: proyecto «CRM War Construcciones» →
   reservas (Reservó o Compró) y perdidas, de `oportunidad_evento`.
 - **Ver como** (solo admin): el Inicio de otra persona del equipo; los links
   abren las listas filtradas por esa persona.
+
+## Tareas por tipo en la oportunidad (0058)
+
+En «Próximos pasos», en lugar de «Agregar tarea», va una fila de botones por
+tipo — WhatsApp (`mensaje`) · Llamada · Reunión · Mail (`correo`) · Tarea (nuevo,
+genérico) — que muestran el nombre al pasar el mouse y abren una ventanita
+anclada (`components/ventas/nueva-tarea.tsx`): título por defecto según el tipo,
+cuándo (Hoy · Mañana · En 3 días · Otra fecha con el calendario propio
+`components/ui/calendario.tsx`) y hora, responsable y nota. **Reunión** tiene
+dos pestañas: **Visita** (en un edificio, por defecto el de la oportunidad) y
+**Reunión** (en la oficina, `ventas_ajustes.direccion_oficina`, Ajustes →
+Ventas). Con la Agenda prendida y contacto, crea una **cita** (`booking`, con
+`ubicacion`, que el conector de Google manda como `location` del evento); si no,
+una tarea `visita`/`reunion` con `tarea_venta.ubicacion` y `edificio_id`.

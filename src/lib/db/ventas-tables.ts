@@ -228,7 +228,7 @@ export const tareaVenta = pgTable(
       .references(() => organization.id, { onDelete: "cascade" }),
     titulo: text("titulo").notNull(),
     tipo: text("tipo", {
-      enum: ["llamada", "visita", "mensaje", "reunion", "correo"],
+      enum: ["llamada", "visita", "mensaje", "reunion", "correo", "tarea"],
     }).notNull(),
     estado: text("estado", {
       enum: ["realizar", "no_responde", "listo"],
@@ -243,6 +243,10 @@ export const tareaVenta = pgTable(
     }),
     /** 0048 — Quién la tiene que hacer (null = sin asignar). */
     responsableUserId: text("responsable_user_id").references(() => user.id, { onDelete: "set null" }),
+    /** 0058 — Dónde es (visita en un edificio o reunión en la oficina). */
+    ubicacion: text("ubicacion"),
+    /** 0058 — El edificio, si es una visita. */
+    edificioId: text("edificio_id").references(() => edificio.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -459,6 +463,8 @@ export const ventasAjustes = pgTable("ventas_ajustes", {
   asignacionActiva: boolean("asignacion_activa").notNull().default(false),
   /** 0051 — Edificio → id de usuario o "ia". Lo que no está, queda sin asignar. */
   asignacionPorEdificio: jsonb("asignacion_por_edificio").$type<Record<string, string>>().notNull().default({}),
+  /** 0058 — Dirección de la oficina: la ubicación de las reuniones formales. */
+  direccionOficina: text("direccion_oficina").notNull().default(""),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 

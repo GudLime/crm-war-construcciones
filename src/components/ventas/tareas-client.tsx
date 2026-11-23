@@ -13,6 +13,7 @@ import {
   Send,
   Users,
   X,
+  ClipboardList,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
@@ -148,8 +149,9 @@ export function IconoTipo({ tipo }: { tipo: string }) {
     visita: "bg-brand-tint text-brand-ink",
     correo: "bg-warning-tint text-warning-text",
     reunion: "bg-muted text-text-2",
+    tarea: "bg-muted text-text-2",
   };
-  const Icono = { llamada: Phone, visita: CalendarDays, correo: Send, reunion: Users }[tipo] ?? Mail;
+  const Icono = { llamada: Phone, visita: CalendarDays, correo: Send, reunion: Users, tarea: ClipboardList }[tipo] ?? Mail;
   return (
     <span className={cn("grid size-7 shrink-0 place-items-center rounded-md", estilo[tipo] ?? "bg-muted text-text-2")}>
       {tipo === "mensaje" ? <WhatsAppLogo className="size-3.5" /> : <Icono className="size-3.5" />}
