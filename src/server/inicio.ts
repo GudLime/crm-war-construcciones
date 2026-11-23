@@ -711,8 +711,8 @@ export async function widgetDeTareas(organizationId: string, userId: string, aho
         oportunidadId: t.oportunidadId,
         contacto: schema.contact.name,
         edificio: edificioJson(t.contactId),
-        creadaPor: sql<string | null>`null`,
-        conversationId: sql<string | null>`null`,
+        creadaPor: t.creadaPor,
+        conversationId: t.conversationId,
       })
       .from(t)
       .leftJoin(schema.contact, eq(schema.contact.id, t.contactId))

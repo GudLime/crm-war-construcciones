@@ -14,6 +14,7 @@ import {
   Users,
   X,
   ClipboardList,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
@@ -146,6 +147,18 @@ function textoTemporal(f: Temporal): string {
 const GUARDADO = "tareas.vista.v1";
 
 /** El ícono de cada tipo, en un cuadradito de color. */
+/** 0062 — La tarea la creó la IA al derivar la conversación (dos chispas). */
+export function MarcaIa({ agente = "la IA" }: { agente?: string }) {
+  return (
+    <span
+      title={`La creó ${agente} al derivar la conversación`}
+      className="grid size-[18px] shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#ede9fe] to-[#e0f2fe] text-[#6d28d9]"
+    >
+      <Sparkles className="size-2.5" />
+    </span>
+  );
+}
+
 export function IconoTipo({ tipo }: { tipo: string }) {
   const estilo: Record<string, string> = {
     mensaje: "bg-success-tint text-success-text",
@@ -880,7 +893,12 @@ function GrupoEnTabla({
                 <span className="text-text-2">{etiqueta(TIPOS_TAREA, t.tipo)}</span>
               </span>
             </td>
-            <td className="px-3 py-2 font-medium">{t.titulo}</td>
+            <td className="px-3 py-2 font-medium">
+              <span className="inline-flex items-center gap-1.5">
+                {t.creadaPor === "ia" && <MarcaIa />}
+                {t.titulo}
+              </span>
+            </td>
             <td className="px-3 py-2">
               <EstadoPill opciones={ESTADOS_TAREA} value={t.estado} />
             </td>

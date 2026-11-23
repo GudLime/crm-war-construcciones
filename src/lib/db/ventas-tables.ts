@@ -252,6 +252,10 @@ export const tareaVenta = pgTable(
     edificioId: text("edificio_id").references(() => edificio.id, { onDelete: "set null" }),
     /** 0059 — La plantilla de la que salió (para no volver a sugerirla y medir qué se usa). */
     plantillaId: text("plantilla_id"),
+    /** 0062 — Quién la creó: una persona, la IA al derivar o una plantilla. */
+    creadaPor: text("creada_por", { enum: ["persona", "ia", "plantilla"] }).notNull().default("persona"),
+    /** 0062 — La conversación derivada (tareas de la IA): se cierra sola cuando una persona responde. */
+    conversationId: text("conversation_id"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -474,6 +478,8 @@ export const ventasAjustes = pgTable("ventas_ajustes", {
   direccionOficina: text("direccion_oficina").notNull().default(""),
   /** 0059 — Si ya se cargaron las plantillas de tareas de fábrica. */
   plantillasSembradas: boolean("plantillas_sembradas").notNull().default(false),
+  /** 0062 — A quién van las tareas que crea la IA al derivar (vacío = sin asignar). */
+  derivacionesResponsableUserId: text("derivaciones_responsable_user_id").references(() => user.id, { onDelete: "set null" }),
   /** 0060 — Asignaciones: quién recibe y en qué orden (define su tecla). Vacío = por rol. */
   asignacionVendedores: jsonb("asignacion_vendedores")
     .$type<{ userId: string; recibe: boolean }[]>()

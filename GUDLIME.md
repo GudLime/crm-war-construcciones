@@ -558,3 +558,19 @@ línea de «Ahora» → días siguientes, en columnas de 280 px con alto fijo,
 filtros por tipo que restan, «+N más» medido, y cada ítem se despliega con sus
 acciones). `GET /api/inicio` suma `etapas`, `widget` y `hoy` solo si el
 cliente los usa (`etapasDelUsuario`, `widgetDeTareas`).
+
+## Derivaciones de la IA → tarea (0062, cambios 23/11 punto 6)
+
+Cuando el agente deriva (`POST /api/bot/handoff`, o el traspaso por error del
+despacho), `tareaPorDerivacion` (`server/derivaciones.ts`) crea una tarea
+`creada_por = 'ia'` con la `conversation_id`, a nombre de
+`ventas_ajustes.derivaciones_responsable_user_id` (Ajustes → Ventas →
+«Responsable de las derivaciones de la IA»; vacío = sin asignar) y ligada a la
+oportunidad del contacto. Tipo y título según el motivo
+(`lib/derivaciones.ts`): quiere reservar o comprar → «Llamar a {nombre}»;
+pregunta que no sabe → «Contestar consulta»; si no, «Responder a {nombre}»
+(WhatsApp, en 15 min). El comentario lleva el último mensaje y «derivada por
+{agente} · motivo». No se duplica (se actualiza el comentario) y se cierra
+sola cuando una persona responde (`registrarSaliente` →
+`cerrarTareasDeDerivacion`). En Tareas y en el widget del Inicio lleva la
+marca de chispas; en el widget suma «Responder en Bandeja».
