@@ -562,3 +562,10 @@ debajo de Tareas con la pastilla de sin asignar). Spec:
   (`objetivoDe`, `accionDeTecla` en `lib/asignaciones.ts`). «Ver y reasignar»
   en cada carril pasa una de hoy a otro vendedor. Aviso abajo de 6 s con
   Deshacer.
+- **Modo foco** (`modo-foco.tsx`, Mesa | Foco · F): una tarjeta por vez con
+  dos asomando detrás, progreso «N de M · quedan K», → o Enter al sugerido, ←
+  la manda al final (`ordenDeFoco`), 1–9 a ese vendedor, Z deshace, Esc vuelve.
+  La tarjeta sale hacia donde va (~200 ms). Al terminar, «¡Todo asignado!».
+- **Ajustes → Ventas → Asignaciones** (`vendedores-asignacion.tsx`,
+  `/api/settings/ventas/vendedores`): el orden (define la tecla) y quién
+  recibe. El tope no se configura.

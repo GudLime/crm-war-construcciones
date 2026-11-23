@@ -317,3 +317,27 @@ export async function deshacerAsignaciones(
   }
   return n;
 }
+
+/* ------------------------------------------------------------------
+ * Ajustes → Ventas → Asignaciones: quién recibe y en qué orden
+ * ------------------------------------------------------------------ */
+
+export type VendedorAjuste = { userId: string; nombre: string; role: string; recibe: boolean; tecla: number | null };
+
+export async function leerVendedoresAjuste(organizationId: string): Promise<VendedorAjuste[]> {
+  const [gente, config] = await Promise.all([miembros(organizationId), leerConfigVendedores(organizationId)]);
+  return vendedoresDeLaMesa(gente, config);
+}
+
+/** Guarda el orden y quién recibe. Solo gente del equipo (quien ya no está, se descarta). */
+export async function guardarVendedoresAjuste(organizationId: string, config: ConfigVendedor[]): Promise<VendedorAjuste[]> {
+  const equipo = new Set((await miembros(organizationId)).map((m) => m.userId));
+  const vistos = new Set<string>();
+  const limpio = config.filter((c) => equipo.has(c.userId) && !vistos.has(c.userId) && vistos.add(c.userId));
+  const valores = { asignacionVendedores: limpio, updatedAt: new Date() };
+  await getDb()
+    .insert(schema.ventasAjustes)
+    .values({ organizationId, ...valores })
+    .onConflictDoUpdate({ target: schema.ventasAjustes.organizationId, set: valores });
+  return leerVendedoresAjuste(organizationId);
+}
