@@ -485,3 +485,11 @@ variables (`{nombre}`, `{vendedor}`, `{edificio}`, `{unidad}`,
 devuelve hasta 3 y no repite una plantilla con tarea abierta
 (`tarea_venta.plantilla_id`) ni una descartada en la misma etapa
 (`oportunidad_sugerencia_descartada`). Nunca crea tareas sola.
+- **En el detalle** («Sugeridas para esta etapa», en Próximos pasos): de 1 a 3
+  sugerencias con el porqué y el mensaje ya completado. **Crear**
+  (`POST /api/oportunidades/[id]/sugerencias/[plantillaId]/crear`) arma la tarea
+  en un paso, a las 10:00 del día que vence, con el mensaje como comentario y a
+  cargo del responsable; el aviso tiene **Deshacer** (borra la tarea). La **✕**
+  (`…/descartar`) la oculta mientras siga en esa etapa; «N descartadas ·
+  mostrar» permite volver a mostrarlas. Se recalcula con la etapa, los mensajes
+  y las citas. El admin ve «Configurar plantillas».
