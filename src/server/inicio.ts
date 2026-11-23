@@ -249,7 +249,14 @@ export async function tomarDerivada(
   const op = schema.oportunidad;
   const [oportunidad] = await db
     .update(op)
-    .set({ responsableUserId: userId, responsableIa: false, responsableDesde: ahora, updatedAt: ahora })
+    .set({
+      responsableUserId: userId,
+      responsableIa: false,
+      responsableDesde: ahora,
+      asignadaPor: "manual",
+      asignadaPorUserId: userId,
+      updatedAt: ahora,
+    })
     .where(
       and(
         eq(

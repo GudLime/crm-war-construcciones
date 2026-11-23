@@ -9,6 +9,7 @@ import {
   ListChecks,
   ListTodo,
   Settings,
+  Shuffle,
   Sparkles,
   Tag,
   Users,
@@ -36,6 +37,16 @@ export type NavItem = {
   icon: LucideIcon;
   /** Muestra el contador de no leídos (solo la Bandeja). */
   badge?: boolean;
+  /** Asignaciones — la pastilla con las que siguen sin nadie a cargo. */
+  contador?: "sinAsignar";
+};
+
+/** Asignaciones (solo admin): va debajo de Tareas. */
+export const ASIGNACIONES_ITEM: NavItem = {
+  href: "/asignaciones",
+  label: "Asignaciones",
+  icon: Shuffle,
+  contador: "sinAsignar",
 };
 
 export type NavGroup = {
@@ -118,6 +129,12 @@ export function appNavGroups({
     ...fuera(["oportunidades", "tareas"]),
   ];
   const resultados = fuera(["results"]);
+
+  // Asignaciones — solo el admin reparte, debajo de Tareas (sin Tareas, no hay mesa).
+  if (admin) {
+    const lista = [trabajo, ventas, resultados].find((l) => l.some((x) => x.href === "/tareas"));
+    if (lista) lista.splice(lista.findIndex((x) => x.href === "/tareas") + 1, 0, ASIGNACIONES_ITEM);
+  }
 
   return [
     { title: "Trabajo", items: trabajo },

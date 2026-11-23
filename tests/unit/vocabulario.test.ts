@@ -140,9 +140,9 @@ describe("pantallas", () => {
     const v = vocabularioDe(config(RESTAURANTE));
     const grupos = appNavGroups({ role: "owner", vocabulario: v });
     const ventas = grupos.find((g) => g.title === "Restaurante");
-    expect(ventas?.items.map((i) => i.label)).toEqual(["Reservas", "Tareas"]);
+    expect(ventas?.items.map((i) => i.label)).toEqual(["Reservas", "Tareas", "Asignaciones"]);
     const deSiempre = appNavGroups({ role: "owner" }).find((g) => g.title === "Ventas");
-    expect(deSiempre?.items.map((i) => i.label)).toEqual(["Edificios", "Oportunidades", "Tareas"]);
+    expect(deSiempre?.items.map((i) => i.label)).toEqual(["Edificios", "Oportunidades", "Tareas", "Asignaciones"]);
   });
 
   it("la lista no tiene columnas inmobiliarias y la primera se llama como la oportunidad", () => {

@@ -21,7 +21,7 @@ describe("barra lateral agrupada", () => {
     expect(groups.map((g) => g.title)).toEqual(["Trabajo", "Ventas", "Agente", undefined]);
     expect(labels(groups)).toEqual([
       ["Inicio", "Bandeja", "Pipeline", "Contactos"],
-      ["Edificios", "Oportunidades", "Tareas"],
+      ["Edificios", "Oportunidades", "Tareas", "Asignaciones"],
       ["Guía de inicio", "Agente", "Laboratorio"],
       ["Resultados"],
     ]);
@@ -62,6 +62,13 @@ describe("barra lateral agrupada", () => {
     expect(SETTINGS_ITEM.href).toBe("/settings");
     // Cada entrada trae su icono: el renglón lo pinta sin condicionar.
     for (const item of [...todos, SETTINGS_ITEM]) expect(item.icon).toBeDefined();
+  });
+
+  it("Asignaciones: solo el admin, debajo de Tareas y con su pastilla", () => {
+    const ventas = appNavGroups({ role: "owner" }).find((g) => g.title === "Ventas")!;
+    const i = ventas.items.findIndex((x) => x.href === "/tareas");
+    expect(ventas.items[i + 1]).toMatchObject({ href: "/asignaciones", contador: "sinAsignar" });
+    expect(appNavGroups({ role: "member" }).flatMap((g) => g.items).map((x) => x.href)).not.toContain("/asignaciones");
   });
 
   it("una ruta hija activa su entrada, y /settings no activa nada más", () => {

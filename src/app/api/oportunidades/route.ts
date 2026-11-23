@@ -36,7 +36,7 @@ export const POST = withAuth(async (session, req: Request) => {
     const oportunidad = await crearOportunidad(session.organizationId, body.data, session.userId);
     // Quien la crea queda como responsable (así el operador la sigue viendo).
     if (!oportunidad.responsableId) {
-      await cambiarResponsable(session.organizationId, oportunidad.id, session.userId);
+      await cambiarResponsable(session.organizationId, oportunidad.id, session.userId, session.userId);
       oportunidad.responsableId = session.userId;
     }
     return Response.json({ oportunidad }, { status: 201 });
