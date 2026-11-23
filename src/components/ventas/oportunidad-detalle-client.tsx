@@ -51,6 +51,7 @@ import type { OrigenDto } from "@/lib/origenes";
 import { formatearTelefono } from "@/lib/telefono-formato";
 import { tonoDeEdificio } from "@/lib/colores-edificio";
 import { BotonesNuevaTarea } from "@/components/ventas/nueva-tarea";
+import { SugeridasParaEstaEtapa } from "@/components/ventas/sugeridas";
 import { cn } from "@/lib/utils";
 import {
   TIPOS_CONTACTO,
@@ -574,6 +575,7 @@ export function OportunidadDetalleClient({ agenda = false }: { agenda?: boolean 
                 contacto={contacto ? { id: contacto.id, nombre: contacto.nombre } : null}
                 edificioOportunidad={edificios[0] ? { id: edificios[0].id, nombre: edificios[0].nombre } : null}
                 agenda={agenda}
+                recalcular={`${op.estado}|${datos.timeline.length}|${datos.proximos.length}|${datos.reuniones.map((r) => r.status).join(",")}`}
                 onCambio={cargar}
               />
             )}
@@ -870,6 +872,7 @@ function Timeline({
   contacto,
   edificioOportunidad,
   agenda,
+  recalcular,
   onCambio,
 }: {
   items: ItemTimeline[];
@@ -880,6 +883,8 @@ function Timeline({
   contacto: { id: string; nombre: string } | null;
   edificioOportunidad: { id: string; nombre: string } | null;
   agenda: boolean;
+  /** Cambia con la etapa, los mensajes y las citas: las sugerencias se recalculan. */
+  recalcular: string;
   onCambio: () => Promise<void>;
 }) {
   const voc = useVocabulario();
@@ -945,6 +950,7 @@ function Timeline({
                 </p>
               )}
               {error && <p className="mb-2 text-sm text-danger-text">{error}</p>}
+              <SugeridasParaEstaEtapa oportunidadId={oportunidadId} recalcular={recalcular} onCambio={onCambio} />
               {proximos.length === 0 ? (
                 <p className="py-2 text-[13px] text-text-3">No hay nada por hacer. Agregá una tarea para el próximo paso.</p>
               ) : (
