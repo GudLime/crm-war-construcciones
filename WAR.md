@@ -553,3 +553,12 @@ debajo de Tareas con la pastilla de sin asignar). Spec:
 - `POST /api/asignaciones { oportunidadIds, userId }` devuelve `cambios` (cómo
   estaba cada una) y `POST /api/asignaciones/deshacer { cambios }` las vuelve
   tal cual. Sin aviso al vendedor (decidido 22/11).
+- **Mesa** (`components/asignaciones/asignaciones-client.tsx`): arrastrar y
+  soltar nativo (HTML5, sin dependencias) de una tarjeta o de las elegidas
+  (clic elige, Shift+clic suma), el carril de abajo se pinta con borde
+  punteado; el avatar late al recibir. Barra de teclado siempre visible: 1–9
+  (el nombre al lado), Enter acepta la sugerencia, Z deshace (pila por
+  sesión), Esc suelta. Los números van a las elegidas o a la de arriba
+  (`objetivoDe`, `accionDeTecla` en `lib/asignaciones.ts`). «Ver y reasignar»
+  en cada carril pasa una de hoy a otro vendedor. Aviso abajo de 6 s con
+  Deshacer.

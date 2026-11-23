@@ -231,3 +231,65 @@ export function iniciales(nombre: string): string {
 
 /** Evento de ventana: la mesa asignó o deshizo algo (el menú relee su pastilla). */
 export const EVENTO_ASIGNACIONES = "vocero:asignaciones";
+
+/* ------------------------------------------------------------------
+ * Teclado y selección (la mesa y el modo foco)
+ * ------------------------------------------------------------------ */
+
+export type AccionDeTecla =
+  | { tipo: "vendedor"; tecla: number }
+  | { tipo: "aceptar" }
+  | { tipo: "saltar" }
+  | { tipo: "deshacer" }
+  | { tipo: "foco" }
+  | { tipo: "soltar" };
+
+/** Qué hace una tecla en Asignaciones. Con Ctrl, ⌘ o Alt no hace nada (son del navegador). */
+export function accionDeTecla(e: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean }): AccionDeTecla | null {
+  if (e.ctrlKey || e.metaKey || e.altKey) return null;
+  if (/^[1-9]$/.test(e.key)) return { tipo: "vendedor", tecla: Number(e.key) };
+  switch (e.key) {
+    case "Enter":
+    case "ArrowRight":
+      return { tipo: "aceptar" };
+    case "ArrowLeft":
+      return { tipo: "saltar" };
+    case "z":
+    case "Z":
+      return { tipo: "deshacer" };
+    case "f":
+    case "F":
+      return { tipo: "foco" };
+    case "Escape":
+      return { tipo: "soltar" };
+    default:
+      return null;
+  }
+}
+
+/** A qué tarjetas va una acción: las elegidas (en el orden de la lista) o, sin ninguna, la de arriba. */
+export function objetivoDe<T extends { id: string }>(lista: readonly T[], elegidas: ReadonlySet<string>): T[] {
+  const sel = lista.filter((t) => elegidas.has(t.id));
+  if (sel.length) return sel;
+  return lista[0] ? [lista[0]] : [];
+}
+
+/** Las tarjetas agrupadas por su vendedor sugerido (una operación por vendedor). */
+export function agruparPorSugerencia(
+  tarjetas: readonly Pick<TarjetaAsignacion, "id" | "sugerencia">[]
+): { userId: string; nombre: string; ids: string[] }[] {
+  const grupos = new Map<string, { userId: string; nombre: string; ids: string[] }>();
+  for (const t of tarjetas) {
+    if (!t.sugerencia) continue;
+    const g = grupos.get(t.sugerencia.userId) ?? { userId: t.sugerencia.userId, nombre: t.sugerencia.nombre, ids: [] };
+    g.ids.push(t.id);
+    grupos.set(g.userId, g);
+  }
+  return [...grupos.values()];
+}
+
+/** El texto del aviso: «Carolina Méndez → Sebastián» o «3 → Sebastián». */
+export function textoDeAviso(nombres: readonly string[], destinos: readonly string[]): string {
+  const destino = destinos.length === 1 ? destinos[0]! : `${destinos.length} vendedores`;
+  return nombres.length === 1 ? `${nombres[0]} → ${destino}` : `${nombres.length} → ${destino}`;
+}
