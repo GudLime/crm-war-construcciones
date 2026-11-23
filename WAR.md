@@ -516,3 +516,15 @@ anuncios» y «El agente» dejaron de mostrarse (el código y los endpoints sigu
   (verde/ámbar/rojo) y sobre el total, bandas con raíz cuadrada y la pastilla
   «Conversión total · Ciclo promedio» (suma de medianas por etapa). Funnel |
   Tabla. Salieron «Ver por», «Filtrar», las tarjetas y las tablas.
+- **Visitas** (rediseño §4, reemplaza a Ventas; `visitas-section.tsx` +
+  `lib/visitas-resultados.ts` + `server/analytics/visitas.ts`,
+  `/api/analytics/visitas`): las citas con fecha en el período, ligadas a la
+  oportunidad de su contacto (la de interacción más reciente) y con los mismos
+  filtros; el operador ve solo las suyas. Números (agendadas, realizadas, no
+  vinieron, canceladas), mapa de calor de las REALIZADAS (semanas de lunes a
+  domingo, máximo 13) con barras por día de la semana, línea realizadas vs
+  agendadas, dona por edificio, dona «Quién agendó» (agente vs vendedor),
+  «Qué pasó después» (estado actual: reservó o compró / abierta / perdida) y la
+  tabla de las que visitaron con «Ver las N en Oportunidades →», que abre
+  Oportunidades con el filtro `visitaDesde`/`visitaHasta` (chip «Tuvo visita
+  realizada»). El endpoint de Ventas sigue, sin mostrarse.

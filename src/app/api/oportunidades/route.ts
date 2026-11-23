@@ -1,4 +1,6 @@
+import { and } from "drizzle-orm";
 import { apiError, parseBody, withAuth } from "@/lib/api";
+import { conVisitaRealizada } from "@/server/analytics/filtros";
 import { valorEsCalculado } from "@/server/motor/interes";
 import { alcanceDe, oportunidadVisible } from "@/server/acceso";
 import { cambiarResponsable } from "@/server/responsables";
@@ -13,11 +15,14 @@ export const dynamic = "force-dynamic";
 
 /** `?situacion=abiertas|cerradas` trae solo esas (la lista arranca en Abiertas). */
 export const GET = withAuth(async (session, req: Request) => {
-  const s = new URL(req.url).searchParams.get("situacion");
+  const params = new URL(req.url).searchParams;
+  const s = params.get("situacion");
   const situacion = s === "abiertas" || s === "cerradas" ? s : undefined;
+  // Resultados → «Ver en Oportunidades»: las que tuvieron una visita realizada en esas fechas.
+  const visita = await conVisitaRealizada(session.organizationId, params.get("visitaDesde"), params.get("visitaHasta"));
   const [oportunidades, valorCalculado] = await Promise.all([
     // Visibilidad por rol: el operador recibe solo las suyas.
-    listarOportunidades(session.organizationId, situacion, oportunidadVisible(alcanceDe(session))),
+    listarOportunidades(session.organizationId, situacion, and(oportunidadVisible(alcanceDe(session)), visita)),
     // 0049 — Con interés encadenado, el Valor es el promedio de las unidades.
     valorEsCalculado(session.organizationId).catch(() => false),
   ]);

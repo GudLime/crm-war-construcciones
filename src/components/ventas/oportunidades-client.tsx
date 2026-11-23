@@ -141,17 +141,25 @@ export function OportunidadesClient({ reservas = false }: { reservas?: boolean }
       .catch(() => undefined);
   }, []);
 
+  // Resultados → «Ver en Oportunidades»: la visita realizada la filtra el servidor.
+  const visita = vistas.filtros.visitaRealizada;
+  const visitaDesde = visita?.desde;
+  const visitaHasta = visita?.hasta;
   const cargar = useCallback(async () => {
-    const res = await fetch(
-      `/api/oportunidades${situacion === "todas" ? "" : `?situacion=${situacion}`}`
-    ).catch(() => null);
+    const q = new URLSearchParams();
+    if (situacion !== "todas") q.set("situacion", situacion);
+    if (visitaDesde && visitaHasta) {
+      q.set("visitaDesde", visitaDesde);
+      q.set("visitaHasta", visitaHasta);
+    }
+    const res = await fetch(`/api/oportunidades${q.size ? `?${q.toString()}` : ""}`).catch(() => null);
     if (!res?.ok) return;
     const data = (await res.json()) as { oportunidades: OportunidadDto[]; valorCalculado?: boolean };
     setFilas(data.oportunidades);
     setCargadas(situacion);
     setValorCalculado(data.valorCalculado === true);
     setListo(true);
-  }, [situacion]);
+  }, [situacion, visitaDesde, visitaHasta]);
 
   useEffect(() => {
     void cargar();

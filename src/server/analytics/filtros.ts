@@ -1,5 +1,7 @@
 import { sql, type SQL } from "drizzle-orm";
 import { schema } from "@/lib/db";
+import { addDaysISO, zonedWallClockToUtc } from "@/lib/time/slots";
+import { businessTimezone } from "@/server/analytics/period";
 
 /**
  * Resultados — los filtros comunes de `/api/analytics/*` sobre las
@@ -74,4 +76,29 @@ export function condicionOportunidad(
   }
   if (!partes.length) return undefined;
   return sql.join(partes, sql` and `);
+}
+
+/**
+ * Las oportunidades cuyo contacto tuvo una cita realizada entre `desde` y
+ * `hasta` (fechas locales del negocio). Undefined si no se pidió.
+ */
+export async function conVisitaRealizada(
+  organizationId: string,
+  desde: string | null,
+  hasta: string | null
+): Promise<SQL | undefined> {
+  const fecha = /^\d{4}-\d{2}-\d{2}$/;
+  if (!desde || !hasta || !fecha.test(desde) || !fecha.test(hasta)) return undefined;
+  const tz = await businessTimezone(organizationId);
+  const inicio = zonedWallClockToUtc(desde, "00:00", tz);
+  const fin = zonedWallClockToUtc(addDaysISO(hasta, 1), "00:00", tz);
+  if (!inicio || !fin) return undefined;
+  return sql`exists (
+    select 1 from ${schema.booking} bv
+    where bv.organization_id = ${organizationId}
+      and bv.contact_id = ${schema.oportunidad.contactId}
+      and bv.kind = 'session' and bv.status = 'realizada' and bv.is_test = false
+      and bv.scheduled_at >= ${inicio.toISOString()}::timestamp
+      and bv.scheduled_at < ${fin.toISOString()}::timestamp
+  )`;
 }
