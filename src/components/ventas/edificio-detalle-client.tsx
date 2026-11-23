@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Building2, Download, Pencil, Plus, Upload, X } from "lucide-react";
@@ -19,9 +19,6 @@ import {
   Campo,
   EstadoPill,
   Pagina,
-  Tabla,
-  Td,
-  Th,
   grilla,
   mensajeDe,
   numero,
@@ -31,6 +28,8 @@ import {
 import { ImportarUnidades } from "./importar-unidades";
 import { PildoraEdificio } from "./pildora-edificio";
 import { SelectorColor } from "./selector-color";
+import { cn } from "@/lib/utils";
+import { SelectorColumnasTabla, TablaConfigurable, usePrefTabla, type ColumnaTabla } from "@/components/ui/tabla-configurable";
 import { Select } from "@/components/ui/select";
 
 type UnidadForm = {
@@ -116,6 +115,7 @@ export function EdificioDetalleClient() {
 
   const [edificio, setEdificio] = useState<EdificioDto | null>(null);
   const [unidades, setUnidades] = useState<DepartamentoDto[]>([]);
+  const [prefUnidades, setPrefUnidades] = usePrefTabla("unidades");
   const [datos, setDatos] = useState({
     nombre: "",
     direccion: "",
@@ -503,6 +503,99 @@ export function EdificioDetalleClient() {
     );
   }
 
+  // v2, punto 5 — Las unidades en la tabla configurable (orden, ocultar, ancho y mover).
+  const columnasUnidades: ColumnaTabla<DepartamentoDto>[] = [
+    {
+      clave: "unidad",
+      titulo: "Unidad",
+      ancho: 150,
+      fija: true,
+      valor: (u) => u.unidad,
+      celda: (u) => (
+        <span className="font-medium">
+          {u.unidad}
+          {u.piso != null && <span className="ml-2 text-xs text-text-3">piso {u.piso}</span>}
+          {u.notasAgente && (
+            <span className="ml-2 text-xs text-text-3" title={u.notasAgente}>
+              · nota
+            </span>
+          )}
+        </span>
+      ),
+    },
+    {
+      clave: "tipologia",
+      titulo: "Tipología",
+      ancho: 140,
+      valor: (u) => u.tipologiaUnidad ?? null,
+      celda: (u) => (
+        <>
+          {u.tipologiaUnidad || "—"}
+          {u.tipologia && <span className="ml-1.5 text-xs text-text-3">{etiqueta(TIPOLOGIAS, u.tipologia)}</span>}
+        </>
+      ),
+    },
+    { clave: "orEdificio", titulo: "Orientación edificio", ancho: 150, valor: (u) => u.orientacionEdificio ?? null, celda: (u) => u.orientacionEdificio || "—" },
+    { clave: "orGeo", titulo: "Orientación GEO", ancho: 130, valor: (u) => u.orientacionGeo ?? null, celda: (u) => u.orientacionGeo || "—" },
+    ...(
+      [
+        ["cub", "Cub.", (u: DepartamentoDto) => u.metrosCubiertos],
+        ["semi", "Semicub.", (u: DepartamentoDto) => u.metrosSemicubiertos],
+        ["desc", "Desc.", (u: DepartamentoDto) => u.metrosDescubiertos],
+        ["tot", "Totales", (u: DepartamentoDto) => u.metrosTotales],
+      ] as const
+    ).map(([clave, titulo, m]) => ({
+      clave,
+      titulo,
+      ancho: 95,
+      alinear: "derecha" as const,
+      valor: (u: DepartamentoDto) => m(u) ?? null,
+      celda: (u: DepartamentoDto) => <span className={cn("tabular-nums", clave === "tot" && "font-medium")}>{metrosTexto(m(u))}</span>,
+    })),
+    { clave: "dorm", titulo: "Dorm.", ancho: 80, alinear: "derecha", valor: (u) => u.dormitorios ?? null, celda: (u) => <span className="tabular-nums">{u.dormitorios ?? "—"}</span> },
+    {
+      clave: "banos",
+      titulo: "Baños",
+      ancho: 80,
+      alinear: "derecha",
+      valor: (u) => u.banos ?? null,
+      celda: (u) => (
+        <span className="tabular-nums">
+          {u.banos ?? "—"}
+          {u.toilette ? <span className="ml-1 text-xs text-text-3">+T</span> : null}
+        </span>
+      ),
+    },
+    {
+      clave: "valor",
+      titulo: "Valor",
+      ancho: 130,
+      alinear: "derecha",
+      valor: (u) => u.valorCents ?? null,
+      criterioAsc: "menor primero",
+      criterioDesc: "mayor primero",
+      celda: (u) => <span className="tabular-nums">{plata(u.valorCents, u.moneda, moneda)}</span>,
+    },
+    { clave: "estado", titulo: "Estado", ancho: 130, valor: (u) => u.estado, celda: (u) => <EstadoPill opciones={ESTADOS_UNIDAD} value={u.estado} /> },
+    {
+      clave: "editar",
+      titulo: "",
+      ancho: 60,
+      fija: true,
+      celda: (u) => (
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-label={`Editar unidad ${u.unidad}`}
+          title="Editar"
+          onClick={() => (unidadAbierta === u.id ? cerrarUnidad() : abrirUnidad(u))}
+        >
+          <Pencil className="h-3.5 w-3.5" strokeWidth={1.8} />
+        </Button>
+      ),
+    },
+  ];
+
   return (
     <Pagina
       titulo={
@@ -664,88 +757,27 @@ export function EdificioDetalleClient() {
       {unidades.length === 0 ? (
         <p className="mb-4 text-sm text-text-3">Este edificio todavía no tiene unidades.</p>
       ) : (
-        <div className="mb-5">
-          <Tabla className="min-w-[1250px]">
-            <thead className="border-b bg-secondary/40">
-              <tr>
-                <Th>Unidad</Th>
-                <Th>Tipología</Th>
-                <Th>Orientación edificio</Th>
-                <Th>Orientación GEO</Th>
-                <Th className="text-right">Cub.</Th>
-                <Th className="text-right">Semicub.</Th>
-                <Th className="text-right">Desc.</Th>
-                <Th className="text-right">Totales</Th>
-                <Th className="text-right">Dorm.</Th>
-                <Th className="text-right">Baños</Th>
-                <Th className="text-right">Valor</Th>
-                <Th>Estado</Th>
-                <Th className="w-12">
-                  <span className="sr-only">Editar</span>
-                </Th>
-              </tr>
-            </thead>
-            <tbody>
-              {unidades.map((u) => (
-                <Fragment key={u.id}>
-                <tr
-                  className={
-                    unidadAbierta === u.id
-                      ? "border-b bg-accent/40"
-                      : "border-b last:border-0 hover:bg-accent/20"
-                  }
-                >
-                  <Td className="font-medium">
-                    {u.unidad}
-                    {u.piso != null && <span className="ml-2 text-xs text-text-3">piso {u.piso}</span>}
-                    {u.notasAgente && (
-                      <span className="ml-2 text-xs text-text-3" title={u.notasAgente}>
-                        · nota
-                      </span>
-                    )}
-                  </Td>
-                  <Td>
-                    {u.tipologiaUnidad || "—"}
-                    {u.tipologia && <span className="ml-1.5 text-xs text-text-3">{etiqueta(TIPOLOGIAS, u.tipologia)}</span>}
-                  </Td>
-                  <Td>{u.orientacionEdificio || "—"}</Td>
-                  <Td>{u.orientacionGeo || "—"}</Td>
-                  <Td className="text-right tabular-nums">{metrosTexto(u.metrosCubiertos)}</Td>
-                  <Td className="text-right tabular-nums">{metrosTexto(u.metrosSemicubiertos)}</Td>
-                  <Td className="text-right tabular-nums">{metrosTexto(u.metrosDescubiertos)}</Td>
-                  <Td className="text-right font-medium tabular-nums">{metrosTexto(u.metrosTotales)}</Td>
-                  <Td className="text-right tabular-nums">{u.dormitorios ?? "—"}</Td>
-                  <Td className="text-right tabular-nums">
-                    {u.banos ?? "—"}
-                    {u.toilette ? <span className="ml-1 text-xs text-text-3">+T</span> : null}
-                  </Td>
-                  <Td className="text-right tabular-nums">{plata(u.valorCents, u.moneda, moneda)}</Td>
-                  <Td>
-                    <EstadoPill opciones={ESTADOS_UNIDAD} value={u.estado} />
-                  </Td>
-                  <Td>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      aria-label={`Editar unidad ${u.unidad}`}
-                      title="Editar"
-                      onClick={() => (unidadAbierta === u.id ? cerrarUnidad() : abrirUnidad(u))}
-                    >
-                      <Pencil className="h-3.5 w-3.5" strokeWidth={1.8} />
-                    </Button>
-                  </Td>
+        <div className="mb-5 space-y-2">
+          <div className="flex justify-end">
+            <SelectorColumnasTabla columnas={columnasUnidades} pref={prefUnidades} setPref={setPrefUnidades} />
+          </div>
+          <TablaConfigurable
+            columnas={columnasUnidades}
+            filas={unidades}
+            pref={prefUnidades}
+            setPref={setPrefUnidades}
+            claveDe={(u) => u.id}
+            propsFila={(u) => ({ className: unidadAbierta === u.id ? "bg-accent/40" : "hover:bg-subtle" })}
+            despuesDeFila={(u, colSpan) =>
+              unidadAbierta === u.id ? (
+                <tr className="border-b">
+                  <td colSpan={colSpan} className="bg-subtle p-3">
+                    {formularioUnidad}
+                  </td>
                 </tr>
-                {unidadAbierta === u.id && (
-                  <tr className="border-b">
-                    <td colSpan={13} className="bg-subtle p-3">
-                      {formularioUnidad}
-                    </td>
-                  </tr>
-                )}
-                </Fragment>
-              ))}
-            </tbody>
-          </Tabla>
+              ) : null
+            }
+          />
         </div>
       )}
 
