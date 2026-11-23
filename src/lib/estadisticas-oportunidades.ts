@@ -102,6 +102,11 @@ export type EstadisticasOportunidadesDto = {
   /** Alguna oportunidad suma en más de un grupo. */
   multiple: boolean;
   empty: boolean;
+  /**
+   * Resultados (rediseño) — las consultas del período por edificio (una
+   * oportunidad con dos edificios suma en los dos). Lo arma el servidor.
+   */
+  porEdificio?: { id: string; nombre: string; color: string | null; n: number }[];
 };
 
 const DIA = 86_400;

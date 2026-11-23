@@ -5,7 +5,7 @@ import type { HygieneBlockDto, SalesBlockDto } from "@/lib/analytics";
 import { parametrosResultados, rangoDeAtajo, FECHAS_POR_DEFECTO } from "@/lib/resultados";
 import { BarraResultados, type EstadoBarra } from "./barra-resultados";
 import { HygieneSection } from "./hygiene-section";
-import { OportunidadesSection, type Consulta } from "./oportunidades-section";
+import { OportunidadesResumen } from "./oportunidades-resumen";
 import type { EstadisticasOportunidadesDto } from "@/lib/estadisticas-oportunidades";
 import { SalesSection } from "./sales-section";
 import { useVocabulario } from "@/components/vocabulario";
@@ -81,8 +81,6 @@ export function ResultsClient({
   const [sales, setSales] = useState<Block<SalesBlockDto>>(inicial);
   const [hygiene, setHygiene] = useState<Block<HygieneBlockDto>>(inicial);
   const [ops, setOps] = useState<Block<EstadisticasOportunidadesDto>>(inicial);
-  // `verPor` undefined = todavía no eligió: arranca con el de la configuración del cliente.
-  const [consulta, setConsulta] = useState<Consulta>({ verPor: undefined, filtros: {} });
 
   useEffect(() => {
     const ctl = new AbortController();
@@ -97,11 +95,11 @@ export function ResultsClient({
   useEffect(() => {
     const ctl = new AbortController();
     const p = parametrosResultados(barra.rango, barra.edificioIds, barra.filtros);
-    if (consulta.verPor !== undefined) p.set("verPor", consulta.verPor ?? "");
-    for (const [k, v] of Object.entries(consulta.filtros)) if (v.length) p.set(`f.${k}`, v.join(","));
+    // Sin agrupar: los gráficos y el embudo siguen a la pestaña de Edificio.
+    p.set("verPor", "");
     void cargar(`/api/analytics/oportunidades?${p.toString()}`, setOps, ctl.signal);
     return () => ctl.abort();
-  }, [barra, consulta]);
+  }, [barra]);
 
   // La higiene describe el AHORA: no depende del rango elegido.
   useEffect(() => {
@@ -123,7 +121,7 @@ export function ResultsClient({
       <BarraResultados hoy={today} admin={admin} valor={barra} onCambio={setBarra} />
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3 sm:p-6">
-        <OportunidadesSection {...ops} consulta={consulta} onConsulta={setConsulta} />
+        <OportunidadesResumen {...ops} />
         {admin && (
           <>
             <SalesSection {...sales} currency={currency} />

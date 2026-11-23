@@ -423,3 +423,11 @@ admin, o propias) y la última de cada fila en `vista_ultima`
 `desde`, `hasta` (además de `from`/`to`), `edificioIds`, `origen`,
 `responsable` y `operacion` (`server/analytics/filtros.ts`). «Origen y
 anuncios» y «El agente» dejaron de mostrarse (el código y los endpoints siguen).
+- **Oportunidades** (rediseño §2–3, `oportunidades-resumen.tsx`): dos gráficos
+  circulares de las consultas del período — por edificio (con su color;
+  `porEdificio` en `/api/analytics/oportunidades`) y por origen (4 colores fijos
+  y «Otros») — y el **Embudo por etapa** (`embudo-etapas.tsx` +
+  `lib/embudo-resultados.ts`): fila de totales con el % sobre la anterior
+  (verde/ámbar/rojo) y sobre el total, bandas con raíz cuadrada y la pastilla
+  «Conversión total · Ciclo promedio» (suma de medianas por etapa). Funnel |
+  Tabla. Salieron «Ver por», «Filtrar», las tarjetas y las tablas.
