@@ -533,3 +533,14 @@ oscuro) y las bandas del embudo de Resultados.
   panel de siempre (confirmar, reprogramar, cancelar, bloquear).
 - **Citas se puede ocultar** (`menu.ocultar: ["bookings"]`): `/bookings`
   redirige a `/tareas?vista=calendario`. En el núcleo sigue visible.
+
+## Contactos compacta (cambios 23/11, punto 8)
+
+`GET /api/contacts?pagina=N&porPagina=50&q=&tipo=&fuente=&agente=con|sin&archivados=solo&orden=nombre|telefono|creado:asc|desc`
+devuelve `{ items, total, pagina, porPagina }` (filtros y orden en el
+servidor, `lib/contactos-lista.ts`). Sin `pagina` responde lo de siempre
+(`{ contacts }`, las últimas 200): lo usan otros selectores. La pantalla
+(`contactos-lista.tsx`, fuera del restaurante) es una tabla liviana: buscador
+redondo, pastillas de filtro con ×, «+ Filtro» y «Limpiar», una línea por
+contacto (avatar, nombre, teléfono, alta), orden por columna y páginas de a
+50. En el restaurante sigue la lista de comensales.
