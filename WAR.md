@@ -678,3 +678,20 @@ marca de chispas; en el widget suma «Responder en Bandeja».
 - **Primera llamada del cartel:** es configuración. En Ajustes → Plantillas de
   tareas, una plantilla «Primera llamada», tipo Llamada, «Al asignarle
   responsable», solo origen Cartel.
+
+## v2 (23/11) — chispas en Próximos pasos, tareas en Lista, widget lavado
+
+- Próximos pasos de la oportunidad: las tareas de la IA llevan las chispas y
+  «Responder en Bandeja» (`TareaCorta.creadaPor` / `conversationId`).
+- Calendario de Tareas, vista Lista: también las tareas (`AgendaList` recibe
+  `tareas` como la rejilla). En Mes, solo las citas.
+- Widget «Tareas» del Inicio: los filtros y los íconos con el estilo lavado de
+  `IconoTipo` (tinte del tipo).
+- **Tablas de trabajo diario** (punto 5): `components/ui/tabla-configurable.tsx`
+  (`TablaConfigurable`, `SelectorColumnasTabla`, `usePrefTabla`) y
+  `lib/tabla.ts`: ordenar desde el título, ocultar, cambiar el ancho, **mover
+  la columna arrastrando el título** y «Columnas → Restablecer». Preferencias
+  por tabla en el navegador (`vocero:tabla:<clave>`). Lo usan Tareas (Lista;
+  con un orden elegido no agrupa por fecha), Contactos (orden en el servidor),
+  Edificios, Unidades del edificio y los objetos del cliente. Oportunidades
+  suma mover columnas (`posiciones` en sus preferencias).

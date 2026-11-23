@@ -10,7 +10,8 @@ import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
-import { Acciones, Campo, Ficha, Pagina, Tabla, Td, Th, grilla, mensajeDe, useMoneda } from "@/components/ventas/ui";
+import { Acciones, Campo, Ficha, Pagina, grilla, mensajeDe, useMoneda } from "@/components/ventas/ui";
+import { SelectorColumnasTabla, TablaConfigurable, usePrefTabla, type ColumnaTabla } from "@/components/ui/tabla-configurable";
 import type { ObjetoDto, RegistroDto } from "@/lib/motor/dto";
 import { aEntrada, CampoEditor, desdeRegistro, valorVisible, type Formulario } from "./campos";
 import { ImportarCsv } from "./importar-csv";
@@ -106,6 +107,8 @@ export function ObjetoListaClient({ clave }: { clave: string }) {
   }, [cargar]);
 
   const columnas = useMemo(() => objeto?.campos.filter((c) => c.visibleLista) ?? [], [objeto]);
+  // v2, punto 5 — La tabla configurable (orden, ocultar, ancho y mover), recordada por objeto.
+  const [prefTabla, setPrefTabla] = usePrefTabla(`objeto.${clave}`);
   const filtrables = useMemo(
     () => objeto?.campos.filter((c) => c.tipo === "seleccion" || c.tipo === "booleano") ?? [],
     [objeto]
@@ -180,6 +183,61 @@ export function ObjetoListaClient({ clave }: { clave: string }) {
   const nombrePadre = (relacion: string, id: string | null) =>
     id ? (padres[relacion]?.find((o) => o.id === id)?.titulo ?? "…") : "—";
 
+  const columnasTabla: ColumnaTabla<RegistroDto>[] = (() => {
+    if (!objeto) return [];
+    const numerica = (c: (typeof columnas)[number]) => c.tipo === "numero" || c.tipo === "moneda" || c.tipo === "calculado";
+    return [
+      {
+        clave: "__titulo",
+        titulo: objeto.nombre,
+        ancho: 240,
+        fija: true,
+        valor: (r) => r.titulo || null,
+        celda: (r) => (
+          <Link href={`/objetos/${clave}/${r.id}`} className="font-medium hover:underline">
+            {r.titulo || "(sin nombre)"}
+          </Link>
+        ),
+      },
+      ...objeto.padres.map((p) => ({
+        clave: `__padre.${p.clave}`,
+        titulo: p.nombre,
+        ancho: 180,
+        valor: (r: RegistroDto) => nombrePadre(p.clave, r.padres[p.clave] ?? null) || null,
+        celda: (r: RegistroDto) => <span className="text-text-2">{nombrePadre(p.clave, r.padres[p.clave] ?? null)}</span>,
+      })),
+      ...columnas
+        .filter((c) => !objeto.titulo.includes(c.clave))
+        .map((c) => ({
+          clave: c.clave,
+          titulo: c.nombre,
+          ancho: numerica(c) ? 130 : 180,
+          alinear: numerica(c) ? ("derecha" as const) : undefined,
+          valor: (r: RegistroDto) => {
+            const v = r.valores[c.clave] ?? null;
+            if (typeof v === "number") return v;
+            if (v == null) return null;
+            return valorVisible(c, v, moneda);
+          },
+          celda: (r: RegistroDto) => (
+            <span className={numerica(c) ? "tabular-nums" : "text-text-2"}>{valorVisible(c, r.valores[c.clave] ?? null, moneda)}</span>
+          ),
+          extraTitulo:
+            puedeConfigurar && objeto.visibleAgente ? (
+              <button
+                type="button"
+                onClick={() => void cambiarAgente({ campos: { [c.clave]: !c.visibleAgente } })}
+                title={c.visibleAgente ? "El agente lee esta columna (tocá para ocultarla)" : "El agente no lee esta columna (tocá para mostrarla)"}
+                aria-label={`${c.visibleAgente ? "Ocultar" : "Mostrar"} «${c.nombre}» al agente`}
+                aria-pressed={c.visibleAgente}
+                className={cn("rounded p-0.5 transition-colors hover:bg-accent", c.visibleAgente ? "text-brand" : "opacity-30 hover:opacity-70")}
+              >
+                <Sparkles className="h-3.5 w-3.5" strokeWidth={c.visibleAgente ? 2.2 : 1.6} />
+              </button>
+            ) : undefined,
+        })),
+    ];
+  })();
   return (
     <Pagina
       titulo={objeto?.nombrePlural ?? ""}
@@ -202,6 +260,7 @@ export function ObjetoListaClient({ clave }: { clave: string }) {
                 />
               </label>
             )}
+            {registros.length > 0 && <SelectorColumnasTabla columnas={columnasTabla} pref={prefTabla} setPref={setPrefTabla} />}
             <a
               href={`/api/objetos/${encodeURIComponent(clave)}/exportar?${parametros(busqueda, filtros)}`}
               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border-strong px-3 text-sm hover:border-foreground"
@@ -325,73 +384,13 @@ export function ObjetoListaClient({ clave }: { clave: string }) {
           }
         />
       ) : objeto && registros.length > 0 ? (
-        <Tabla>
-          <thead className="border-b bg-secondary/40">
-            <tr>
-              <Th>{objeto.nombre}</Th>
-              {objeto.padres.map((p) => (
-                <Th key={p.clave}>{p.nombre}</Th>
-              ))}
-              {columnas
-                .filter((c) => !objeto.titulo.includes(c.clave))
-                .map((c) => (
-                  <Th
-                    key={c.clave}
-                    className={c.tipo === "numero" || c.tipo === "moneda" || c.tipo === "calculado" ? "text-right" : undefined}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      {c.nombre}
-                      {puedeConfigurar && objeto.visibleAgente && (
-                        <button
-                          type="button"
-                          onClick={() => void cambiarAgente({ campos: { [c.clave]: !c.visibleAgente } })}
-                          title={c.visibleAgente ? "El agente lee esta columna (tocá para ocultarla)" : "El agente no lee esta columna (tocá para mostrarla)"}
-                          aria-label={`${c.visibleAgente ? "Ocultar" : "Mostrar"} «${c.nombre}» al agente`}
-                          aria-pressed={c.visibleAgente}
-                          className={cn(
-                            "rounded p-0.5 transition-colors hover:bg-accent",
-                            c.visibleAgente ? "text-brand" : "opacity-30 hover:opacity-70"
-                          )}
-                        >
-                          <Sparkles className="h-3.5 w-3.5" strokeWidth={c.visibleAgente ? 2.2 : 1.6} />
-                        </button>
-                      )}
-                    </span>
-                  </Th>
-                ))}
-            </tr>
-          </thead>
-          <tbody>
-            {registros.map((r) => (
-              <tr key={r.id} className="border-b last:border-0 hover:bg-accent/40">
-                <Td>
-                  <Link href={`/objetos/${clave}/${r.id}`} className="font-medium hover:underline">
-                    {r.titulo || "(sin nombre)"}
-                  </Link>
-                </Td>
-                {objeto.padres.map((p) => (
-                  <Td key={p.clave} className="text-text-2">
-                    {nombrePadre(p.clave, r.padres[p.clave] ?? null)}
-                  </Td>
-                ))}
-                {columnas
-                  .filter((c) => !objeto.titulo.includes(c.clave))
-                  .map((c) => (
-                    <Td
-                      key={c.clave}
-                      className={
-                        c.tipo === "numero" || c.tipo === "moneda" || c.tipo === "calculado"
-                          ? "text-right tabular-nums"
-                          : "text-text-2"
-                      }
-                    >
-                      {valorVisible(c, r.valores[c.clave] ?? null, moneda)}
-                    </Td>
-                  ))}
-              </tr>
-            ))}
-          </tbody>
-        </Tabla>
+        <TablaConfigurable
+          columnas={columnasTabla}
+          filas={registros}
+          pref={prefTabla}
+          setPref={setPrefTabla}
+          claveDe={(r) => r.id}
+        />
       ) : null}
     </Pagina>
   );

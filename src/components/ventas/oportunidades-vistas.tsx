@@ -41,6 +41,7 @@ import { OrigenIcono } from "./origen-icono";
 import { PildoraEdificio, estiloDeEdificio } from "./pildora-edificio";
 import { EtapaPill, plata } from "./ui";
 import { colorDeEtapa, varsDeEtapa } from "@/lib/colores-etapa";
+import { enPosicion, moverColumna } from "@/lib/tabla";
 
 /**
  * Las tres formas de ver las oportunidades: Lista (tabla con orden, columnas
@@ -58,6 +59,8 @@ type Preferencias = {
   anchos: Partial<Record<ClaveColumna, number>>;
   /** Cuántas oportunidades por página en Lista y Mosaico. */
   porPagina?: number;
+  /** v2, punto 5 — El orden de las columnas (se mueven arrastrando el título). */
+  posiciones?: string[];
 };
 
 export const TAMANOS_DE_PAGINA = [25, 50, 100] as const;
@@ -372,12 +375,9 @@ export function SelectorDeColumnas({
           </MenuItem>
         );
       })}
-      {pref.ocultas.length > 0 && (
-        <>
-          <MenuSeparador />
-          <MenuItem onClick={() => setPref({ ...pref, ocultas: [] })}>Mostrar todas</MenuItem>
-        </>
-      )}
+      <MenuSeparador />
+      {pref.ocultas.length > 0 && <MenuItem onClick={() => setPref({ ...pref, ocultas: [] })}>Mostrar todas</MenuItem>}
+      <MenuItem onClick={() => setPref({ ...pref, posiciones: [], anchos: {} })}>Restablecer orden y anchos</MenuItem>
     </Menu>
   );
 }
@@ -487,8 +487,16 @@ function Lista({
 }) {
   const voc = useVocabulario();
   const estados = opcionesEstado(voc);
-  const columnas = columnasDe(voc).filter((c) => !pref.ocultas.includes(c.clave));
+  const columnas = enPosicion(columnasDe(voc), pref.posiciones ?? []).filter((c) => !pref.ocultas.includes(c.clave));
   const anchoDe = (c: (typeof COLUMNAS)[number]) => pref.anchos[c.clave] ?? c.ancho;
+  // v2, punto 5 — Mover una columna arrastrando su título.
+  const [arrastrandoCol, setArrastrandoCol] = useState<string | null>(null);
+  const [sobreCol, setSobreCol] = useState<string | null>(null);
+  function soltarColumna(destino: string) {
+    if (!arrastrandoCol || arrastrandoCol === destino) return;
+    const orden = enPosicion(columnasDe(voc), pref.posiciones ?? []).map((c) => c.clave);
+    setPref({ ...pref, posiciones: moverColumna(orden, arrastrandoCol, destino) });
+  }
   const total = columnas.reduce((s, c) => s + anchoDe(c), 0);
 
   function arrastrar(e: React.MouseEvent, c: (typeof COLUMNAS)[number]) {
@@ -527,7 +535,34 @@ function Lista({
                 <th
                   key={c.clave}
                   aria-sort={dir === "asc" ? "ascending" : dir === "desc" ? "descending" : undefined}
-                  className="group relative px-1.5 py-1 text-xs font-medium text-text-3"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", c.clave);
+                    setArrastrandoCol(c.clave);
+                  }}
+                  onDragOver={(e) => {
+                    if (!arrastrandoCol) return;
+                    e.preventDefault();
+                    if (sobreCol !== c.clave) setSobreCol(c.clave);
+                  }}
+                  onDragLeave={() => setSobreCol((x) => (x === c.clave ? null : x))}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    soltarColumna(c.clave);
+                    setArrastrandoCol(null);
+                    setSobreCol(null);
+                  }}
+                  onDragEnd={() => {
+                    setArrastrandoCol(null);
+                    setSobreCol(null);
+                  }}
+                  title="Arrastrá el título para mover la columna"
+                  className={cn(
+                    "group relative cursor-grab px-1.5 py-1 text-xs font-medium text-text-3 active:cursor-grabbing",
+                    arrastrandoCol === c.clave && "opacity-50",
+                    sobreCol === c.clave && arrastrandoCol !== c.clave && "bg-brand-tint shadow-[inset_2px_0_0_var(--accent)]"
+                  )}
                 >
                   <Menu
                     boton={(abierto, alternar) => (
@@ -608,6 +643,8 @@ function Lista({
                     aria-orientation="vertical"
                     aria-label={`Ancho de ${c.titulo}`}
                     title="Arrastrá para cambiar el ancho · doble clic para restablecer"
+                    draggable={false}
+                    onDragStart={(e) => e.preventDefault()}
                     onMouseDown={(e) => arrastrar(e, c)}
                     onDoubleClick={() => {
                       const { [c.clave]: _fuera, ...resto } = pref.anchos;

@@ -23,12 +23,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { WhatsAppLogo } from "@/components/whatsapp-logo";
+import { VentanaTarea } from "./ventana-tarea";
 import type { FormaDeVer } from "@/lib/oportunidades-lista";
 import { agruparTareas, fechaPropuesta, grupoConAlta, type GrupoTarea } from "@/lib/tareas-grupos";
 import { cn } from "@/lib/utils";
 import { ESTADOS_TAREA, TIPOS_TAREA, etiqueta } from "@/lib/ventas";
 import { ResultadoLlamada } from "./resultado-llamada";
 import { BookingsClient } from "@/components/bookings/bookings-client";
+import { SelectorColumnasTabla, TablaConfigurable, usePrefTabla, type ColumnaTabla } from "@/components/ui/tabla-configurable";
 import type { CalendarView } from "@/lib/time/calendar";
 import type { WeeklyHours } from "@/server/agenda/settings";
 import type { OportunidadDto, TareaDto } from "@/server/ventas";
@@ -239,9 +241,12 @@ export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) 
   }, []);
   const [forma, setForma] = useState<FormaTareas>("lista");
   const [agrupar, setAgrupar] = useState(true);
+  const [prefTabla, setPrefTabla] = usePrefTabla("tareas.lista");
   const [plegados, setPlegados] = useState<Partial<Record<GrupoTarea, boolean>>>({});
   const [abierto, setAbierto] = useState(false);
   const [editando, setEditando] = useState<string | null>(null);
+  /** v2, punto 2 — La tarea abierta en la ventana de detalle. */
+  const [ventana, setVentana] = useState<string | null>(null);
   const [form, setForm] = useState<Formulario>(vacio);
   const [error, setError] = useState<string | null>(null);
   const [listo, setListo] = useState(false);
@@ -313,21 +318,11 @@ export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) 
     setAbierto(true);
   }
 
+  /** v2, punto 2 — Una tarea existente se abre en su ventana de detalle. */
   function abrir(t: Tarea) {
-    setEditando(t.id);
-    setSoloLectura(t.editable === false);
-    setForm({
-      titulo: t.titulo,
-      tipo: t.tipo,
-      estado: t.estado,
-      fecha: aLocal(t.fecha),
-      comentarios: t.comentarios ?? "",
-      contactId: t.contactId ?? "",
-      oportunidadId: t.oportunidadId ?? "",
-      responsableId: t.responsableId ?? "",
-    });
-    setError(null);
-    setAbierto(true);
+    setAbierto(false);
+    setEditando(null);
+    setVentana(t.id);
   }
 
   async function guardar(e: FormEvent) {
@@ -407,6 +402,113 @@ export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) 
     : [{ clave: "todas", titulo: "", plegado: false, tareas: [...visibles].sort((a, b) => (a.fecha ?? "").localeCompare(b.fecha ?? "")) }];
   const plegado = (g: { clave: string; plegado: boolean }) => plegados[g.clave as GrupoTarea] ?? g.plegado;
   const alternar = (clave: string, actual: boolean) => setPlegados((p) => ({ ...p, [clave]: !actual }));
+
+  // v2, punto 5 — La lista como tabla configurable. Con un orden elegido no se agrupa por fecha.
+  type FilaTareas = { clase: "grupo"; g: Grupo } | { clase: "tarea"; t: TareaDto };
+  const filasTabla: FilaTareas[] =
+    agrupar && !prefTabla.orden
+      ? grupos.flatMap((g) => [
+          { clase: "grupo" as const, g },
+          ...(plegado(g) ? [] : g.tareas.map((t) => ({ clase: "tarea" as const, t }))),
+        ])
+      : grupos.flatMap((g) => g.tareas.map((t) => ({ clase: "tarea" as const, t })));
+  const tareaDe = (f: FilaTareas) => (f.clase === "tarea" ? f.t : null);
+  const columnasTareas: ColumnaTabla<FilaTareas>[] = [
+    {
+      clave: "tipo",
+      titulo: "Tipo",
+      ancho: 140,
+      valor: (f) => (tareaDe(f) ? etiqueta(TIPOS_TAREA, tareaDe(f)!.tipo) : null),
+      celda: (f) =>
+        tareaDe(f) && (
+          <span className="inline-flex items-center gap-2">
+            <IconoTipo tipo={tareaDe(f)!.tipo} />
+            <span className="text-text-2">{etiqueta(TIPOS_TAREA, tareaDe(f)!.tipo)}</span>
+          </span>
+        ),
+    },
+    {
+      clave: "titulo",
+      titulo: "Tarea",
+      ancho: 280,
+      fija: true,
+      valor: (f) => tareaDe(f)?.titulo ?? null,
+      celda: (f) =>
+        tareaDe(f) && (
+          <span className="inline-flex min-w-0 items-center gap-1.5 font-medium">
+            {tareaDe(f)!.creadaPor === "ia" && <MarcaIa />}
+            <span className="truncate">{tareaDe(f)!.titulo}</span>
+          </span>
+        ),
+    },
+    {
+      clave: "estado",
+      titulo: "Estado",
+      ancho: 130,
+      valor: (f) => tareaDe(f)?.estado ?? null,
+      celda: (f) => tareaDe(f) && <EstadoPill opciones={ESTADOS_TAREA} value={tareaDe(f)!.estado} />,
+    },
+    {
+      clave: "fecha",
+      titulo: "Fecha",
+      ancho: 170,
+      valor: (f) => tareaDe(f)?.fecha ?? null,
+      criterioAsc: "más vieja primero",
+      criterioDesc: "más nueva primero",
+      celda: (f) => tareaDe(f) && <span className="whitespace-nowrap text-text-2">{fechaVisible(tareaDe(f)!.fecha)}</span>,
+    },
+    { clave: "contacto", titulo: "Contacto", ancho: 170, valor: (f) => tareaDe(f)?.contactoNombre ?? null, celda: (f) => tareaDe(f) && (tareaDe(f)!.contactoNombre || "—") },
+    {
+      clave: "oportunidad",
+      titulo: "Oportunidad",
+      ancho: 190,
+      valor: (f) => tareaDe(f)?.oportunidadNombre ?? null,
+      celda: (f) => {
+        const t = tareaDe(f);
+        if (!t) return null;
+        return t.oportunidadId ? (
+          <Link href={`/oportunidades/${t.oportunidadId}`} onClick={(e) => e.stopPropagation()} className="text-brand-ink hover:underline">
+            {t.oportunidadNombre ?? "Oportunidad"}
+          </Link>
+        ) : (
+          "—"
+        );
+      },
+    },
+    {
+      clave: "edificio",
+      titulo: "Edificio",
+      ancho: 150,
+      valor: (f) => tareaDe(f)?.edificio?.nombre ?? null,
+      celda: (f) => {
+        const t = tareaDe(f);
+        if (!t) return null;
+        return t.edificio ? <PildoraEdificio nombre={t.edificio.nombre} color={t.edificio.color} /> : "—";
+      },
+    },
+    ...(equipo.length > 0
+      ? [
+          {
+            clave: "responsable",
+            titulo: "Responsable",
+            ancho: 170,
+            valor: (f: FilaTareas) => tareaDe(f)?.responsableNombre ?? null,
+            celda: (f: FilaTareas) => {
+              const t = tareaDe(f);
+              if (!t) return null;
+              return t.responsableNombre ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Iniciales nombre={t.responsableNombre} />
+                  {t.responsableNombre}
+                </span>
+              ) : (
+                <span className="text-text-3">Sin asignar</span>
+              );
+            },
+          },
+        ]
+      : []),
+  ];
 
   return (
     <Pagina
@@ -493,6 +595,9 @@ export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) 
           </div>
         )}
         <span className="flex-1" />
+        {forma === "lista" && (
+          <SelectorColumnasTabla columnas={columnasTareas} pref={prefTabla} setPref={setPrefTabla} />
+        )}
         {forma === "pipeline" ? (
           <span className="text-[12.5px] text-text-3">Una columna por estado · arrastrá para cambiarlo</span>
         ) : (
@@ -524,6 +629,8 @@ export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) 
           </div>
         )}
       </div>
+
+      {ventana && <VentanaTarea tareaId={ventana} onCerrar={() => setVentana(null)} onCambio={cargar} />}
 
       {abierto && (
         <Ficha titulo={soloLectura ? "Visita de otra persona (solo lectura)" : editando ? "Editar tarea" : "Nueva tarea"}>
@@ -767,43 +874,32 @@ export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) 
           ))}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full min-w-[980px] border-collapse text-left text-sm">
-            <thead className="border-b bg-subtle">
-              <tr className="text-xs font-medium text-text-3">
-                <th className="px-3 py-2">Tipo</th>
-                <th className="px-3 py-2">Tarea</th>
-                <th className="px-3 py-2">Estado</th>
-                <th className="px-3 py-2">Fecha</th>
-                <th className="px-3 py-2">Contacto</th>
-                <th className="px-3 py-2">Oportunidad</th>
-                <th className="px-3 py-2" title="Propiedad relacionada: sale de la oportunidad">
-                  Edificio
-                </th>
-                {equipo.length > 0 && <th className="px-3 py-2">Responsable</th>}
+        <TablaConfigurable
+          columnas={columnasTareas}
+          filas={filasTabla}
+          pref={prefTabla}
+          setPref={setPrefTabla}
+          claveDe={(f) => (f.clase === "grupo" ? `g:${f.g.clave}` : f.t.id)}
+          onFila={(f) => f.clase === "tarea" && abrir(f.t)}
+          filaCompleta={(f, colSpan) =>
+            f.clase === "grupo" ? (
+              <tr className="border-b bg-card">
+                <td colSpan={colSpan} className="px-3 py-1.5">
+                  <CabeceraGrupo
+                    g={f.g}
+                    abierto={!plegado(f.g)}
+                    onAlternar={() => alternar(f.g.clave, plegado(f.g))}
+                    onAgregar={
+                      f.g.clave !== "todas" && grupoConAlta(f.g.clave as GrupoTarea, ahora)
+                        ? () => abrirNueva(fechaPropuesta(f.g.clave as GrupoTarea, ahora))
+                        : undefined
+                    }
+                  />
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {grupos.map((g) => (
-                <GrupoEnTabla
-                  key={g.clave}
-                  g={g}
-                  agrupado={agrupar}
-                  abierto={!plegado(g)}
-                  columnas={equipo.length > 0 ? 8 : 7}
-                  conResponsable={equipo.length > 0}
-                  onAlternar={() => alternar(g.clave, plegado(g))}
-                  onAgregar={
-                    g.clave !== "todas" && grupoConAlta(g.clave as GrupoTarea, ahora)
-                      ? () => abrirNueva(fechaPropuesta(g.clave as GrupoTarea, ahora))
-                      : undefined
-                  }
-                  onAbrir={abrir}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ) : null
+          }
+        />
       )}
     </Pagina>
   );
@@ -849,92 +945,6 @@ function CabeceraGrupo({
         </button>
       )}
     </div>
-  );
-}
-
-function GrupoEnTabla({
-  g,
-  agrupado,
-  abierto,
-  columnas,
-  conResponsable,
-  onAlternar,
-  onAgregar,
-  onAbrir,
-}: {
-  g: Grupo;
-  agrupado: boolean;
-  abierto: boolean;
-  columnas: number;
-  conResponsable: boolean;
-  onAlternar: () => void;
-  onAgregar?: () => void;
-  onAbrir: (t: TareaDto) => void;
-}) {
-  return (
-    <>
-      {agrupado && (
-        <tr className="border-b bg-card">
-          <td colSpan={columnas} className="px-3 py-1.5">
-            <CabeceraGrupo g={g} abierto={abierto} onAlternar={onAlternar} onAgregar={onAgregar} />
-          </td>
-        </tr>
-      )}
-      {abierto &&
-        g.tareas.map((t) => (
-          <tr
-            key={t.id}
-            className="cursor-pointer border-b last:border-0 hover:bg-accent/40"
-            onClick={() => onAbrir(t)}
-          >
-            <td className="px-3 py-2">
-              <span className="inline-flex items-center gap-2">
-                <IconoTipo tipo={t.tipo} />
-                <span className="text-text-2">{etiqueta(TIPOS_TAREA, t.tipo)}</span>
-              </span>
-            </td>
-            <td className="px-3 py-2 font-medium">
-              <span className="inline-flex items-center gap-1.5">
-                {t.creadaPor === "ia" && <MarcaIa />}
-                {t.titulo}
-              </span>
-            </td>
-            <td className="px-3 py-2">
-              <EstadoPill opciones={ESTADOS_TAREA} value={t.estado} />
-            </td>
-            <td className="whitespace-nowrap px-3 py-2 text-text-2">{fechaVisible(t.fecha)}</td>
-            <td className="px-3 py-2">{t.contactoNombre || "—"}</td>
-            <td className="px-3 py-2">
-              {t.oportunidadId ? (
-                <Link
-                  href={`/oportunidades/${t.oportunidadId}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-brand-ink hover:underline"
-                >
-                  {t.oportunidadNombre ?? "Oportunidad"}
-                </Link>
-              ) : (
-                "—"
-              )}
-            </td>
-            <td className="px-3 py-2">
-              {t.edificio ? <PildoraEdificio nombre={t.edificio.nombre} color={t.edificio.color} /> : "—"}
-            </td>
-            {conResponsable && (
-              <td className="px-3 py-2">
-                {t.responsableNombre ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <Iniciales nombre={t.responsableNombre} />
-                    {t.responsableNombre}
-                  </span>
-                ) : (
-                  <span className="text-text-3">Sin asignar</span>
-                )}
-              </td>
-            )}
-          </tr>
-        ))}
-    </>
   );
 }
 

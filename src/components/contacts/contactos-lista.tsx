@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Archive, ArchiveRestore, ArrowDown, ArrowUp, ChevronLeft, ChevronRight, MessageSquareText, Pencil, Search, Send, X } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, MessageSquareText, Pencil, Search, Send, X } from "lucide-react";
 import type { ContactDto } from "@/lib/types";
 import { paginasVisibles, POR_PAGINA_CONTACTOS, rangoMostrado, type OrdenContacto } from "@/lib/contactos-lista";
 import { TIPOS_CONTACTO } from "@/lib/ventas";
@@ -10,6 +10,7 @@ import { cn, formatPhone } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
 import { SOURCE_LABELS } from "@/server/contact-source";
 import { Select } from "@/components/ui/select";
+import { SelectorColumnasTabla, TablaConfigurable, usePrefTabla, type ColumnaTabla } from "@/components/ui/tabla-configurable";
 
 /**
  * Cambios 23/11, punto 8 — Contactos compacta: buscador y filtros como
@@ -65,14 +66,20 @@ export function ContactosLista({
 }) {
   const [q, setQ] = useState("");
   const [filtros, setFiltros] = useState<Valores>({});
-  const [orden, setOrden] = useState<{ clave: OrdenContacto; dir: "asc" | "desc" } | null>(null);
-  const [menuOrden, setMenuOrden] = useState<OrdenContacto | null>(null);
+  // v2, punto 5 — La tabla configurable; el orden lo resuelve el servidor (paginado).
+  const [prefTabla, setPrefTabla] = usePrefTabla("contactos");
+  const orden =
+    prefTabla.orden && (["nombre", "telefono", "creado"] as string[]).includes(prefTabla.orden.columna)
+      ? { clave: prefTabla.orden.columna as OrdenContacto, dir: prefTabla.orden.dir }
+      : null;
+  const setOrden = (o: null) => setPrefTabla({ ...prefTabla, orden: o });
+  const ordenClave = orden ? `${orden.clave}:${orden.dir}` : "";
   const [pagina, setPagina] = useState(1);
   const [datos, setDatos] = useState<{ items: ContactDto[]; total: number } | null>(null);
   const [error, setError] = useState(false);
 
   // Al buscar, filtrar u ordenar se vuelve a la página 1.
-  useEffect(() => setPagina(1), [q, filtros, orden]);
+  useEffect(() => setPagina(1), [q, filtros, ordenClave]);
 
   useEffect(() => {
     const ctl = new AbortController();
@@ -80,7 +87,7 @@ export function ContactosLista({
       const p = new URLSearchParams({ pagina: String(pagina), porPagina: String(POR_PAGINA_CONTACTOS) });
       if (q.trim()) p.set("q", q.trim());
       for (const [k, v] of Object.entries(filtros)) if (v) p.set(k, v);
-      if (orden) p.set("orden", `${orden.clave}:${orden.dir}`);
+      if (ordenClave) p.set("orden", ordenClave);
       const r = await fetch(`/api/contacts?${p.toString()}`, { signal: ctl.signal }).catch(() => null);
       if (ctl.signal.aborted) return;
       if (!r?.ok) {
@@ -94,7 +101,7 @@ export function ContactosLista({
       ctl.abort();
       window.clearTimeout(t);
     };
-  }, [q, filtros, orden, pagina, version]);
+  }, [q, filtros, ordenClave, pagina, version]);
 
   const total = datos?.total ?? 0;
   const paginas = Math.max(1, Math.ceil(total / POR_PAGINA_CONTACTOS));
@@ -111,6 +118,71 @@ export function ContactosLista({
             : "Z → A"
       }`
     : null;
+
+  const columnasContactos: ColumnaTabla<ContactDto>[] = [
+    {
+      clave: "nombre",
+      titulo: "Nombre",
+      ancho: 300,
+      fija: true,
+      valor: (c) => c.name,
+      criterioAsc: "A → Z",
+      criterioDesc: "Z → A",
+      celda: (c) => (
+        <span className="flex min-w-0 items-center gap-2.5">
+          <span className="shrink-0 [&>*]:size-7 [&>*]:text-[11px]">
+            <ContactAvatar name={c.name} seed={c.id} />
+          </span>
+          <span className="truncate font-medium">{c.name}</span>
+        </span>
+      ),
+    },
+    {
+      clave: "telefono",
+      titulo: "Teléfono",
+      ancho: 190,
+      valor: (c) => c.phone,
+      celda: (c) => <span className="tabular-nums text-text-2">{c.phone ? formatPhone(c.phone) : "—"}</span>,
+    },
+    {
+      clave: "creado",
+      titulo: "Creado",
+      ancho: 150,
+      valor: (c) => c.createdAt ?? null,
+      criterioAsc: "más viejo primero",
+      criterioDesc: "más nuevo primero",
+      celda: (c) => <span className="text-text-3">{fechaAlta(c.createdAt)}</span>,
+    },
+    {
+      clave: "acciones",
+      titulo: `${total.toLocaleString("es-AR")} contactos`,
+      ancho: 160,
+      fija: true,
+      alinear: "derecha",
+      celda: (c) => (
+        <span className="flex items-center justify-end gap-0.5 opacity-35 transition-opacity group-hover:opacity-100">
+          <button type="button" aria-label="Editar" title="Editar" onClick={() => onEditar(c)} className="grid size-7 place-items-center rounded-md hover:bg-accent">
+            <Pencil className="size-3.5" />
+          </button>
+          <button type="button" aria-label="Escribir primero" title="Escribir primero (con plantilla)" onClick={() => onEscribir(c)} className="grid size-7 place-items-center rounded-md hover:bg-accent">
+            <Send className="size-3.5" />
+          </button>
+          <Link href={`/inbox?contact=${c.id}`} aria-label="Abrir conversación" title="Abrir conversación" className="grid size-7 place-items-center rounded-md hover:bg-accent">
+            <MessageSquareText className="size-3.5" />
+          </Link>
+          <button
+            type="button"
+            aria-label={c.archivedAt ? "Desarchivar" : "Archivar"}
+            title={c.archivedAt ? "Desarchivar" : "Archivar"}
+            onClick={() => onArchivar(c)}
+            className="grid size-7 place-items-center rounded-md hover:bg-accent"
+          >
+            {c.archivedAt ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5" />}
+          </button>
+        </span>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-3">
@@ -185,6 +257,9 @@ export function ContactosLista({
             Limpiar
           </button>
         )}
+        <span className={cn("flex items-center gap-2", !ordenTexto && "ml-auto")}>
+          <SelectorColumnasTabla columnas={columnasContactos} pref={prefTabla} setPref={setPrefTabla} />
+        </span>
         {ordenTexto && (
           <span className="ml-auto inline-flex h-7 items-center gap-1 rounded-full bg-muted pl-2.5 pr-1 text-[12px] text-text-2">
             Orden: {ordenTexto}
@@ -197,106 +272,20 @@ export function ContactosLista({
 
       {error && <p className="text-sm text-danger-text">No se pudieron cargar los contactos.</p>}
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
-        <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1fr)_auto] items-center border-b px-4 py-2 text-[12px] font-medium text-text-3">
-          {COLUMNAS.map((c) => (
-            <span key={c.clave} className="relative">
-              <button
-                type="button"
-                onClick={() => setMenuOrden(menuOrden === c.clave ? null : c.clave)}
-                className={cn("inline-flex items-center gap-1 hover:text-foreground", orden?.clave === c.clave && "text-foreground")}
-              >
-                {c.titulo}
-                {orden?.clave === c.clave && (orden.dir === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
-              </button>
-              {menuOrden === c.clave && (
-                <span className="absolute left-0 top-6 z-20 flex w-40 flex-col rounded-lg border bg-popover p-1 text-[13px] text-foreground shadow-pop">
-                  {(
-                    [
-                      ["asc", "Ordenar ↑"],
-                      ["desc", "Ordenar ↓"],
-                    ] as const
-                  ).map(([dir, t]) => (
-                    <button
-                      key={dir}
-                      type="button"
-                      onClick={() => {
-                        setOrden({ clave: c.clave, dir });
-                        setMenuOrden(null);
-                      }}
-                      className="rounded-md px-2 py-1.5 text-left hover:bg-accent"
-                    >
-                      {t}
-                    </button>
-                  ))}
-                  {orden?.clave === c.clave && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOrden(null);
-                        setMenuOrden(null);
-                      }}
-                      className="rounded-md px-2 py-1.5 text-left text-text-2 hover:bg-accent"
-                    >
-                      Quitar orden
-                    </button>
-                  )}
-                </span>
-              )}
-            </span>
-          ))}
-          <span className="text-right">{total.toLocaleString("es-AR")} contactos</span>
-        </div>
-        {datos && datos.items.length === 0 ? (
-          <p className="px-4 py-10 text-center text-sm text-text-3">
-            {q || activos.length ? "Nadie coincide con la búsqueda." : "Todavía no hay contactos."}
-          </p>
-        ) : (
-          <ul>
-            {(datos?.items ?? []).map((c) => (
-              <li
-                key={c.id}
-                className="group grid h-11 grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1fr)_auto] items-center border-b px-4 text-[13px] last:border-0 hover:bg-subtle"
-              >
-                <span className="flex min-w-0 items-center gap-2.5">
-                  <span className="shrink-0 [&>*]:size-7 [&>*]:text-[11px]">
-                    <ContactAvatar name={c.name} seed={c.id} />
-                  </span>
-                  <span className="truncate font-medium">{c.name}</span>
-                </span>
-                <span className="truncate tabular-nums text-text-2">{c.phone ? formatPhone(c.phone) : "—"}</span>
-                <span className="text-text-3">{fechaAlta(c.createdAt)}</span>
-                <span className="flex items-center gap-0.5 opacity-35 transition-opacity group-hover:opacity-100">
-                  <button type="button" aria-label="Editar" title="Editar" onClick={() => onEditar(c)} className="grid size-7 place-items-center rounded-md hover:bg-accent">
-                    <Pencil className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Escribir primero"
-                    title="Escribir primero (con plantilla)"
-                    onClick={() => onEscribir(c)}
-                    className="grid size-7 place-items-center rounded-md hover:bg-accent"
-                  >
-                    <Send className="size-3.5" />
-                  </button>
-                  <Link href={`/inbox?contact=${c.id}`} aria-label="Abrir conversación" title="Abrir conversación" className="grid size-7 place-items-center rounded-md hover:bg-accent">
-                    <MessageSquareText className="size-3.5" />
-                  </Link>
-                  <button
-                    type="button"
-                    aria-label={c.archivedAt ? "Desarchivar" : "Archivar"}
-                    title={c.archivedAt ? "Desarchivar" : "Archivar"}
-                    onClick={() => onArchivar(c)}
-                    className="grid size-7 place-items-center rounded-md hover:bg-accent"
-                  >
-                    {c.archivedAt ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5" />}
-                  </button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {datos && datos.items.length === 0 ? (
+        <p className="rounded-xl border border-border bg-card px-4 py-10 text-center text-sm text-text-3">
+          {q || activos.length ? "Nadie coincide con la búsqueda." : "Todavía no hay contactos."}
+        </p>
+      ) : (
+        <TablaConfigurable
+          columnas={columnasContactos}
+          filas={datos?.items ?? []}
+          pref={prefTabla}
+          setPref={setPrefTabla}
+          claveDe={(c) => c.id}
+          ordenExterno
+        />
+      )}
 
       {total > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-text-3">
