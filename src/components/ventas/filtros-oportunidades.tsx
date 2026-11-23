@@ -123,7 +123,7 @@ export function useVistas<F extends FilaFiltrable>({
       if (temporales) {
         setFiltros(temporales);
         const url = new URL(window.location.href);
-        for (const k of ["responsable", "estado", "edificio", "origen", "sinPrimerContacto", "paraCerrar", "situacion"]) {
+        for (const k of ["responsable", "estado", "edificio", "origen", "sinPrimerContacto", "paraCerrar", "situacion", "visitaDesde", "visitaHasta"]) {
           url.searchParams.delete(k);
         }
         window.history.replaceState(null, "", url.pathname + url.search);
@@ -580,6 +580,27 @@ export function BarraDeFiltros({
             </>
           )}
         </Menu>
+      )}
+
+      {f.visitaRealizada && (
+        <span className="inline-flex h-7 items-center gap-1 rounded-full bg-brand-tint pl-3 pr-1 text-brand-ink">
+          Tuvo visita realizada:{" "}
+          <strong className="font-semibold">
+            {f.visitaRealizada.desde.split("-").reverse().join("/")} – {f.visitaRealizada.hasta.split("-").reverse().join("/")}
+          </strong>
+          <button
+            type="button"
+            aria-label="Quitar el filtro de visita"
+            onClick={() => {
+              const resto = { ...f };
+              delete resto.visitaRealizada;
+              v.setFiltros(resto);
+            }}
+            className="grid size-5 place-items-center rounded-full hover:bg-brand-veil"
+          >
+            <X className="size-3" />
+          </button>
+        </span>
       )}
 
       {(activas.length > 0 || responsables.length > 0 || f.situacion !== "abiertas") && (

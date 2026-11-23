@@ -29,6 +29,13 @@ export const filtrosSchema = z
     sinPrimerContacto: z.boolean().optional(),
     /** Abiertas (Recibido…Visitó) o cerradas (Reservó, Compró, Perdido, No calificado). */
     situacion: z.enum(["abiertas", "cerradas"]).optional(),
+    /**
+     * Resultados → «Ver en Oportunidades»: las que tuvieron una visita
+     * realizada entre esas fechas (lo resuelve el servidor).
+     */
+    visitaRealizada: z
+      .object({ desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })
+      .optional(),
   })
   .strict();
 
@@ -114,6 +121,9 @@ export function filtrosDeLaUrl(params: URLSearchParams): Filtros | null {
   const origenes = lista("origen");
   if (origenes.length) f.origenes = origenes.slice(0, 100);
   if (si("sinPrimerContacto")) f.sinPrimerContacto = true;
+  const visitaDesde = params.get("visitaDesde");
+  const visitaHasta = params.get("visitaHasta");
+  if (visitaDesde && visitaHasta) f.visitaRealizada = { desde: visitaDesde, hasta: visitaHasta };
   if (si("paraCerrar")) f.paraCerrar = true;
   if (Object.keys(f).length === 0 && !params.has("situacion")) return null;
   const situacion = params.get("situacion");
@@ -168,7 +178,7 @@ export function cumpleFiltros(f: FilaFiltrable, filtros: Filtros, yo: string | n
 export function limpiarFiltros(f: Filtros): Filtros {
   const out: Filtros = {};
   for (const [k, v] of Object.entries(f) as [keyof Filtros, unknown][]) {
-    if (Array.isArray(v) ? v.length > 0 : v === true || typeof v === "string") {
+    if (Array.isArray(v) ? v.length > 0 : v === true || typeof v === "string" || (typeof v === "object" && v !== null)) {
       (out as Record<string, unknown>)[k] = Array.isArray(v) ? [...v].sort() : v;
     }
   }
