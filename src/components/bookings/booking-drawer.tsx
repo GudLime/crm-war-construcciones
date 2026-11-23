@@ -299,7 +299,7 @@ export function BookingDrawer({
  * agendaba la IA) recalculaba la disponibilidad de toda la ventana aunque
  * nadie estuviera reprogramando.
  */
-function Reschedule({
+export function Reschedule({
   today,
   busy,
   onCancel,

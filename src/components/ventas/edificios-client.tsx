@@ -16,9 +16,6 @@ import {
   EstadoPill,
   Ficha,
   Pagina,
-  Tabla,
-  Td,
-  Th,
   grilla,
   mensajeDe,
   useMoneda,
@@ -26,11 +23,61 @@ import {
 import { ImportarUnidades } from "./importar-unidades";
 import { Select } from "@/components/ui/select";
 import { tonoDeEdificio } from "@/lib/colores-edificio";
+import { SelectorColumnasTabla, TablaConfigurable, usePrefTabla, type ColumnaTabla } from "@/components/ui/tabla-configurable";
 
 const vacio = { nombre: "", direccion: "", estado: "en_construccion", enVenta: "" };
 
+/** v2, punto 5 — Las columnas de la lista de edificios (tabla configurable). */
+const columnasEdificios: ColumnaTabla<EdificioDto>[] = [
+  {
+    clave: "nombre",
+    titulo: "Edificio",
+    ancho: 280,
+    fija: true,
+    valor: (e) => e.nombre,
+    criterioAsc: "A → Z",
+    criterioDesc: "Z → A",
+    celda: (e) => (
+      <span className="inline-flex min-w-0 items-center gap-2">
+        <Link href={`/edificios/${e.id}`} className="inline-flex min-w-0 items-center gap-2 font-medium hover:underline">
+          <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: tonoDeEdificio(e.color).punto }} />
+          <span className="truncate">{e.nombre}</span>
+        </Link>
+        {e.memoriaAgente && (
+          <span
+            className="shrink-0 rounded-full border border-brand bg-brand-soft px-2 py-0.5 text-[11px] text-brand-text"
+            title="El agente conoce este edificio"
+          >
+            En memoria del agente
+          </span>
+        )}
+      </span>
+    ),
+  },
+  { clave: "direccion", titulo: "Dirección", ancho: 240, valor: (e) => e.direccion ?? null, celda: (e) => <span className="text-text-2">{e.direccion || "—"}</span> },
+  {
+    clave: "estado",
+    titulo: "Estado",
+    ancho: 160,
+    valor: (e) => e.estado,
+    celda: (e) => <EstadoPill opciones={ESTADOS_EDIFICIO} value={e.estado} />,
+  },
+  { clave: "enVenta", titulo: "En venta", ancho: 200, valor: (e) => e.enVenta ?? null, celda: (e) => <span className="text-text-2">{e.enVenta || "—"}</span> },
+  {
+    clave: "unidades",
+    titulo: "Unidades",
+    ancho: 110,
+    alinear: "derecha",
+    valor: (e) => e.departamentos,
+    criterioAsc: "menos primero",
+    criterioDesc: "más primero",
+    celda: (e) => <span className="tabular-nums">{e.departamentos}</span>,
+  },
+];
+
 export function EdificiosClient() {
   const [edificios, setEdificios] = useState<EdificioDto[]>([]);
+  const [prefTabla, setPrefTabla] = usePrefTabla("edificios");
   const [abierto, setAbierto] = useState(false);
   const [form, setForm] = useState(vacio);
   const [error, setError] = useState<string | null>(null);
@@ -87,10 +134,13 @@ export function EdificiosClient() {
       titulo="Edificios"
       detalle="Cada edificio agrupa sus departamentos."
       accion={
-        <Button size="sm" onClick={() => setAbierto((v) => !v)}>
-          <Plus className="h-4 w-4" strokeWidth={1.8} />
-          Nuevo edificio
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {edificios.length > 0 && <SelectorColumnasTabla columnas={columnasEdificios} pref={prefTabla} setPref={setPrefTabla} />}
+          <Button size="sm" onClick={() => setAbierto((v) => !v)}>
+            <Plus className="h-4 w-4" strokeWidth={1.8} />
+            Nuevo edificio
+          </Button>
+        </div>
       }
     >
       {abierto && (
@@ -201,47 +251,13 @@ export function EdificiosClient() {
           }
         />
       ) : edificios.length > 0 ? (
-        <Tabla>
-          <thead className="border-b bg-secondary/40">
-            <tr>
-              <Th>Edificio</Th>
-              <Th>Dirección</Th>
-              <Th>Estado</Th>
-              <Th>En venta</Th>
-              <Th className="text-right">Unidades</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {edificios.map((e) => (
-              <tr key={e.id} className="border-b last:border-0 hover:bg-accent/40">
-                <Td>
-                  <Link href={`/edificios/${e.id}`} className="inline-flex items-center gap-2 font-medium hover:underline">
-                    <span
-                      aria-hidden
-                      className="size-2.5 shrink-0 rounded-full"
-                      style={{ background: tonoDeEdificio(e.color).punto }}
-                    />
-                    {e.nombre}
-                  </Link>
-                  {e.memoriaAgente && (
-                    <span
-                      className="ml-2 rounded-full border border-brand bg-brand-soft px-2 py-0.5 text-[11px] text-brand-text"
-                      title="El agente conoce este edificio"
-                    >
-                      En memoria del agente
-                    </span>
-                  )}
-                </Td>
-                <Td className="text-text-2">{e.direccion || "—"}</Td>
-                <Td>
-                  <EstadoPill opciones={ESTADOS_EDIFICIO} value={e.estado} />
-                </Td>
-                <Td className="text-text-2">{e.enVenta || "—"}</Td>
-                <Td className="text-right tabular-nums">{e.departamentos}</Td>
-              </tr>
-            ))}
-          </tbody>
-        </Tabla>
+        <TablaConfigurable
+          columnas={columnasEdificios}
+          filas={edificios}
+          pref={prefTabla}
+          setPref={setPrefTabla}
+          claveDe={(e) => e.id}
+        />
       ) : null}
     </Pagina>
   );

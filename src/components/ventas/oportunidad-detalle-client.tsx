@@ -55,6 +55,7 @@ import { SugeridasParaEstaEtapa } from "@/components/ventas/sugeridas";
 import { cn } from "@/lib/utils";
 import { colorDeEtapa } from "@/lib/colores-etapa";
 import { ResultadoLlamada } from "./resultado-llamada";
+import { MarcaIa } from "./tareas-client";
 import {
   TIPOS_CONTACTO,
   TIPOS_OPORTUNIDAD,
@@ -1058,7 +1059,10 @@ function ProximoFila({
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-          <p className="text-[14px] font-semibold">{titulo}</p>
+          <p className="inline-flex items-center gap-1.5 text-[14px] font-semibold">
+            {esTarea && paso.tarea.creadaPor === "ia" && <MarcaIa />}
+            {titulo}
+          </p>
           {paso.at && (
             <time dateTime={paso.at} className="text-[12px] font-semibold text-brand-ink">
               {cuandoFalta(paso.at)}
@@ -1076,7 +1080,15 @@ function ProximoFila({
           />
         )}
         {esTarea && paso.tarea.tipo !== "llamada" && (
-          <div className="mt-1.5 flex gap-1.5">
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {paso.tarea.creadaPor === "ia" && paso.tarea.conversationId && (
+              <Link
+                href={`/inbox?conversation=${paso.tarea.conversationId}`}
+                className="inline-flex h-[26px] items-center rounded-full bg-brand px-2.5 text-[12px] font-semibold text-brand-fg"
+              >
+                Responder en Bandeja
+              </Link>
+            )}
             <button
               type="button"
               onClick={() => void onMarcar(paso.tarea, "listo")}
