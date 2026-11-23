@@ -83,7 +83,7 @@ describe("ajustes en tres secciones", () => {
     expect(links(sections)).toEqual({
       Canales: ["WhatsApp"],
       Agente: ["IA"],
-      Negocio: ["Marca", "Apariencia", "Plantillas", "Respuestas rápidas", "Orígenes", "Ventas", "Equipo"],
+      Negocio: ["Marca", "Apariencia", "Plantillas", "Respuestas rápidas", "Orígenes", "Ventas", "Plantillas de tareas", "Equipo"],
     });
   });
 
@@ -92,7 +92,7 @@ describe("ajustes en tres secciones", () => {
     expect(links(settingsSections({ messenger: true }))).toEqual({
       Canales: ["Estado", "WhatsApp", "Messenger"],
       Agente: ["IA"],
-      Negocio: ["Marca", "Apariencia", "Plantillas", "Respuestas rápidas", "Orígenes", "Ventas", "Equipo"],
+      Negocio: ["Marca", "Apariencia", "Plantillas", "Respuestas rápidas", "Orígenes", "Ventas", "Plantillas de tareas", "Equipo"],
     });
     expect(links(settingsSections({ instagram: true })).Canales).toEqual([
       "Estado",
@@ -105,12 +105,12 @@ describe("ajustes en tres secciones", () => {
     expect(links(settingsSections({ agenda: true }))).toEqual({
       Canales: ["WhatsApp"],
       Agente: ["IA", "Agenda"],
-      Negocio: ["Marca", "Apariencia", "Plantillas", "Respuestas rápidas", "Orígenes", "Ventas", "Equipo"],
+      Negocio: ["Marca", "Apariencia", "Plantillas", "Respuestas rápidas", "Orígenes", "Ventas", "Plantillas de tareas", "Equipo"],
     });
     expect(links(settingsSections({ atribucion: true }))).toEqual({
       Canales: ["WhatsApp"],
       Agente: ["IA"],
-      Negocio: ["Marca", "Apariencia", "Plantillas", "Respuestas rápidas", "Orígenes", "Ventas", "Equipo", "Anuncios"],
+      Negocio: ["Marca", "Apariencia", "Plantillas", "Respuestas rápidas", "Orígenes", "Ventas", "Plantillas de tareas", "Equipo", "Anuncios"],
     });
   });
 

@@ -150,6 +150,7 @@ export function settingsSections({
   instagram = false,
   messenger = false,
   tiktok = false,
+  tareas = true,
 }: {
   agenda?: boolean;
   /** 071 — "Reservas" solo si la instancia toma reservas (bandera RESERVAS). */
@@ -162,6 +163,8 @@ export function settingsSections({
   messenger?: boolean;
   /** 022 — "TikTok", igual: solo con el canal en CHANNELS. */
   tiktok?: boolean;
+  /** 0059 — "Plantillas de tareas", salvo en una instancia sin tareas (071). */
+  tareas?: boolean;
 }): SettingsSection[] {
   const canales: SettingsLink[] = [];
   // 023 — "Estado" reúne todos los canales; con WhatsApp solo no aporta nada
@@ -189,6 +192,8 @@ export function settingsSections({
     { href: "/settings/origenes", label: "Orígenes" },
     // War — sin respuesta, cierre por silencio y reapertura.
     { href: "/settings/ventas", label: "Ventas" },
+    // 0059 — qué tareas se le sugieren al vendedor en cada etapa.
+    ...(tareas ? [{ href: "/settings/tareas", label: "Plantillas de tareas" }] : []),
     { href: "/settings/team", label: "Equipo" },
   ];
   if (reservas) {
