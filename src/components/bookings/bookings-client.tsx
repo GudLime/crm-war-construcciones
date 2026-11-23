@@ -33,7 +33,20 @@ import { BookingDrawer, type ActResult } from "./booking-drawer";
 import type { Booking } from "./booking-look";
 import { CalendarToolbar } from "./calendar-toolbar";
 import { MonthGrid } from "./month-grid";
-import { TimeGrid } from "./time-grid";
+import { TimeGrid, type TareaCal } from "./time-grid";
+
+/**
+ * Cambios 23/11, punto 2 — El mismo calendario, dentro de Tareas
+ * (`/tareas?vista=calendario`): suma las tareas a la rejilla de Día y Semana,
+ * guarda su vista en `cal` (no en `vista`, que es de Tareas) y, sin la agenda
+ * encendida, no pide citas.
+ */
+export type CalendarioEmbebido = {
+  tareas: TareaCal[];
+  onSelectTarea: (t: TareaCal) => void;
+  renderIconoTarea?: (tipo: string) => React.ReactNode;
+  conCitas: boolean;
+};
 
 /**
  * 015 → 215 — Citas: lo agendado por el operador y por la IA, en un
@@ -79,7 +92,9 @@ export function BookingsClient({
   initialListTo,
   timezone: initialTimezone,
   weeklyHours: initialWeeklyHours,
+  embebido,
 }: {
+  embebido?: CalendarioEmbebido;
   initialView: CalendarView | null;
   initialDate: string;
   initialListTo: string | null;
@@ -104,6 +119,7 @@ export function BookingsClient({
   const [notice, setNotice] = useState<string | null>(null);
   const [now, setNow] = useState<number | null>(null);
   const seq = useRef(0);
+  const embebidoRef = useRef(Boolean(embebido));
 
   useEffect(() => {
     setShowCancelled(readPref(CANCELLED_KEY) === "1");
@@ -132,9 +148,14 @@ export function BookingsClient({
   const rangeRef = useRef(rangeKey);
   rangeRef.current = rangeKey;
 
+  const conCitas = embebido?.conCitas ?? true;
   const load = useCallback(async (key: string) => {
     const [from, to] = key.split("|") as [string, string];
     const id = ++seq.current;
+    if (!conCitas) {
+      setLoaded({ key, bookings: [], truncated: false });
+      return;
+    }
     setLoading(true);
     const res = await fetch(`/api/bookings?from=${from}&to=${to}`).catch(() => null);
     const data = res?.ok
@@ -156,7 +177,7 @@ export function BookingsClient({
     setTimezone(data.timezone);
     setWeeklyHours(data.weeklyHours);
     setLoaded({ key, bookings: data.bookings, truncated: Boolean(data.truncated) });
-  }, []);
+  }, [conCitas]);
 
   const reload = useCallback(async () => {
     if (rangeRef.current) await load(rangeRef.current);
@@ -177,7 +198,12 @@ export function BookingsClient({
   // La URL dice lo que se está viendo: recargar o compartir abre ahí mismo.
   useEffect(() => {
     if (!view) return;
-    const params = new URLSearchParams({ vista: view });
+    // Dentro de Tareas, la vista del calendario va en `cal` y se respeta lo demás.
+    const params = embebidoRef.current ? new URLSearchParams(window.location.search) : new URLSearchParams();
+    params.set(embebidoRef.current ? "cal" : "vista", view);
+    params.delete("desde");
+    params.delete("hasta");
+    params.delete("fecha");
     if (view === "lista") {
       params.set("desde", anchor);
       params.set("hasta", clampListTo(anchor, listTo));
@@ -308,9 +334,11 @@ export function BookingsClient({
   if (!view || !range || !today) {
     return (
       <div className="flex h-full flex-col">
-        <header className="border-b px-4 py-3 sm:px-6 sm:py-4">
-          <h2 className="text-[17px] font-bold tracking-tight">Citas</h2>
-        </header>
+        {!embebido && (
+          <header className="border-b px-4 py-3 sm:px-6 sm:py-4">
+            <h2 className="text-[17px] font-bold tracking-tight">Citas</h2>
+          </header>
+        )}
         <p className="p-6 text-sm text-text-3">Cargando…</p>
       </div>
     );
@@ -392,6 +420,9 @@ export function BookingsClient({
                 onSelect={select}
                 onEmptySlot={(day, time) => openBlock(day, time)}
                 onOpenDay={openDay}
+                tareas={embebido?.tareas}
+                onSelectTarea={embebido?.onSelectTarea}
+                renderIconoTarea={embebido?.renderIconoTarea}
               />
             ) : view === "mes" ? (
               <MonthGrid

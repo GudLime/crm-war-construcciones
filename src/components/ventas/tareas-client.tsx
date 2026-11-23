@@ -177,7 +177,19 @@ function Iniciales({ nombre, className }: { nombre: string; className?: string }
 /** Lo que manda /api/tareas: la tarea y si quien mira la puede cambiar. */
 type Tarea = TareaDto & { editable?: boolean };
 
-export function TareasClient() {
+/** Cambios 23/11, punto 2 — Lo que necesita la vista Calendario (lo resuelve el servidor). */
+export type CalendarioTareas = {
+  agenda: boolean;
+  timezone: string;
+  weeklyHours: WeeklyHours;
+  hoy: string;
+  vista: CalendarView | null;
+  fecha: string | null;
+};
+
+type FormaTareas = FormaDeVer | "calendario";
+
+export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) {
   const avisar = useAvisoGuardado();
   const [filas, setFilas] = useState<Tarea[]>([]);
   const [contactos, setContactos] = useState<Contacto[]>([]);
@@ -209,7 +221,7 @@ export function TareasClient() {
     if (l.temporal) setTemporal(l.temporal);
     if (l.estado || l.temporal || l.responsableYo || l.responsableId) window.history.replaceState(null, "", window.location.pathname);
   }, []);
-  const [forma, setForma] = useState<FormaDeVer>("lista");
+  const [forma, setForma] = useState<FormaTareas>("lista");
   const [agrupar, setAgrupar] = useState(true);
   const [plegados, setPlegados] = useState<Partial<Record<GrupoTarea, boolean>>>({});
   const [abierto, setAbierto] = useState(false);
@@ -223,16 +235,19 @@ export function TareasClient() {
   useEffect(() => {
     try {
       const g = JSON.parse(window.localStorage.getItem(GUARDADO) ?? "null") as {
-        forma?: FormaDeVer;
+        forma?: FormaTareas;
         agrupar?: boolean;
       } | null;
-      if (g?.forma) setForma(g.forma);
+      // `?vista=calendario` (lo que era Citas) manda sobre lo recordado.
+      const pedida = new URLSearchParams(window.location.search).get("vista");
+      if (pedida === "calendario" && calendario) setForma("calendario");
+      else if (g?.forma && (g.forma !== "calendario" || calendario)) setForma(g.forma);
       if (typeof g?.agrupar === "boolean") setAgrupar(g.agrupar);
     } catch {
       // sin almacenamiento
     }
   }, []);
-  function recordar(cambios: { forma?: FormaDeVer; agrupar?: boolean }) {
+  function recordar(cambios: { forma?: FormaTareas; agrupar?: boolean }) {
     try {
       window.localStorage.setItem(GUARDADO, JSON.stringify({ forma, agrupar, ...cambios }));
     } catch {
@@ -385,9 +400,14 @@ export function TareasClient() {
         <div className="flex flex-wrap items-center gap-2">
           <SelectorDeForma
             forma={forma}
+            conCalendario={Boolean(calendario)}
             onCambio={(f) => {
               setForma(f);
               recordar({ forma: f });
+              const u = new URL(window.location.href);
+              if (f === "calendario") u.searchParams.set("vista", "calendario");
+              else for (const k of ["vista", "cal", "fecha", "desde", "hasta"]) u.searchParams.delete(k);
+              window.history.replaceState(null, "", u.toString());
             }}
           />
           <Button size="sm" onClick={() => abrirNueva()}>
@@ -621,7 +641,37 @@ export function TareasClient() {
         </Ficha>
       )}
 
-      {listo && filas.length === 0 && !abierto ? (
+      {forma === "calendario" && calendario ? (
+        // Las citas y las tareas juntas (lo que era la página Citas), con los filtros de la página.
+        <div className="flex h-[calc(100vh-220px)] min-h-[520px] flex-col">
+          <BookingsClient
+            initialView={calendario.vista}
+            initialDate={calendario.fecha ?? calendario.hoy}
+            initialListTo={null}
+            timezone={calendario.timezone}
+            weeklyHours={calendario.weeklyHours}
+            embebido={{
+              conCitas: calendario.agenda,
+              tareas: visibles
+                .filter((t) => t.fecha && (!calendario.agenda || (t.tipo !== "visita" && t.tipo !== "reunion")))
+                .map((t) => ({
+                  id: t.id,
+                  titulo: t.titulo,
+                  tipo: t.tipo,
+                  estado: t.estado,
+                  fecha: t.fecha!,
+                  contacto: t.contactoNombre,
+                  edificio: t.edificio?.nombre ?? null,
+                })),
+              onSelectTarea: (tc) => {
+                const t = filas.find((x) => x.id === tc.id);
+                if (t) abrir(t);
+              },
+              renderIconoTarea: (tipo) => <IconoTipo tipo={tipo} />,
+            }}
+          />
+        </div>
+      ) : listo && filas.length === 0 && !abierto ? (
         <EmptyState
           icon={ListTodo}
           title="No hay tareas"

@@ -521,3 +521,15 @@ oscuro) y las bandas del embudo de Resultados.
 - **«Llamada sin atender»**: la última llamada marcada quedó «No atendió» y el
   cliente no escribió después → plantilla de fábrica «Avisar que lo llamamos»
   (la migración la siembra en las organizaciones que ya tenían plantillas).
+
+## Calendario en Tareas (cambios 23/11, punto 2)
+
+- `/tareas` suma la forma **Calendario** (`SelectorDeForma` con
+  `conCalendario`): es el mismo calendario de Citas (`BookingsClient` con
+  `embebido`: vista en `?cal=`, sin pedir citas si la agenda está apagada) con
+  las tareas del filtro de la página como bloques de 30 min en Día y Semana
+  (`TareaCal` en `time-grid.tsx`, barrita del color del tipo; las hechas,
+  atenuadas y tachadas). Tocar una tarea abre su edición; tocar una cita, el
+  panel de siempre (confirmar, reprogramar, cancelar, bloquear).
+- **Citas se puede ocultar** (`menu.ocultar: ["bookings"]`): `/bookings`
+  redirige a `/tareas?vista=calendario`. En el núcleo sigue visible.

@@ -5,6 +5,7 @@ import { clampListTo, isCalendarView, isIsoDate } from "@/lib/time/calendar";
 import { todayInTz } from "@/lib/time/slots";
 import { agendaEnabled } from "@/server/agenda/flag";
 import { getSettings } from "@/server/agenda/settings";
+import { pantallaApagada } from "@/server/vocabulario";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,8 @@ export default async function BookingsPage({
 }) {
   // Sin la bandera esta pantalla no existe en esta instancia.
   if (!agendaEnabled()) notFound();
+  // Cambios 23/11 — Un cliente que oculta Citas las ve en el Calendario de Tareas.
+  if (await pantallaApagada("bookings")) redirect("/tareas?vista=calendario");
   const session = await getSessionOrNull();
   if (!session) redirect("/login");
 
