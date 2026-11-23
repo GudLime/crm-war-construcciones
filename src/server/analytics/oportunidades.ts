@@ -1,4 +1,4 @@
-import { gte, inArray, isNotNull, lt, sql, type SQL } from "drizzle-orm";
+import { eq, gte, inArray, isNotNull, lt, sql, type SQL } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import {
@@ -219,7 +219,7 @@ export async function estadisticasOportunidades(
       return [] as Dimension[];
     }),
   ]);
-  return calcularEstadisticas({
+  const dto = calcularEstadisticas({
     period: period.dto,
     bloques: tablero.bloques,
     oportunidades: ops,
@@ -229,4 +229,41 @@ export async function estadisticasOportunidades(
     verPor: pedido.verPor === undefined ? tablero.verPor : pedido.verPor || null,
     filtros: pedido.filtros,
   });
+  return { ...dto, porEdificio: await consultasPorEdificio(organizationId, ids) };
+}
+
+/** Cuántas consultas del período tiene cada edificio (por el interés o el edificio principal). */
+async function consultasPorEdificio(
+  organizationId: string,
+  ids: string[]
+): Promise<NonNullable<EstadisticasOportunidadesDto["porEdificio"]>> {
+  if (!ids.length) return [];
+  const cuenta = new Map<string, Set<string>>();
+  for (const lote of lotes(ids)) {
+    const lista = sql.join(
+      lote.map((x) => sql`${x}`),
+      sql`, `
+    );
+    const filas = (await getDb().execute(sql`
+      select oe.oportunidad_id as o, oe.edificio_id as e from ${schema.oportunidadEdificio} oe
+        where oe.organization_id = ${organizationId} and oe.oportunidad_id in (${lista})
+      union
+      select o.id as o, o.edificio_id as e from ${schema.oportunidad} o
+        where o.organization_id = ${organizationId} and o.id in (${lista}) and o.edificio_id is not null
+    `)) as unknown as { o: string; e: string }[];
+    for (const f of filas) {
+      const s = cuenta.get(String(f.e)) ?? new Set<string>();
+      s.add(String(f.o));
+      cuenta.set(String(f.e), s);
+    }
+  }
+  if (!cuenta.size) return [];
+  const edificios = await getDb()
+    .select({ id: schema.edificio.id, nombre: schema.edificio.nombre, color: schema.edificio.color })
+    .from(schema.edificio)
+    .where(eq(schema.edificio.organizationId, organizationId));
+  return edificios
+    .filter((e) => cuenta.has(e.id))
+    .map((e) => ({ id: e.id, nombre: e.nombre, color: e.color ?? null, n: cuenta.get(e.id)!.size }))
+    .sort((a, b) => b.n - a.n);
 }
