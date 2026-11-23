@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
 import { LINKS_INICIO, VENTANA_URGENTE_MIN, quedan, type VentanaPorCerrar, type VisitaDeHoy } from "@/lib/inicio";
+import { tonoDeEdificio } from "@/lib/colores-edificio";
 import { cn } from "@/lib/utils";
 
 function hora(iso: string, zona: string): string {
@@ -79,7 +80,7 @@ export function VisitasDeHoy({
                   <p className="flex flex-wrap items-center gap-1 text-[11.5px] text-text-3">
                     {v.edificio && (
                       <span className="inline-flex items-center gap-1">
-                        <span className="size-2 rounded-full" style={{ background: v.edificio.color ?? "var(--text-3)" }} />
+                        <span className="size-2 rounded-full" style={{ background: tonoDeEdificio(v.edificio.color).punto }} />
                         {v.edificio.nombre}
                       </span>
                     )}

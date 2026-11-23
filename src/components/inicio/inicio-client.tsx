@@ -13,6 +13,8 @@ import { LeadsCalientes, NuevasParaVos, useIconosDeOrigen } from "./oportunidade
 import { TuDia } from "./tu-dia";
 import { TuSemana } from "./tu-semana";
 import { VentanasPorCerrar, VisitasDeHoy } from "./visitas-de-hoy";
+import { useVocabulario } from "@/components/vocabulario";
+import { enFrase, estadoVisible } from "@/lib/vocabulario";
 import { DERIVADA_URGENTE_MIN, fechaLarga, hace, linksPara, saludo, type InicioDto } from "@/lib/inicio";
 
 /** La hora (0–23) en la zona del negocio. */
@@ -92,6 +94,9 @@ function Tarjeta({
  * volver a la pestaña y cada minuto.
  */
 export function InicioClient() {
+  const voc = useVocabulario();
+  // 071 — «Leads calientes» es la etapa Visitó: si esta instancia no la usa, no hay bloque.
+  const conCalientes = estadoVisible(voc, "visito");
   const [datos, setDatos] = useState<InicioDto | null>(null);
   const [error, setError] = useState(false);
 
@@ -167,7 +172,7 @@ export function InicioClient() {
           )}
           <Link href="/oportunidades?nueva=1" className={buttonVariants({ size: "sm" })}>
             <Plus className="h-4 w-4" strokeWidth={1.8} />
-            Nueva oportunidad
+            Nueva {enFrase(voc.singular)}
           </Link>
         </div>
       }
@@ -183,7 +188,7 @@ export function InicioClient() {
             numero={c.nuevas}
             contexto="Asignadas a vos y sin primer contacto"
             boton={{
-              texto: "Revisar en Oportunidades",
+              texto: `Revisar en ${voc.plural}`,
               href: links.nuevas,
               filtro: `Responsable ${yo} · Sin primer contacto`,
             }}
@@ -245,6 +250,7 @@ export function InicioClient() {
               filtro: "Derivadas sin tomar",
             }}
           />
+          {conCalientes && (
           <Tarjeta
             titulo="Leads calientes"
             icono={Flame}
@@ -252,11 +258,12 @@ export function InicioClient() {
             numero={c.calientes}
             contexto="Ya visitaron y siguen abiertas"
             boton={{
-              texto: "Revisar en Oportunidades",
+              texto: `Revisar en ${voc.plural}`,
               href: links.calientes,
               filtro: `Responsable ${yo} · Estado: Visitó`,
             }}
           />
+          )}
         </div>
       )}
       {c && datos && (
@@ -269,13 +276,15 @@ export function InicioClient() {
               onCambio={() => void cargar()}
             />
             <NuevasParaVos lista={datos.nuevas} total={c.nuevas} href={links.nuevas} iconos={iconos} />
-            <LeadsCalientes
-              lista={datos.calientes}
-              total={c.calientes}
-              href={links.calientes}
-              iconos={iconos}
-              zona={c.zona}
-            />
+            {conCalientes && (
+              <LeadsCalientes
+                lista={datos.calientes}
+                total={c.calientes}
+                href={links.calientes}
+                iconos={iconos}
+                zona={c.zona}
+              />
+            )}
           </div>
           <div className="space-y-[var(--hueco)]">
             <VisitasDeHoy visitas={datos.visitas} agente={datos.agente} zona={c.zona} onCambio={() => void cargar()} />

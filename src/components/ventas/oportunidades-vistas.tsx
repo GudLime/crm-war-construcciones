@@ -21,6 +21,7 @@ import { PanelLateral } from "@/components/ui/panel-lateral";
 import { WhatsAppLogo } from "@/components/whatsapp-logo";
 import {
   COLUMNAS,
+  columnasDe,
   OCULTAS_POR_DEFECTO,
   anchoArrastrado,
   columnasPipeline,
@@ -31,7 +32,9 @@ import {
 } from "@/lib/oportunidades-lista";
 import type { OrigenDto } from "@/lib/origenes";
 import { cn } from "@/lib/utils";
-import { CAMINO_OPORTUNIDAD, ESTADOS_OPORTUNIDAD, etiqueta, etiquetaAmbientes } from "@/lib/ventas";
+import { etiquetaAmbientes } from "@/lib/ventas";
+import { useVocabulario } from "@/components/vocabulario";
+import { enFrase, nombreEstado, opcionesEstado } from "@/lib/vocabulario";
 import type { OportunidadDto } from "@/server/ventas";
 import { OrigenIcono } from "./origen-icono";
 import { PildoraEdificio, estiloDeEdificio } from "./pildora-edificio";
@@ -67,13 +70,14 @@ const PREFERENCIAS: Preferencias = {
   anchos: {},
 };
 
-function leerPreferencias(): Preferencias {
+function leerPreferencias(clave: string, formaInicial: FormaDeVer): Preferencias {
+  const base = { ...PREFERENCIAS, forma: formaInicial };
   try {
-    const t = window.localStorage.getItem(GUARDADO);
-    if (!t) return PREFERENCIAS;
-    return { ...PREFERENCIAS, ...(JSON.parse(t) as Partial<Preferencias>) };
+    const t = window.localStorage.getItem(clave);
+    if (!t) return base;
+    return { ...base, ...(JSON.parse(t) as Partial<Preferencias>) };
   } catch {
-    return PREFERENCIAS;
+    return base;
   }
 }
 
@@ -121,11 +125,12 @@ function Avatar({ o, grande }: { o: OportunidadDto; grande?: boolean }) {
 }
 
 function BotonAbrir({ o, className }: { o: OportunidadDto; className?: string }) {
+  const voc = useVocabulario();
   return (
     <Link
       href={`/oportunidades/${o.id}`}
       aria-label={`Abrir ${o.nombre}`}
-      title="Abrir oportunidad"
+      title={`Abrir ${enFrase(voc.singular)}`}
       onClick={(e) => e.stopPropagation()}
       className={cn(
         "grid size-[26px] shrink-0 place-items-center rounded-md border border-border bg-card text-text-2 shadow-sm transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100",
@@ -181,7 +186,13 @@ function Origen({ o, iconoDe, conFormularios = true }: { o: OportunidadDto; icon
 type Fila = OportunidadDto & { responsableNombre?: string | null };
 
 /** Lo que se ve en cada celda de la Lista. */
-function celda(c: ClaveColumna, o: Fila, iconoDe: IconoDe, moneda: string) {
+function celda(
+  c: ClaveColumna,
+  o: Fila,
+  iconoDe: IconoDe,
+  moneda: string,
+  estados: readonly { value: string; label: string }[]
+) {
   switch (c) {
     case "nombre":
       return (
@@ -218,7 +229,7 @@ function celda(c: ClaveColumna, o: Fila, iconoDe: IconoDe, moneda: string) {
     case "estado":
       return (
         <span className="flex flex-col items-start gap-1">
-          <EstadoPill opciones={ESTADOS_OPORTUNIDAD} value={o.estado} />
+          <EstadoPill opciones={estados} value={o.estado} />
           <Alerta o={o} />
         </span>
       );
@@ -273,21 +284,26 @@ export function SelectorDeForma({ forma, onCambio }: { forma: FormaDeVer; onCamb
 }
 
 /** El estado de la página: forma de ver, columnas, orden y anchos (recordados en este navegador). */
-export function usePreferenciasDeLista() {
-  const [pref, setPref] = useState<Preferencias>(PREFERENCIAS);
+/**
+ * 071 — Una instancia de reservas abre la primera vez en Mosaico (el salón) y
+ * guarda sus preferencias aparte, para no heredar las de la lista de ventas.
+ */
+export function usePreferenciasDeLista(reservas = false) {
+  const clave = reservas ? `${GUARDADO}.reservas` : GUARDADO;
+  const [pref, setPref] = useState<Preferencias>(() => ({ ...PREFERENCIAS, forma: reservas ? "mosaico" : "lista" }));
   const cargado = useRef(false);
   useEffect(() => {
-    setPref(leerPreferencias());
+    setPref(leerPreferencias(clave, reservas ? "mosaico" : "lista"));
     cargado.current = true;
-  }, []);
+  }, [clave, reservas]);
   useEffect(() => {
     if (!cargado.current) return;
     try {
-      window.localStorage.setItem(GUARDADO, JSON.stringify(pref));
+      window.localStorage.setItem(clave, JSON.stringify(pref));
     } catch {
       // sin almacenamiento: queda en memoria
     }
-  }, [pref]);
+  }, [pref, clave]);
   return [pref, setPref] as const;
 }
 
@@ -297,12 +313,14 @@ export type PreferenciasDeLista = Preferencias;
 export function SelectorDeColumnas({
   pref,
   setPref,
-  columnas = COLUMNAS,
+  columnas: propias,
 }: {
   pref: Preferencias;
   setPref: (p: Preferencias) => void;
   columnas?: readonly (typeof COLUMNAS)[number][];
 }) {
+  const voc = useVocabulario();
+  const columnas = propias ?? columnasDe(voc);
   const visibles = columnas.filter((c) => !pref.ocultas.includes(c.clave)).length;
   return (
     <Menu
@@ -455,7 +473,9 @@ function Lista({
   moneda: string;
   onElegir: (id: string) => void;
 }) {
-  const columnas = COLUMNAS.filter((c) => !pref.ocultas.includes(c.clave));
+  const voc = useVocabulario();
+  const estados = opcionesEstado(voc);
+  const columnas = columnasDe(voc).filter((c) => !pref.ocultas.includes(c.clave));
   const anchoDe = (c: (typeof COLUMNAS)[number]) => pref.anchos[c.clave] ?? c.ancho;
   const total = columnas.reduce((s, c) => s + anchoDe(c), 0);
 
@@ -602,14 +622,14 @@ function Lista({
                   key={c.clave}
                   className={cn("overflow-hidden px-3 py-2.5 align-middle", c.alinear === "derecha" && "text-right")}
                 >
-                  {celda(c.clave, o, iconoDe, moneda)}
+                  {celda(c.clave, o, iconoDe, moneda, estados)}
                 </td>
               ))}
             </tr>
           ))}
         </tbody>
       </table>
-      {filas.length === 0 && <p className="p-6 text-center text-sm text-text-3">No hay oportunidades para mostrar.</p>}
+      {filas.length === 0 && <p className="p-6 text-center text-sm text-text-3">No hay {enFrase(voc.plural)} para mostrar.</p>}
     </div>
   );
 }
@@ -627,6 +647,7 @@ function Tarjeta({
   compacta?: boolean;
   onArrastrar?: (id: string) => void;
 }) {
+  const voc = useVocabulario();
   const eds = edificiosDe(o);
   const detalle = [
     o.unidad ? `U. ${o.unidad}` : "",
@@ -674,7 +695,7 @@ function Tarjeta({
         {compacta ? (
           <span className="shrink-0 text-[12px] text-text-3">{haceCuanto(o.ultimaInteraccion)}</span>
         ) : (
-          <EstadoPill opciones={ESTADOS_OPORTUNIDAD} value={o.estado} />
+          <EstadoPill opciones={opcionesEstado(voc)} value={o.estado} />
         )}
       </div>
       <Alerta o={o} />
@@ -704,7 +725,8 @@ function Pipeline({
   onElegir: (id: string) => void;
   onMover?: (id: string, estado: OportunidadDto["estado"]) => void;
 }) {
-  const columnas = columnasPipeline(filas, CAMINO_OPORTUNIDAD);
+  const voc = useVocabulario();
+  const columnas = columnasPipeline(filas, voc.camino);
   const [arrastrando, setArrastrando] = useState<string | null>(null);
   const [sobre, setSobre] = useState<string | null>(null);
   /** Cuántas tarjetas se ven en cada columna (las demás, con «Mostrar más»). */
@@ -735,7 +757,7 @@ function Pipeline({
           <header className="flex items-center justify-between gap-2 px-1 pb-1">
             <span className="inline-flex items-center gap-2">
               <span aria-hidden className={cn("size-2 rounded-full", PUNTO_ETAPA[c.estado] ?? "bg-text-3")} />
-              <span className="text-[13.5px] font-semibold">{etiqueta(ESTADOS_OPORTUNIDAD, c.estado)}</span>
+              <span className="text-[13.5px] font-semibold">{nombreEstado(voc, c.estado)}</span>
               <span className="rounded-full bg-muted px-[7px] py-px text-[11.5px] font-semibold text-text-2">
                 {c.items.length}
               </span>
@@ -788,6 +810,7 @@ function Paginador({
   onPagina: (n: number) => void;
   onPorPagina: (n: number) => void;
 }) {
+  const voc = useVocabulario();
   if (total === 0) return null;
   const desde = (pagina - 1) * porPagina + 1;
   const hasta = Math.min(total, pagina * porPagina);
@@ -803,7 +826,7 @@ function Paginador({
           <Select
             value={String(porPagina)}
             onValueChange={(v) => onPorPagina(Number(v))}
-            aria-label="Oportunidades por página"
+            aria-label={`${voc.plural} por página`}
             className="h-8 w-20"
           >
             {TAMANOS_DE_PAGINA.map((n) => (
@@ -884,9 +907,10 @@ function PanelOportunidad({
   moneda: string;
   onCerrar: () => void;
 }) {
+  const voc = useVocabulario();
   const eds = edificiosDe(o);
   const filas: [string, React.ReactNode][] = [
-    ["Estado", <EstadoPill key="e" opciones={ESTADOS_OPORTUNIDAD} value={o.estado} />],
+    ["Estado", <EstadoPill key="e" opciones={opcionesEstado(voc)} value={o.estado} />],
     ["Origen", <Origen key="o" o={o} iconoDe={iconoDe} />],
     [
       "Interés",
@@ -907,6 +931,9 @@ function PanelOportunidad({
     ["Última interacción", haceCuanto(o.ultimaInteraccion)],
     ["Contacto", o.contactId ? <Link key="c" href={`/contacts/${o.contactId}`} className="text-brand-ink hover:underline">{o.contactoNombre ?? "Ver contacto"}</Link> : "—"],
   ];
+  // 071 — Sin lo inmobiliario, el panel no habla de edificios ni unidades.
+  const INMOBILIARIAS = ["Interés", "Ambientes", "Unidades", "Departamento"];
+  const visibles = voc.inmobiliario ? filas : filas.filter(([t]) => !INMOBILIARIAS.includes(t));
   return (
     <PanelLateral
       onCerrar={onCerrar}
@@ -925,7 +952,7 @@ function PanelOportunidad({
             href={`/oportunidades/${o.id}`}
             className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full border border-border text-sm font-medium hover:bg-accent"
           >
-            <Maximize2 className="size-3.5" /> Abrir oportunidad
+            <Maximize2 className="size-3.5" /> Abrir {enFrase(voc.singular)}
           </Link>
           {o.contactId && (
             <Link
@@ -939,7 +966,7 @@ function PanelOportunidad({
       }
     >
       <dl className="space-y-0.5 p-4 text-[13.5px]">
-        {filas.map(([k, v]) => (
+        {visibles.map(([k, v]) => (
           <div key={k} className="flex min-h-[32px] items-center gap-3">
             <dt className="w-[120px] shrink-0 text-text-3">{k}</dt>
             <dd className="min-w-0 flex-1 font-medium">{v}</dd>

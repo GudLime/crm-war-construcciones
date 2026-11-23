@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 import { BandaSinConexion } from "@/components/banda-sin-conexion";
 import { AtajosGlobales } from "@/components/atajos-globales";
 import type { ObjetoMenuDto } from "@/lib/motor/dto";
+import { VOCABULARIO_POR_DEFECTO, type Vocabulario } from "@/lib/vocabulario";
+import { VocabularioProvider } from "@/components/vocabulario";
 
 /**
  * Cascarón de la app en dos modos:
@@ -34,6 +36,7 @@ export function AppShell({
   agenda = false,
   kicker,
   objetos = [],
+  vocabulario = VOCABULARIO_POR_DEFECTO,
   aviso = null,
   children,
 }: {
@@ -49,6 +52,8 @@ export function AppShell({
   kicker?: string;
   /** 070 — Los objetos personalizados del cliente, para el menú. */
   objetos?: ObjetoMenuDto[];
+  /** 071 — Cómo se llama la oportunidad, sus etapas y si hay inmobiliario. */
+  vocabulario?: Vocabulario;
   /**
    * Franja de aviso por encima de TODA la aplicación (#85).
    *
@@ -82,6 +87,7 @@ export function AppShell({
   return (
     // 061 · D1 — El marco: en escritorio la app son tarjetas separadas sobre
     // un fondo suave; en el teléfono la pantalla entera es la tarjeta.
+    <VocabularioProvider value={vocabulario}>
     <div className="app-marco app-escala flex overflow-hidden lg:gap-[var(--hueco)] lg:p-[var(--hueco)]">
       {navOpen && (
         <button
@@ -136,5 +142,6 @@ export function AppShell({
         </main>
       </div>
     </div>
+    </VocabularioProvider>
   );
 }

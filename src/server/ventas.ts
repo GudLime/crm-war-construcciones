@@ -48,6 +48,7 @@ import { renderMemoriaAgente } from "@/lib/memoria-agente";
 import { NOMBRE_ORIGEN_MAX } from "@/lib/origenes";
 import { siguienteColor, VALORES_COLOR_EDIFICIO, type ColorEdificio } from "@/lib/colores-edificio";
 import { existeOrigen } from "@/server/origenes";
+import { revisarCambio } from "@/server/vocabulario";
 
 /**
  * Ventas de la constructora. Las rutas solo autentican y traducen el body;
@@ -152,6 +153,10 @@ export const tareaSchema = z.object({
   oportunidadId: idOpcional,
   /** 0048 — Quién la hace. Si no viene: al crear, quien la crea; al editar, no se cambia. */
   responsableId: idOpcional,
+  /** 0058 — Dónde es (visita o reunión). Si no viene, al editar no se cambia. */
+  ubicacion: z.string().trim().max(300).nullable().optional(),
+  /** 0058 — El edificio de una visita. Si no viene, al editar no se cambia. */
+  edificioId: idOpcional,
 });
 
 export type EdificioDto = {
@@ -250,6 +255,8 @@ export type TareaDto = {
   /** 0048 — Quién la hace. */
   responsableId: string | null;
   responsableNombre: string | null;
+  /** 0058 — Dónde es (visita o reunión), o null. */
+  ubicacion: string | null;
 };
 
 function oNulo(v: string | null | undefined): string | null {
@@ -889,6 +896,9 @@ export async function crearOportunidad(
   /** War — quién la creó, para el historial. */
   userId: string | null = null
 ): Promise<OportunidadDto> {
+  // War — el motivo se revisa contra Ajustes → Motivos de cierre; acá solo la etapa.
+  const problema = await revisarCambio(organizationId, null, { estado: datos.estado });
+  if (problema) throw new VentasError(422, "invalid_body", problema);
   const valores = await valoresOportunidad(organizationId, datos);
   let fila: typeof schema.oportunidad.$inferSelect | undefined;
   try {
@@ -923,6 +933,9 @@ export async function editarOportunidad(
     .where(scoped(schema.oportunidad.organizationId, organizationId, eq(schema.oportunidad.id, id)))
     .limit(1);
   if (!previa) throw new VentasError(404, "not_found", "Esa oportunidad no existe");
+  // War — el motivo se revisa contra Ajustes → Motivos de cierre; acá solo la etapa.
+  const problema = await revisarCambio(organizationId, id, { estado: datos.estado });
+  if (problema) throw new VentasError(422, "invalid_body", problema);
   const { estado, motivoCierre, ...valores } = await valoresOportunidad(
     organizationId,
     datos,
@@ -989,6 +1002,7 @@ function aTarea(
         : null,
     responsableId: fila.responsableUserId,
     responsableNombre: fila.responsableUserId ? extra.responsableNombre : null,
+    ubicacion: fila.ubicacion ?? null,
   };
 }
 
@@ -1035,6 +1049,7 @@ async function valoresTarea(organizationId: string, datos: z.infer<typeof tareaS
     datos.oportunidadId,
     "Esa oportunidad no existe"
   );
+  await exigirEnOrganizacion(organizationId, "edificio", datos.edificioId, "Ese edificio no existe");
   return {
     titulo: datos.titulo.trim(),
     tipo: datos.tipo,
@@ -1043,6 +1058,8 @@ async function valoresTarea(organizationId: string, datos: z.infer<typeof tareaS
     comentarios: oNulo(datos.comentarios),
     contactId: datos.contactId ?? null,
     oportunidadId: datos.oportunidadId ?? null,
+    ...(datos.ubicacion !== undefined ? { ubicacion: oNulo(datos.ubicacion) } : {}),
+    ...(datos.edificioId !== undefined ? { edificioId: datos.edificioId ?? null } : {}),
   };
 }
 

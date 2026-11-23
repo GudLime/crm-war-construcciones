@@ -919,6 +919,8 @@ export const booking = pgTable(
      */
     confirmadaAt: timestamp("confirmada_at"),
     confirmadaPorUserId: text("confirmada_por_user_id").references(() => user.id, { onDelete: "set null" }),
+    /** 0058 — Dónde es (el edificio de la visita o la oficina); va al calendario. */
+    ubicacion: text("ubicacion"),
     notes: text("notes"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),

@@ -86,9 +86,13 @@ export { MOTIVOS_POR_DEFECTO as MOTIVOS_CIERRE } from "./motivos-cierre";
 export const TIPOS_TAREA = [
   { value: "llamada", label: "Llamada" },
   { value: "visita", label: "Visita" },
-  { value: "mensaje", label: "Mensaje" },
+  // El valor guardado sigue siendo `mensaje`: se muestra como WhatsApp.
+  { value: "mensaje", label: "WhatsApp" },
   { value: "reunion", label: "Reunión" },
-  { value: "correo", label: "Correo" },
+  // El valor guardado sigue siendo `correo`: se muestra como Mail.
+  { value: "correo", label: "Mail" },
+  /** 0058 — Genérica, para lo que no encaja en los otros tipos. */
+  { value: "tarea", label: "Tarea" },
 ] as const;
 
 export const ESTADOS_TAREA = [

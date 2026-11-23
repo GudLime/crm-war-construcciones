@@ -1,4 +1,4 @@
-import { ESTADOS_OPORTUNIDAD, etiqueta, type EstadoOportunidad } from "@/lib/ventas";
+import { VOCABULARIO_POR_DEFECTO, enFrase, nombreEstado, type Vocabulario } from "@/lib/vocabulario";
 
 /**
  * War — La página de una oportunidad: los tipos que viajan al navegador y lo
@@ -170,8 +170,8 @@ function vistaPrevia(m: MensajeCorto): string {
   return `${quien}: ${cuerpo}`;
 }
 
-function estadoLegible(v: string | null): string {
-  return v ? etiqueta(ESTADOS_OPORTUNIDAD, v as EstadoOportunidad) : "—";
+function estadoLegible(voc: Vocabulario, v: string | null): string {
+  return nombreEstado(voc, v);
 }
 
 function quienDelEvento(e: EventoCorto): string | null {
@@ -189,21 +189,22 @@ function quienDelEvento(e: EventoCorto): string | null {
   }
 }
 
-function deEvento(e: EventoCorto): ItemTimeline | null {
+function deEvento(e: EventoCorto, voc: Vocabulario = VOCABULARIO_POR_DEFECTO): ItemTimeline | null {
+  const singular = enFrase(voc.singular);
   const base = { id: `ev-${e.id}`, at: e.occurredAt, quien: quienDelEvento(e) };
   switch (e.tipo) {
     case "creada":
       return {
         ...base,
         icono: "creada",
-        titulo: e.fuente === "migracion" ? "Oportunidad registrada" : "Se abrió la oportunidad",
-        detalle: e.estadoHasta ? `Estado: ${estadoLegible(e.estadoHasta)}` : null,
+        titulo: e.fuente === "migracion" ? `${voc.singular} registrada` : `Se abrió la ${singular}`,
+        detalle: e.estadoHasta ? `Estado: ${estadoLegible(voc, e.estadoHasta)}` : null,
       };
     case "estado":
       return {
         ...base,
         icono: "estado",
-        titulo: `${estadoLegible(e.estadoDesde)} → ${estadoLegible(e.estadoHasta)}`,
+        titulo: `${estadoLegible(voc, e.estadoDesde)} → ${estadoLegible(voc, e.estadoHasta)}`,
         detalle: null,
       };
     case "cerrada":
@@ -211,7 +212,7 @@ function deEvento(e: EventoCorto): ItemTimeline | null {
         ...base,
         icono: "cerrada",
         tono: e.estadoHasta === "compro" ? "ok" : "malo",
-        titulo: `Se cerró: ${estadoLegible(e.estadoHasta)}`,
+        titulo: `Se cerró: ${estadoLegible(voc, e.estadoHasta)}`,
         detalle: e.motivo ? `Motivo: ${e.motivo}` : null,
       };
     case "reabierta":
@@ -219,7 +220,7 @@ function deEvento(e: EventoCorto): ItemTimeline | null {
         ...base,
         icono: "reabierta",
         tono: "ok",
-        titulo: `Se reabrió en ${estadoLegible(e.estadoHasta)}`,
+        titulo: `Se reabrió en ${estadoLegible(voc, e.estadoHasta)}`,
         detalle: e.fuente === "sistema" ? "Volvió a escribir" : null,
       };
     case "formulario": {
@@ -272,12 +273,14 @@ export function armarTimeline(input: {
   tareas: readonly TareaCorta[];
   notas: readonly NotaCorta[];
   ahora?: Date;
+  /** 071 — Cómo se llaman la oportunidad y sus etapas en esta instancia. */
+  vocabulario?: Vocabulario;
 }): ItemTimeline[] {
   const ahora = input.ahora ?? new Date();
   const items: ItemTimeline[] = [];
 
   for (const e of input.eventos) {
-    const it = deEvento(e);
+    const it = deEvento(e, input.vocabulario);
     if (it) items.push(it);
   }
 

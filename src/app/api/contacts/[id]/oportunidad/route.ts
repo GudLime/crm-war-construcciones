@@ -12,6 +12,7 @@ import {
   estadoComercialDelContacto,
 } from "@/server/oportunidades";
 import { VentasError } from "@/server/ventas";
+import { revisarCambio } from "@/server/vocabulario";
 import { alcanceDe, noEncontrado, puedeVerContacto } from "@/server/acceso";
 
 export const dynamic = "force-dynamic";
@@ -72,6 +73,9 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
     const e = motivoDesconocido(body.data.motivoCierre!);
     return apiError(e.status, e.code, e.message);
   }
+  // 071 — La etapa se revisa contra el vocabulario; el motivo, contra Ajustes (arriba).
+  const problema = await revisarCambio(session.organizationId, body.data.oportunidadId, { estado: body.data.estado });
+  if (problema) return apiError(422, "invalid_body", problema);
   try {
     await actualizarOportunidadDelChat({
       organizationId: session.organizationId,

@@ -6,19 +6,16 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   AMBIENTES,
-  CAMINO_OPORTUNIDAD,
-  ESTADOS_OPORTUNIDAD,
   TIPOS_CONTACTO,
-  etiqueta,
   etiquetaAmbientes,
   type EstadoOportunidad,
   type TipoContacto,
 } from "@/lib/ventas";
+import { useVocabulario } from "@/components/vocabulario";
+import { enFrase, nombreEstado } from "@/lib/vocabulario";
 import type { EstadoComercialDto } from "@/server/oportunidades";
 import { useMotivosCierre } from "./use-motivos-cierre";
 import { Select } from "@/components/ui/select";
-
-const CIERRES: EstadoOportunidad[] = ["no_calificado", "perdido"];
 
 const AVISO_EXCLUIDO: Record<Exclude<TipoContacto, "lead">, string> = {
   comprador: "Ya compró: fuera del proceso de venta. Lo atiende una persona, sin IA.",
@@ -44,6 +41,8 @@ export function OportunidadPanel({
   const [error, setError] = useState<string | null>(null);
   const [motivo, setMotivo] = useState("");
   const motivosCierre = useMotivosCierre();
+  const voc = useVocabulario();
+  const singular = enFrase(voc.singular);
 
   const cargar = useCallback(async () => {
     const res = await fetch(`/api/contacts/${contactId}/oportunidad`).catch(() => null);
@@ -106,10 +105,14 @@ export function OportunidadPanel({
 
   if (!datos) return null;
   const { tipoContacto, abierta } = datos;
-  const pasoActual = abierta ? CAMINO_OPORTUNIDAD.indexOf(abierta.estado) : -1;
+  const pasoActual = abierta ? voc.camino.indexOf(abierta.estado) : -1;
+  // 071 — Sin lo inmobiliario no hay tipo de contacto: todos tienen su sección.
+  const conVenta = !voc.inmobiliario || tipoContacto === "lead";
 
   return (
     <section className="border-b p-4">
+      {voc.inmobiliario && (
+      <>
       <p className="kicker mb-2">Tipo de contacto</p>
       <Select
         aria-label="Tipo de contacto"
@@ -134,11 +137,13 @@ export function OportunidadPanel({
       {tipoContacto && tipoContacto !== "lead" && (
         <p className="mt-1.5 text-[11px] text-text-3">{AVISO_EXCLUIDO[tipoContacto]}</p>
       )}
+      </>
+      )}
 
-      {tipoContacto === "lead" && (
-        <div className="mt-4">
+      {conVenta && (
+        <div className={voc.inmobiliario ? "mt-4" : undefined}>
           <div className="mb-3 flex items-baseline justify-between gap-2">
-            <p className="kicker">Oportunidad</p>
+            <p className="kicker">{voc.singular}</p>
             {datos.anteriores > 0 && (
               <span className="text-[11px] text-text-3">
                 {datos.anteriores} anterior{datos.anteriores === 1 ? "" : "es"}
@@ -148,7 +153,7 @@ export function OportunidadPanel({
 
           {!abierta ? (
             <div className="rounded-md border bg-subtle p-3">
-              <p className="text-[12px] text-text-2">No tiene una oportunidad abierta.</p>
+              <p className="text-[12px] text-text-2">No tiene una {singular} abierta.</p>
               <Button
                 size="sm"
                 className="mt-2 w-full"
@@ -157,18 +162,18 @@ export function OportunidadPanel({
                   void pedir(`/api/contacts/${contactId}/oportunidad`, { method: "POST" })
                 }
               >
-                Abrir oportunidad nueva
+                Abrir {singular} nueva
               </Button>
             </div>
           ) : (
             <>
               <ol>
-                {CAMINO_OPORTUNIDAD.map((estado, i) => {
+                {voc.camino.map((estado, i) => {
                   const hecho = pasoActual >= 0 && i < pasoActual;
                   const actual = estado === abierta.estado;
                   return (
                     <li key={estado} className="relative flex gap-3 pb-3 last:pb-0">
-                      {i < CAMINO_OPORTUNIDAD.length - 1 && (
+                      {i < voc.camino.length - 1 && (
                         <span
                           className={cn(
                             "absolute left-[7px] top-4 h-full w-px",
@@ -180,7 +185,7 @@ export function OportunidadPanel({
                         type="button"
                         disabled={guardando}
                         onClick={() => cambiarOportunidad({ estado })}
-                        aria-label={`Mover a ${etiqueta(ESTADOS_OPORTUNIDAD, estado)}`}
+                        aria-label={`Mover a ${nombreEstado(voc, estado)}`}
                         className={cn(
                           "relative z-10 mt-0.5 flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full transition-colors",
                           hecho && "bg-brand text-brand-fg",
@@ -199,7 +204,7 @@ export function OportunidadPanel({
                           actual ? "font-[650] text-brand-text" : "text-text-2 hover:text-foreground"
                         )}
                       >
-                        {etiqueta(ESTADOS_OPORTUNIDAD, estado)}
+                        {nombreEstado(voc, estado)}
                         {estado === "compro" && (
                           <span className="ml-1 text-[11px] text-text-3">(cierra)</span>
                         )}
@@ -215,7 +220,7 @@ export function OportunidadPanel({
                 href={`/oportunidades/${abierta.id}`}
                 className="mt-2 inline-block text-[12px] font-medium text-brand-ink hover:underline"
               >
-                Ver la oportunidad completa →
+                Ver la {singular} completa →
               </a>
 
               <div className="mt-3 rounded-md border bg-subtle p-2.5">
@@ -234,7 +239,7 @@ export function OportunidadPanel({
                   ))}
                 </Select>
                 <div className="flex flex-wrap gap-1.5">
-                  {CIERRES.map((estado) => (
+                  {voc.cierres.filter((e) => e !== "compro").map((estado: EstadoOportunidad) => (
                     <Button
                       key={estado}
                       size="sm"
@@ -244,12 +249,14 @@ export function OportunidadPanel({
                         cambiarOportunidad({ estado, motivoCierre: motivo || null })
                       }
                     >
-                      {etiqueta(ESTADOS_OPORTUNIDAD, estado)}
+                      {nombreEstado(voc, estado)}
                     </Button>
                   ))}
                 </div>
               </div>
 
+              {voc.inmobiliario && (
+              <>
               <p className="mb-1.5 mt-4 text-[11px] font-medium text-text-2">Edificios de interés</p>
               <Chips
                 opciones={datos.edificios.map((e) => ({ value: e.id, label: e.nombre }))}
@@ -266,6 +273,8 @@ export function OportunidadPanel({
                 disabled={guardando}
                 onCambio={(valores) => cambiarOportunidad({ ambientes: valores.map(Number) })}
               />
+              </>
+              )}
             </>
           )}
         </div>

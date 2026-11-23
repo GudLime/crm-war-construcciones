@@ -13,6 +13,7 @@ import { avisoIaDe } from "@/server/ai/aviso";
 import { AvisoIaBanner } from "@/components/avisos/aviso-ia";
 import { AvisoGuardadoProvider } from "@/components/ui/aviso-guardado";
 import { objetosDelMenu } from "@/server/motor/api";
+import { vocabulario } from "@/server/vocabulario";
 
 export default async function AppLayout({
   children,
@@ -31,6 +32,8 @@ export default async function AppLayout({
   const aviso = await avisoIaDe(session.organizationId);
   // 070 — Los objetos personalizados del cliente entran solos al menú.
   const objetos = await objetosDelMenu(session.organizationId);
+  // 071 — Cómo se llama la oportunidad en este cliente y qué etapas usa.
+  const voc = await vocabulario();
 
   return (
     <AppShell
@@ -48,6 +51,7 @@ export default async function AppLayout({
       agenda={agendaEnabled()}
       kicker={navKicker([...enabledChannels()])}
       objetos={objetos}
+      vocabulario={voc}
       aviso={<AvisoIaBanner aviso={aviso} />}
     >
       {/* «Cambios aplicados»: el aviso temporal de cada guardado. */}

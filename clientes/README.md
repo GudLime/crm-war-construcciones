@@ -65,6 +65,63 @@ Relaciones: `uno_a_muchos` (columna `<desde>_id` en la tabla del lado «hacia»)
 o `muchos_a_muchos` (tabla `rel_<clave>`). `desde` puede ser `oportunidad` o
 `contacto`, del núcleo.
 
+## Nombre y etapas de la oportunidad, y lo inmobiliario (071)
+
+Un cliente que no vende inmuebles renombra la oportunidad, elige sus etapas y
+apaga lo inmobiliario:
+
+```jsonc
+{
+  "inmobiliario": false,               // sin edificios, ambientes, tipologías, tipo de oportunidad ni tipo de contacto
+  "oportunidad": {
+    "nombre": "Reserva", "nombrePlural": "Reservas",
+    "grupoMenu": "Restaurante",        // opcional; por defecto «Ventas»
+    "estados": [                       // en orden; tiene que estar «recibido»
+      { "estado": "recibido", "nombre": "Confirmada" },
+      { "estado": "compro", "nombre": "Llegó" },
+      { "estado": "perdido", "nombre": "Cancelada" },
+      { "estado": "no_calificado", "nombre": "No vino" }
+    ],
+    "motivosCierre": ["Canceló la persona", "Canceló el restaurante"],
+    "cierrePorSinRespuesta": false     // nunca cerrar sola por «no responde»
+  }
+}
+```
+
+- Las etapas son las del núcleo con otro nombre (`recibido`, `en_charlas`,
+  `conoce_informacion`, `visito`, `reservo`, `compro`, `no_calificado`,
+  `perdido`): el historial, las estadísticas y las reglas de etapa no cambian.
+  Las que no se nombran no se ven ni se pueden elegir (la API responde 422).
+- El camino de la barra de avance y del Pipeline son las nombradas, en el
+  orden del núcleo; las de cierre (`perdido`, `no_calificado`) van en «Cerrar».
+- Sin el bloque, todo queda como siempre. Sin `inmobiliario`, vale `true`.
+- Self-test: `APP_BASE_URL=... node scripts/e2e-vocabulario.mjs` con la app
+  levantada y un archivo como el de arriba.
+
+## Menú del cliente (071)
+
+El bloque `menu` arma el menú de esta instancia sin tocar el núcleo:
+
+```json
+"menu": {
+  "trabajo": ["oportunidades", "inbox", "contacts", "results"],
+  "nombres": { "results": "Dashboard" },
+  "ocultar": ["inicio", "pipeline", "tareas"]
+}
+```
+
+- `trabajo`: las pantallas del grupo Trabajo, en ese orden. Salen de su grupo
+  de siempre; un grupo que queda vacío no se muestra. Pantallas: `inicio`,
+  `inbox`, `pipeline`, `contacts`, `bookings`, `oportunidades`, `tareas`,
+  `results`.
+- `nombres`: cómo se llama cada pantalla en el menú (y en su título, para
+  Resultados).
+- `ocultar`: apaga `inicio`, `pipeline` o `tareas`. Su página deja de existir
+  (Inicio lleva a la primera pantalla de Trabajo; las otras dan 404) y
+  desaparece su rastro en otras pantallas (sin tareas, la oportunidad no
+  tiene Próximos pasos). Sin Inicio, al abrir el CRM se entra a la primera
+  pantalla de Trabajo, aunque falten pasos de la guía.
+
 ## Interés encadenado y Valor calculado (0049)
 
 Una relación muchos a muchos desde la oportunidad puede llevar `interes`: sus
