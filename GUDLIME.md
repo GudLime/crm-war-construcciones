@@ -544,3 +544,17 @@ servidor, `lib/contactos-lista.ts`). Sin `pagina` responde lo de siempre
 redondo, pastillas de filtro con ×, «+ Filtro» y «Limpiar», una línea por
 contacto (avatar, nombre, teléfono, alta), orden por columna y páginas de a
 50. En el restaurante sigue la lista de comensales.
+
+## Inicio por bloques (cambios 23/11, punto 7)
+
+En la config del cliente, `inicio.bloques` (`BLOQUES_INICIO`: `etapas`,
+`tareas`, `derivadas`, `nuevas`, `calientes`, `visitas`, `tu_dia`, `ventanas`,
+`semana`) elige qué muestra el Inicio y en qué orden. Sin `inicio`, el de
+siempre. Con bloques: encabezado con la fecha y el saludo grande; `etapas` es
+el mini dashboard (abiertas de quien mira en Recibido, En charlas, Conoce
+información y Visitó, cada número abre Oportunidades filtrada) y `tareas` el
+widget (`tareas-widget.tsx`: lista continua Vencidas → Sin hora → Hoy con la
+línea de «Ahora» → días siguientes, en columnas de 280 px con alto fijo,
+filtros por tipo que restan, «+N más» medido, y cada ítem se despliega con sus
+acciones). `GET /api/inicio` suma `etapas`, `widget` y `hoy` solo si el
+cliente los usa (`etapasDelUsuario`, `widgetDeTareas`).

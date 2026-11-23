@@ -351,6 +351,28 @@ const menuSchema = z.object({
   ocultar: z.array(z.enum(PANTALLAS_OCULTABLES)).max(PANTALLAS_OCULTABLES.length).optional(),
 });
 
+/**
+ * Cambios 23/11, punto 7 — Los bloques del Inicio, en orden. Sin `inicio`, el
+ * de siempre. `etapas` es el mini dashboard del encabezado (las abiertas de
+ * quien mira por etapa); `tareas`, el widget de la lista continua.
+ */
+export const BLOQUES_INICIO = [
+  "etapas",
+  "tareas",
+  "tarjetas",
+  "derivadas",
+  "nuevas",
+  "calientes",
+  "visitas",
+  "tu_dia",
+  "ventanas",
+  "semana",
+] as const;
+export type BloqueInicio = (typeof BLOQUES_INICIO)[number];
+const inicioSchema = z.object({
+  bloques: z.array(z.enum(BLOQUES_INICIO)).min(1).max(BLOQUES_INICIO.length),
+});
+
 export const configClienteSchema = z.object({
   /** Versión del formato del archivo. */
   version: z.literal(1),
@@ -366,6 +388,8 @@ export const configClienteSchema = z.object({
   inmobiliario: z.boolean().default(true),
   /** 071 — Orden, nombres y pantallas apagadas del menú (ver arriba). */
   menu: menuSchema.optional(),
+  /** Cambios 23/11 — Qué bloques muestra el Inicio y en qué orden (ver arriba). */
+  inicio: inicioSchema.optional(),
   objetos: z.array(objetoSchema).default([]),
   relaciones: z.array(relacionSchema).default([]),
   reglasEtapa: z.array(reglaEtapaSchema).default([]),

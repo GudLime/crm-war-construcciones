@@ -4,6 +4,8 @@ import type { InicioDto } from "@/lib/inicio";
 import {
   contadoresDeInicio,
   derivadasSinTomar,
+  etapasDelUsuario,
+  widgetDeTareas,
   leadsCalientes,
   nuevasParaVos,
   tuDia,
@@ -12,6 +14,7 @@ import {
   visitasDeHoy,
 } from "@/server/inicio";
 import { listarResponsables, nombreDelAgente } from "@/server/responsables";
+import { vocabulario } from "@/server/vocabulario";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +33,9 @@ export const GET = withAuth(async (session, req: Request) => {
   const equipo = await listarResponsables(org);
   const persona = equipo.find((m) => m.userId === userId);
   if (!persona) return apiError(404, "not_found", "Esa persona no es del equipo");
-  const [contadores, agente, derivadas, dia, nuevas, calientes, visitas, ventanas, semana] = await Promise.all([
+  // Cambios 23/11 — El mini dashboard y el widget, solo si el Inicio de este cliente los usa.
+  const bloques = (await vocabulario()).inicio.bloques;
+  const [contadores, agente, derivadas, dia, nuevas, calientes, visitas, ventanas, semana, etapas, widget] = await Promise.all([
     contadoresDeInicio(org, userId),
     nombreDelAgente(org),
     derivadasSinTomar(org),
@@ -40,6 +45,8 @@ export const GET = withAuth(async (session, req: Request) => {
     visitasDeHoy(org, userId),
     ventanasPorCerrar(org, userId),
     tuSemana(org, userId),
+    bloques?.includes("etapas") ? etapasDelUsuario(org, userId) : Promise.resolve(undefined),
+    bloques?.includes("tareas") ? widgetDeTareas(org, userId) : Promise.resolve(undefined),
   ]);
   const dto: InicioDto = {
     usuario: { id: userId, nombre: persona.nombre },
@@ -55,6 +62,9 @@ export const GET = withAuth(async (session, req: Request) => {
     semana,
     sesion: session.userId,
     equipo: admin ? equipo : [],
+    etapas,
+    widget: widget?.items,
+    hoy: widget?.hoy,
   };
   return Response.json(dto);
 });
