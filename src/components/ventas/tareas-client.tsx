@@ -27,6 +27,9 @@ import { agruparTareas, fechaPropuesta, grupoConAlta, type GrupoTarea } from "@/
 import { cn } from "@/lib/utils";
 import { ESTADOS_TAREA, TIPOS_TAREA, etiqueta } from "@/lib/ventas";
 import { ResultadoLlamada } from "./resultado-llamada";
+import { BookingsClient } from "@/components/bookings/bookings-client";
+import type { CalendarView } from "@/lib/time/calendar";
+import type { WeeklyHours } from "@/server/agenda/settings";
 import type { OportunidadDto, TareaDto } from "@/server/ventas";
 import { SelectorDeForma } from "./oportunidades-vistas";
 import { PildoraEdificio } from "./pildora-edificio";
