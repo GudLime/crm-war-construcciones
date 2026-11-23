@@ -5,6 +5,7 @@ import {
   cargaDe,
   iniciales,
   objetivoDe,
+  ordenDeFoco,
   sugerir,
   textoDeAviso,
   textoEspera,
@@ -138,5 +139,13 @@ describe("teclado y selección", () => {
     expect(textoDeAviso(["Carolina Méndez"], ["Sebastián"])).toBe("Carolina Méndez → Sebastián");
     expect(textoDeAviso(["a", "b", "c"], ["Lucía"])).toBe("3 → Lucía");
     expect(textoDeAviso(["a", "b"], ["Lucía", "Martín"])).toBe("2 → 2 vendedores");
+  });
+});
+
+describe("ordenDeFoco", () => {
+  it("las saltadas van al final, en el orden en que se saltaron, y las que ya no están se van", () => {
+    const t = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
+    expect(ordenDeFoco(t, ["b", "a", "x"]).map((x) => x.id)).toEqual(["c", "d", "b", "a"]);
+    expect(ordenDeFoco(t, []).map((x) => x.id)).toEqual(["a", "b", "c", "d"]);
   });
 });

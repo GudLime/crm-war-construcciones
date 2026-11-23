@@ -293,3 +293,10 @@ export function textoDeAviso(nombres: readonly string[], destinos: readonly stri
   const destino = destinos.length === 1 ? destinos[0]! : `${destinos.length} vendedores`;
   return nombres.length === 1 ? `${nombres[0]} → ${destino}` : `${nombres.length} → ${destino}`;
 }
+
+/** Modo foco: la fila en el orden de la lista, con las saltadas al final (en el orden en que se saltaron). */
+export function ordenDeFoco<T extends { id: string }>(tarjetas: readonly T[], saltadas: readonly string[]): T[] {
+  const s = new Set(saltadas);
+  const porId = new Map(tarjetas.map((t) => [t.id, t]));
+  return [...tarjetas.filter((t) => !s.has(t.id)), ...saltadas.flatMap((id) => (porId.has(id) ? [porId.get(id)!] : []))];
+}
