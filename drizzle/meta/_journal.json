@@ -484,6 +484,13 @@
       "when": 1795410860000,
       "tag": "war_0010_oficina_salguero",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795421600000,
+      "tag": "0059_tarea_plantilla",
+      "breakpoints": true
     }
   ]
 }

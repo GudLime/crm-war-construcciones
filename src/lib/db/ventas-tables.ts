@@ -250,6 +250,8 @@ export const tareaVenta = pgTable(
     ubicacion: text("ubicacion"),
     /** 0058 — El edificio, si es una visita. */
     edificioId: text("edificio_id").references(() => edificio.id, { onDelete: "set null" }),
+    /** 0059 — La plantilla de la que salió (para no volver a sugerirla y medir qué se usa). */
+    plantillaId: text("plantilla_id"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -487,6 +489,8 @@ export const ventasAjustes = pgTable("ventas_ajustes", {
   asignacionPorEdificio: jsonb("asignacion_por_edificio").$type<Record<string, string>>().notNull().default({}),
   /** 0058 — Dirección de la oficina: la ubicación de las reuniones formales. */
   direccionOficina: text("direccion_oficina").notNull().default(""),
+  /** 0059 — Si ya se cargaron las plantillas de tareas de fábrica. */
+  plantillasSembradas: boolean("plantillas_sembradas").notNull().default(false),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
@@ -593,4 +597,56 @@ export const vistaUltima = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.organizationId, t.userId, t.pagina] })]
+);
+
+/**
+ * 0059 — Plantillas de tareas sugeridas (Configuración → Plantillas de tareas,
+ * las arma el admin para todo el equipo). Cada una se sugiere en una situación
+ * fija de la oportunidad (`lib/sugerencias.ts`); nunca crean tareas solas.
+ */
+export const tareaPlantilla = pgTable(
+  "tarea_plantilla",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    nombre: text("nombre").notNull(),
+    tipo: text("tipo", { enum: ["llamada", "visita", "mensaje", "reunion", "correo", "tarea"] }).notNull(),
+    situacion: text("situacion").notNull(),
+    /** Solo en `no_contesta`: cuántos días sin respuesta. */
+    diasSinRespuesta: integer("dias_sin_respuesta"),
+    /** 'hoy' | 'manana' | '+N' | 'antes_visita'. */
+    vence: text("vence").notNull().default("hoy"),
+    mensaje: text("mensaje"),
+    activa: boolean("activa").notNull().default(true),
+    orden: integer("orden").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("tarea_plantilla_org_idx").on(t.organizationId, t.orden)]
+);
+
+/**
+ * 0059 — Una sugerencia que el vendedor descartó en una oportunidad. Vale
+ * mientras la oportunidad siga en la etapa en que se descartó (decidido 22/11).
+ */
+export const sugerenciaDescartada = pgTable(
+  "oportunidad_sugerencia_descartada",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    oportunidadId: text("oportunidad_id")
+      .notNull()
+      .references(() => oportunidad.id, { onDelete: "cascade" }),
+    plantillaId: text("plantilla_id")
+      .notNull()
+      .references(() => tareaPlantilla.id, { onDelete: "cascade" }),
+    /** La etapa en que se descartó: si la oportunidad cambia de etapa, vuelve a aparecer. */
+    estado: text("estado").notNull(),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    at: timestamp("at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.oportunidadId, t.plantillaId] })]
 );

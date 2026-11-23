@@ -471,3 +471,17 @@ El núcleo revisa etapa y motivo contra el vocabulario del cliente. En War los
 motivos son configurables (Ajustes → Motivos de cierre): las rutas siguen
 validando el motivo con `motivoValido` y al vocabulario solo le preguntan por
 la etapa. Las pantallas toman los motivos de `useMotivosCierre()`.
+
+## Plantillas de tareas sugeridas (0059)
+
+Configuración → Plantillas de tareas (`/settings/tareas`, solo admin, para todo
+el equipo). Cada plantilla se sugiere en una **situación fija** de la
+oportunidad (`lib/sugerencias.ts`: `sin_contacto`, `no_contesta` con N días,
+`conoce`, `visita_agendada`, `visito`, `no_vino`, `reservo`, `compro`), con su
+vencimiento (hoy · mañana · +N · el día antes de la visita) y un mensaje con
+variables (`{nombre}`, `{vendedor}`, `{edificio}`, `{unidad}`,
+`{fecha_visita}`). Las de fábrica se cargan la primera vez que se piden
+(`ventas_ajustes.plantillas_sembradas`). La función pura `sugerencias()`
+devuelve hasta 3 y no repite una plantilla con tarea abierta
+(`tarea_venta.plantilla_id`) ni una descartada en la misma etapa
+(`oportunidad_sugerencia_descartada`). Nunca crea tareas sola.

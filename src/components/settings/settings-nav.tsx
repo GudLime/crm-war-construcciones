@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { settingsSections } from "@/lib/nav";
+import { pantallaOculta } from "@/lib/vocabulario";
+import { useVocabulario } from "@/components/vocabulario";
 
 /**
  * #87 — Ajustes en tres secciones (Canales, Agente, Negocio). Qué enlaces
@@ -31,7 +33,9 @@ export function SettingsNav({
   tiktok?: boolean;
 }) {
   const pathname = usePathname();
-  const sections = settingsSections({ agenda, reservas, atribucion, instagram, messenger, tiktok });
+  // 0059 — Sin tareas (071), no hay plantillas que configurar.
+  const tareas = !pantallaOculta(useVocabulario(), "tareas");
+  const sections = settingsSections({ agenda, reservas, atribucion, instagram, messenger, tiktok, tareas });
   return (
     <nav
       aria-label="Ajustes"
