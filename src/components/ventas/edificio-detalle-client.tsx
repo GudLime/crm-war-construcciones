@@ -31,8 +31,7 @@ import {
 import { ImportarUnidades } from "./importar-unidades";
 import { MediosMotor } from "./medios-motor";
 import { PildoraEdificio } from "./pildora-edificio";
-import { cn } from "@/lib/utils";
-import { COLORES_EDIFICIO, VALORES_COLOR_EDIFICIO } from "@/lib/colores-edificio";
+import { SelectorColor } from "./selector-color";
 import { Select } from "@/components/ui/select";
 
 type UnidadForm = {
@@ -576,30 +575,11 @@ export function EdificioDetalleClient() {
             </Select>
           </Campo>
           <Campo label="Color" className="sm:col-span-2 lg:col-span-3">
-            <div role="radiogroup" aria-label="Color del edificio" className="flex flex-wrap items-center gap-2">
-              {VALORES_COLOR_EDIFICIO.map((c) => {
-                const tono = COLORES_EDIFICIO[c];
-                const elegido = datos.color === c;
-                return (
-                  <button
-                    key={c}
-                    type="button"
-                    role="radio"
-                    aria-checked={elegido}
-                    aria-label={tono.nombre}
-                    title={tono.nombre}
-                    onClick={() => setDatos({ ...datos, color: c })}
-                    className={cn(
-                      "grid size-8 place-items-center rounded-full border-2",
-                      elegido ? "border-foreground" : "border-transparent hover:border-border-strong"
-                    )}
-                  >
-                    <span className="size-5 rounded-full" style={{ background: tono.punto }} />
-                  </button>
-                );
-              })}
-              <PildoraEdificio nombre={datos.nombre || "Edificio"} color={datos.color || null} className="ml-2" />
-            </div>
+            <SelectorColor
+              valor={datos.color}
+              onCambio={(color) => setDatos({ ...datos, color })}
+              nombre={datos.nombre || "Edificio"}
+            />
           </Campo>
           <Campo label="En venta" className="sm:col-span-2">
             <Input

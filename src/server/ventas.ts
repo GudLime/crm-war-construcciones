@@ -46,7 +46,7 @@ import {
 } from "@/lib/unidades-csv";
 import { renderMemoriaAgente } from "@/lib/memoria-agente";
 import { NOMBRE_ORIGEN_MAX } from "@/lib/origenes";
-import { siguienteColor, VALORES_COLOR_EDIFICIO, type ColorEdificio } from "@/lib/colores-edificio";
+import { HEX_COLOR, siguienteColor, VALORES_COLOR_EDIFICIO, type ColorEdificio } from "@/lib/colores-edificio";
 import { existeOrigen } from "@/server/origenes";
 import { revisarCambio } from "@/server/vocabulario";
 
@@ -96,7 +96,10 @@ export const edificioSchema = z.object({
   memoriaAgente: z.boolean().optional(),
   notasAgente: texto(4000),
   /** 0045 — Si no viene, no se cambia (al crear, el menos usado). */
-  color: z.enum(VALORES_COLOR_EDIFICIO as [ColorEdificio, ...ColorEdificio[]]).optional(),
+  /** Una clave de la paleta o un color propio `#rrggbb`. */
+  color: z
+    .union([z.enum(VALORES_COLOR_EDIFICIO as [ColorEdificio, ...ColorEdificio[]]), z.string().regex(HEX_COLOR).transform((c) => c.toLowerCase())])
+    .optional(),
 });
 
 /** Dormitorios, baños…: un entero chico, o nada. */

@@ -266,11 +266,15 @@ cambios de GudLime, si `_journal.json` choca, se ordenan las entradas por
 
 ## Color de cada edificio (0045)
 
-- `edificio.color` guarda una clave de la paleta fija de `lib/colores-edificio.ts`
-  (violeta, naranja, azul, rosa, cian, ámbar; sin verdes, para no confundirse
-  con la marca ni con el avance). La migración 0045 les dio color a los
-  existentes en orden de creación; uno nuevo recibe el menos usado. Se cambia
-  en la página del edificio.
+- `edificio.color` guarda una clave de la paleta de `lib/colores-edificio.ts`
+  (16: los seis de siempre —violeta, naranja, azul, rosa, cian, ámbar— más
+  rojo, índigo, turquesa, fucsia, celeste, amarillo, frambuesa, lima, marrón y
+  gris oscuro; sin verdes plenos) o un color propio `#rrggbb` elegido con
+  «Otro color…» (`selector-color.tsx`: el selector del navegador o el código);
+  de un color propio se sacan el fondo claro y el texto oscuro (`tonoDeHex`), y
+  si es verde se avisa (`esVerdoso`). La migración 0045 les dio color a los
+  existentes en orden de creación; uno nuevo recibe el menos usado de la
+  paleta. Se cambia en la página del edificio.
 - `PildoraEdificio` (`components/ventas/pildora-edificio.tsx`): punto, fondo con
   tinte y texto oscuro del mismo tono; en tema oscuro el tinte sale del punto.
   Se usa en la oportunidad (interés y oportunidad paralela), la lista de
