@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { MessageCircle, Search } from "lucide-react";
 import { ATAJOS, esAyuda, esBarraDeComandos, esCampoDeTexto } from "@/lib/atajos";
 import { urlDeConversacion } from "@/lib/avisos-sistema";
+import { useVocabulario } from "@/components/vocabulario";
 import { appNavGroups, SETTINGS_ITEM, type NavItem } from "@/lib/nav";
 import { matchesQuery } from "@/lib/search";
 import { listaVigente } from "@/lib/lista-compartida";
@@ -80,6 +81,7 @@ function BarraDeComandos({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const vocabulario = useVocabulario();
   const [q, setQ] = useState("");
   const [activo, setActivo] = useState(0);
   const [conversaciones, setConversaciones] = useState<Conversacion[]>([]);
@@ -105,7 +107,7 @@ function BarraDeComandos({
   }, []);
 
   const resultados = useMemo<Resultado[]>(() => {
-    const pantallas = [...appNavGroups({ agenda, role }).flatMap((g) => g.items), SETTINGS_ITEM]
+    const pantallas = [...appNavGroups({ agenda, role, vocabulario }).flatMap((g) => g.items), SETTINGS_ITEM]
       .filter((item) => matchesQuery(q, { text: [item.label] }))
       .map((item) => ({ clase: "pantalla" as const, item }));
     const convs = conversaciones
@@ -113,7 +115,7 @@ function BarraDeComandos({
       .slice(0, MAX_CONVERSACIONES)
       .map((conv) => ({ clase: "conversacion" as const, conv }));
     return [...pantallas, ...convs];
-  }, [q, conversaciones, agenda, role]);
+  }, [q, conversaciones, agenda, role, vocabulario]);
 
   useEffect(() => setActivo(0), [q]);
   useEffect(() => {

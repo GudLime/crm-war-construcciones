@@ -34,6 +34,7 @@ import { seReabre, textoSinRespuesta } from "@/lib/ventas-ajustes";
 import { publish } from "@/server/events/bus";
 import { ajustarInteres } from "@/server/motor/interes";
 import { asignarLeadDeMeta } from "@/server/asignacion";
+import { vocabulario } from "@/server/vocabulario";
 import { VentasError } from "@/server/ventas";
 
 /**
@@ -281,7 +282,8 @@ export async function abrirOportunidad(
   if (existente) return existente;
   const contacto = await contactoDe(organizationId, contactId);
   if (!contacto) throw new VentasError(404, "not_found", "Ese contacto no existe");
-  if (contacto.tipoContacto !== "lead") {
+  // 071 — Sin lo inmobiliario no hay tipo de contacto: cualquiera puede tener una.
+  if ((await vocabulario()).inmobiliario && contacto.tipoContacto !== "lead") {
     throw new VentasError(
       409,
       "no_es_lead",

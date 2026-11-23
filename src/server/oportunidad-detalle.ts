@@ -17,6 +17,9 @@ import { ESTADOS_ABIERTOS, type EstadoOportunidad, type TipoContacto } from "@/l
 import { isWindowOpen, WINDOW_MS } from "@/server/inbox/window";
 import { listarNotasDeOportunidad } from "@/server/notas";
 import { oportunidadConNombres, type OportunidadDto } from "@/server/ventas";
+import { vocabulario } from "@/server/vocabulario";
+import { reservasEnabled } from "@/server/reservas/flag";
+import { reservaDeOportunidad } from "@/server/reservas/servicio";
 
 /**
  * War — Todo lo que muestra la página de una oportunidad, en una sola ida.
@@ -57,6 +60,15 @@ export type FormularioRecibido = {
 };
 
 export type OportunidadDetalleDto = {
+  /** 071 — Si la oportunidad es una reserva de restaurante. */
+  reserva: {
+    fecha: string;
+    hora: string;
+    personas: number;
+    sector: string;
+    observaciones: string | null;
+    canal: string;
+  } | null;
   oportunidad: OportunidadDto & { estadoDesde: string; cerradaAt: string | null };
   contacto: ContactoDeOportunidad | null;
   conversacion: { id: string; ventanaAbierta: boolean; ventanaCierraAt: string | null } | null;
@@ -324,6 +336,7 @@ export async function obtenerDetalleOportunidad(
   const notas = await listarNotasDeOportunidad(quien, op.id);
 
   const timeline = armarTimeline({
+    vocabulario: await vocabulario(),
     eventos,
     mensajes,
     reuniones,
@@ -349,5 +362,14 @@ export async function obtenerDetalleOportunidad(
     timeline,
     anterior,
     paralelas,
+    // 071 — Si es una reserva: cuándo, cuántos y dónde.
+    reserva: reservasEnabled() ? await reservaResumida(organizationId, op.id) : null,
   };
+}
+
+async function reservaResumida(organizationId: string, oportunidadId: string) {
+  const r = await reservaDeOportunidad(organizationId, oportunidadId);
+  return r
+    ? { fecha: r.fecha, hora: r.hora, personas: r.personas, sector: r.sector, observaciones: r.observaciones, canal: r.canal }
+    : null;
 }

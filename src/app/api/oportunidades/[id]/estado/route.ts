@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiError, parseBody, withAuth } from "@/lib/api";
 import { VALORES_ESTADO_OPORTUNIDAD, type EstadoOportunidad } from "@/lib/ventas";
 import { motivoDesconocido, motivoValido } from "@/server/motivos-cierre";
+import { revisarCambio } from "@/server/vocabulario";
 import { cambiarEstadoOportunidad } from "@/server/oportunidad-historial";
 import { avisarConversaciones } from "@/server/oportunidades";
 import { alcanceDe, noEncontrado, puedeVerOportunidad } from "@/server/acceso";
@@ -26,6 +27,9 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
     const e = motivoDesconocido(body.data.motivoCierre!);
     return apiError(e.status, e.code, e.message);
   }
+  // 071 — La etapa se revisa contra el vocabulario; el motivo, contra Ajustes (arriba).
+  const problema = await revisarCambio(session.organizationId, id, { estado: body.data.estado });
+  if (problema) return apiError(422, "invalid_body", problema);
   const fila = await cambiarEstadoOportunidad({
     organizationId: session.organizationId,
     oportunidadId: id,

@@ -183,6 +183,7 @@ export const googleConnector: AgendaConnector<GoogleCreds> = {
         body: JSON.stringify({
           summary: req.topic,
           description: req.notes ?? undefined,
+          location: req.location ?? undefined,
           start: { dateTime: req.startUtc, timeZone: "UTC" },
           end: { dateTime: endUtc, timeZone: "UTC" },
           conferenceData: {

@@ -68,6 +68,12 @@ const prefixes = {
   motorArchivo: "arc",
   /** 0046 — Una vista guardada (pestaña con filtros). */
   vistaGuardada: "vis",
+  // 071 — reservas de restaurante
+  reserva: "res",
+  reservaHorario: "rho",
+  reservaCupo: "rcu",
+  reservaCierre: "rci",
+  reservaSector: "rse",
 } as const;
 
 export type IdKind = keyof typeof prefixes;

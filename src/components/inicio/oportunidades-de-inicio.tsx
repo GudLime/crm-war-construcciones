@@ -6,8 +6,11 @@ import { Maximize2 } from "lucide-react";
 import { OrigenIcono } from "@/components/ventas/origen-icono";
 import { hace, type OportunidadDeInicio } from "@/lib/inicio";
 import type { OrigenDto } from "@/lib/origenes";
+import { tonoDeEdificio } from "@/lib/colores-edificio";
 import { cn } from "@/lib/utils";
 import { TIPOS_OPORTUNIDAD, etiqueta } from "@/lib/ventas";
+import { useVocabulario } from "@/components/vocabulario";
+import { enFrase } from "@/lib/vocabulario";
 
 type IconoDeOrigen = Map<string, { icono: string; imagen: string | null }>;
 
@@ -47,7 +50,10 @@ function textoProximo(p: { tipo: string; titulo: string; at: string }, zona: str
   const manana = new Date(hoy.getTime() + 86_400_000);
   const hora = fmt({ hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at);
   const cuando = dia(at) === dia(hoy) ? "hoy" : dia(at) === dia(manana) ? "mañana" : fechaCorta(p.at, zona);
-  const nombre = { llamada: "Llamada", visita: "Visita", mensaje: "Mensaje", reunion: "Reunión", correo: "Correo" }[p.tipo] ?? p.titulo;
+  const nombre =
+    ({ llamada: "Llamada", visita: "Visita", mensaje: "WhatsApp", reunion: "Reunión", correo: "Mail", tarea: "Tarea" } as Record<string, string>)[
+      p.tipo
+    ] ?? p.titulo;
   return `${nombre} ${cuando} ${hora}`;
 }
 
@@ -71,7 +77,7 @@ function Fila({
     <li className="flex items-center gap-3 px-4 py-3">
       <span
         className="grid size-9 shrink-0 place-items-center rounded-full text-[12px] font-bold text-white"
-        style={{ background: o.edificio?.color ?? "var(--text-3)" }}
+        style={{ background: tonoDeEdificio(o.edificio?.color).punto }}
       >
         {iniciales(o.nombre)}
       </span>
@@ -85,7 +91,7 @@ function Fila({
           <span className="truncate font-semibold">{o.nombre}</span>
           {o.edificio && (
             <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium">
-              <span className="size-2 rounded-full" style={{ background: o.edificio.color ?? "var(--text-3)" }} />
+              <span className="size-2 rounded-full" style={{ background: tonoDeEdificio(o.edificio.color).punto }} />
               {o.edificio.nombre}
             </span>
           )}
@@ -130,6 +136,7 @@ function Bloque({
   vacio: string;
   children: React.ReactNode[];
 }) {
+  const voc = useVocabulario();
   return (
     <section className="rounded-xl border border-border bg-card shadow-sm">
       <header className="flex items-center justify-between gap-3 border-b px-4 py-3">
@@ -141,7 +148,7 @@ function Bloque({
         </div>
         {total > 0 && (
           <Link href={href} className="shrink-0 text-[12.5px] font-medium text-brand-ink hover:underline">
-            Revisar en Oportunidades →
+            Revisar en {voc.plural} →
           </Link>
         )}
       </header>
@@ -166,13 +173,14 @@ export function NuevasParaVos({
   href: string;
   iconos: IconoDeOrigen;
 }) {
+  const voc = useVocabulario();
   return (
     <Bloque
       titulo="Nuevas para vos"
       bajada="Asignadas a vos y todavía sin primer contacto."
       total={total}
       href={href}
-      vacio="No tenés oportunidades nuevas sin contactar."
+      vacio={`No tenés ${enFrase(voc.plural)} nuevas sin contactar.`}
     >
       {lista.map((o) => (
         <Fila

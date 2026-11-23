@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Menu, MenuItem, MenuSeparador, MenuTitulo } from "@/components/ui/menu";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
 import { cn } from "@/lib/utils";
-import { ESTADOS_OPORTUNIDAD } from "@/lib/ventas";
+import { useVocabulario } from "@/components/vocabulario";
 import {
   RESPONSABLE_SIN,
   RESPONSABLE_YO,
@@ -240,9 +240,12 @@ export type EstadoVistas = ReturnType<typeof useVistas>;
 /** Las pestañas: Todas, Para cerrar y las guardadas, con su contador. */
 export function PestanasDeVistas({ v }: { v: EstadoVistas }) {
   const avisar = useAvisoGuardado();
+  const voc = useVocabulario();
+  // 071 — Sin cierre por silencio, «Para cerrar» nunca tendría nada.
+  const vistas = voc.cierrePorSinRespuesta ? v.vistas : v.vistas.filter((x) => !(x.deFabrica && x.id === "para-cerrar"));
   return (
     <div role="tablist" aria-label="Vistas guardadas" className="-mb-px flex gap-1 overflow-x-auto border-b border-border">
-      {v.vistas.map((x) => {
+      {vistas.map((x) => {
         const elegida = x.id === v.activa;
         return (
           <div key={x.id} className="flex shrink-0 items-center">
@@ -341,16 +344,23 @@ export function BarraDeFiltros({
   const [abierta, setAbierta] = useState<Propiedad | null>(null);
   const f = v.filtros;
 
+  const voc = useVocabulario();
   const opcionesDe: Record<Exclude<Propiedad, Booleana>, Opcion[]> = {
     edificios: opciones.edificios,
     origenes: opciones.origenes,
-    estados: ESTADOS_OPORTUNIDAD.map((e) => ({ value: e.value, label: e.label })),
+    estados: voc.estados,
     unidades: opciones.unidades,
   };
+  // 071 — Lo que esta instancia no usa no se ofrece como filtro.
+  const existe = (p: Propiedad) =>
+    ((p !== "edificios" && p !== "unidades") || voc.inmobiliario) &&
+    (p !== "paraCerrar" || voc.cierrePorSinRespuesta);
   const activas = (Object.keys(NOMBRE_PROPIEDAD) as Propiedad[]).filter((p) =>
     esBooleana(p) ? f[p] === true : f[p] !== undefined
   );
-  const agregables = (Object.keys(NOMBRE_PROPIEDAD) as Propiedad[]).filter((p) => !activas.includes(p));
+  const agregables = (Object.keys(NOMBRE_PROPIEDAD) as Propiedad[]).filter(
+    (p) => existe(p) && !activas.includes(p)
+  );
   const responsables = f.responsables ?? [];
 
   function alternarResponsable(id: string) {

@@ -77,6 +77,40 @@ configuración). WAR todavía no lo usa: sin `CLIENTE_CONFIG` no hace nada.
 En el paso 8 se suma `clientes/war.json`, que adopta las tablas `edificio` y
 `departamento` sin mover datos. Formato: [clientes/README.md](clientes/README.md).
 
+## Vocabulario de la oportunidad (spec 071)
+
+Cada cliente puede renombrar la oportunidad (Reserva), elegir qué etapas usa
+y con qué nombre, sus motivos de cierre, y apagar lo inmobiliario, desde
+`clientes/<cliente>.json` (formato en [clientes/README.md](clientes/README.md)).
+El servidor lo lee una vez (`src/server/vocabulario.ts`) y lo baja a las
+pantallas con `useVocabulario()` (`src/components/vocabulario.tsx`); lo puro
+vive en `src/lib/vocabulario.ts`. Las API de estado y motivo lo revisan
+(`revisarCambio`). Sin `inmobiliario`, abrir una oportunidad no exige que el
+contacto sea Lead. Primer cliente: Beba (reservas de restaurante).
+
+## Reservas de restaurante (spec 071)
+
+Módulo opcional detrás de `RESERVAS=on`; apagado, sus pantallas y su API dan
+404. Se reserva por cupo, no por mesa: cada horario arranca con todas las
+mesas de Ajustes → Reservas libres y cada reserva se lleva la más chica que
+alcanza (o dos del mismo sector). Cada reserva es una oportunidad con su fila
+en `reserva` (fecha, hora, personas, sector, mesas); las etapas que ocupan
+mesa son las abiertas y Compró (en Beba, Confirmada y Llegó). El día se
+maneja desde la vista Mosaico de Reservas (el salón por horario y sector,
+`src/components/reservas/salon-del-dia.tsx`). En Contactos, cada persona
+muestra sus reservas, visitas y faltas, su segmento (Nuevo, Cliente,
+Habitual) y las vistas armadas; todo se cuenta de sus reservas
+(`src/server/reservas/comensales.ts`). El menú de cada cliente (orden,
+nombres, pantallas apagadas) va en el bloque `menu` de su configuración. Reglas puras en `src/lib/reservas.ts`,
+servicio en `src/server/reservas/`.
+
+## Pendiente
+
+Pasos 2 a 8 del motor (edificio y departamento pasan a ser objetos
+del cliente), interruptor de configuración para las reglas que se suman a las
+instrucciones del agente (`src/lib/instrucciones-oportunidades.ts`). Diseño
+técnico: documento «Diseño técnico: objetos personalizados en Vocero».
+
 ## Oportunidades (spec 068)
 
 En War lo que avanza en el embudo es la **oportunidad**, no el contacto
@@ -411,3 +445,29 @@ persona, solo admin). Spec: proyecto «CRM War Construcciones» →
   reservas (Reservó o Compró) y perdidas, de `oportunidad_evento`.
 - **Ver como** (solo admin): el Inicio de otra persona del equipo; los links
   abren las listas filtradas por esa persona.
+
+## Tareas por tipo en la oportunidad (0058)
+
+En «Próximos pasos», en lugar de «Agregar tarea», va una fila de botones por
+tipo — WhatsApp (`mensaje`) · Llamada · Reunión · Mail (`correo`) · Tarea (nuevo,
+genérico) — que muestran el nombre al pasar el mouse y abren una ventanita
+anclada (`components/ventas/nueva-tarea.tsx`): título por defecto según el tipo,
+cuándo (Hoy · Mañana · En 3 días · Otra fecha con el calendario propio
+`components/ui/calendario.tsx`) y hora, responsable y nota. **Reunión** tiene
+dos pestañas: **Visita** (en un edificio, por defecto el de la oportunidad) y
+**Reunión** (en la oficina, `ventas_ajustes.direccion_oficina`, Ajustes →
+Ventas). Con la Agenda prendida y contacto, crea una **cita** (`booking`, con
+`ubicacion`, que el conector de Google manda como `location` del evento); si no,
+una tarea `visita`/`reunion` con `tarea_venta.ubicacion` y `edificio_id`.
+
+## Oficina (war_0010)
+
+La dirección de las reuniones en la oficina (0058, Ajustes → Ventas → Oficina)
+arranca cargada con «Oficina WAR · Salguero 2731, Piso 3, Of. 36».
+
+## Motivos de cierre y vocabulario (071)
+
+El núcleo revisa etapa y motivo contra el vocabulario del cliente. En War los
+motivos son configurables (Ajustes → Motivos de cierre): las rutas siguen
+validando el motivo con `motivoValido` y al vocabulario solo le preguntan por
+la etapa. Las pantallas toman los motivos de `useMotivosCierre()`.

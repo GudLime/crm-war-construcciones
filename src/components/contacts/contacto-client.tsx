@@ -12,11 +12,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
 import { OportunidadPanel } from "@/components/ventas/oportunidad-panel";
 import { DatosPersonales } from "@/components/contacts/datos-personales";
+import { ReservasDeLaPersona } from "@/components/reservas/reservas-de-la-persona";
 import { WhatsAppLogo } from "@/components/whatsapp-logo";
 import type { AnuncioDto, ContactDto, FichaDto, FichaValue } from "@/lib/types";
 import { formatearTelefono } from "@/lib/telefono-formato";
 import { cn } from "@/lib/utils";
 import { TIPOS_CONTACTO, etiqueta } from "@/lib/ventas";
+import { useVocabulario } from "@/components/vocabulario";
 
 /**
  * La ficha completa de un contacto, en su propia página (`/contacts/<id>`):
@@ -27,8 +29,9 @@ import { TIPOS_CONTACTO, etiqueta } from "@/lib/ventas";
 
 const TARJETA = "rounded-tarjeta border border-border bg-card shadow-tarjeta";
 
-export function ContactoClient() {
+export function ContactoClient({ reservas = false }: { reservas?: boolean }) {
   const { id } = useParams<{ id: string }>();
+  const voc = useVocabulario();
   const avisar = useAvisoGuardado();
   const [contacto, setContacto] = useState<ContactDto | null>(null);
   const [anuncio, setAnuncio] = useState<AnuncioDto | null>(null);
@@ -103,9 +106,11 @@ export function ContactoClient() {
             <ContactAvatar name={contacto.name} seed={contacto.id} size="md" />
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-[22px] font-bold tracking-tight">{contacto.name}</h1>
-              <p className="text-[13px] text-text-3">
-                {contacto.tipoContacto ? etiqueta(TIPOS_CONTACTO, contacto.tipoContacto) : "Sin clasificar"}
-              </p>
+              {voc.inmobiliario && (
+                <p className="text-[13px] text-text-3">
+                  {contacto.tipoContacto ? etiqueta(TIPOS_CONTACTO, contacto.tipoContacto) : "Sin clasificar"}
+                </p>
+              )}
               <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-[13.5px]">
                 <span className="flex items-center gap-2">
                   <Phone className="size-4 text-text-3" />
@@ -140,7 +145,12 @@ export function ContactoClient() {
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-4">
             <section className={cn(TARJETA, "overflow-hidden")}>
-              <OportunidadPanel contactId={contacto.id} />
+              {/* 071 — En un restaurante, sus reservas y sus números en lugar de una oportunidad. */}
+              {reservas ? (
+                <ReservasDeLaPersona contactId={contacto.id} />
+              ) : (
+                <OportunidadPanel contactId={contacto.id} />
+              )}
             </section>
             {/* War — DNI, CUIL, nacimiento, dirección y parientes. */}
             <DatosPersonales contactId={contacto.id} className={cn(TARJETA, "mb-0 p-5")} />
@@ -150,10 +160,18 @@ export function ContactoClient() {
               <FichaPanel ficha={ficha} onSave={guardarFicha} />
             </section>
             <section className={cn(TARJETA, "p-4")}>
-              <p className="kicker mb-2">Notas del contacto</p>
+              <p className="kicker mb-2">{reservas ? "Notas fijas" : "Notas del contacto"}</p>
+              {reservas && (
+                <p className="mb-2 text-[12px] text-text-3">Aparecen en cada reserva de esta persona y en el salón.</p>
+              )}
               <Textarea
                 rows={5}
-                placeholder="Lo fijo del cliente: dirección, cómo prefiere pagar…"
+                aria-label="Notas del contacto"
+                placeholder={
+                  reservas
+                    ? "Celíaca, silla de bebé, prefiere el semidescubierto…"
+                    : "Lo fijo del cliente: dirección, cómo prefiere pagar…"
+                }
                 value={notas}
                 onChange={(e) => setNotas(e.target.value)}
               />

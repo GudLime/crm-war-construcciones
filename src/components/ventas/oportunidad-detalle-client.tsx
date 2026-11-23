@@ -17,13 +17,13 @@ import {
   ClipboardList,
   DoorOpen,
   FileText,
+  CalendarCheck,
   Flag,
   History,
   Mail,
   Megaphone,
   Pencil,
   Phone,
-  Plus,
   RotateCcw,
   Sparkles,
   StickyNote,
@@ -37,6 +37,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { aLocal, plata, useMoneda } from "@/components/ventas/ui";
+import { fechaCorta } from "@/lib/reservas";
 import { WhatsAppLogo } from "@/components/whatsapp-logo";
 import type { NotaDto } from "@/lib/notas";
 import type {
@@ -48,10 +49,10 @@ import type {
 } from "@/lib/oportunidad-detalle";
 import type { OrigenDto } from "@/lib/origenes";
 import { formatearTelefono } from "@/lib/telefono-formato";
+import { tonoDeEdificio } from "@/lib/colores-edificio";
+import { BotonesNuevaTarea } from "@/components/ventas/nueva-tarea";
 import { cn } from "@/lib/utils";
 import {
-  CAMINO_OPORTUNIDAD,
-  ESTADOS_OPORTUNIDAD,
   TIPOS_CONTACTO,
   TIPOS_OPORTUNIDAD,
   TIPOS_TAREA,
@@ -68,6 +69,8 @@ import {
 import { OrigenIcono } from "./origen-icono";
 import { useMotivosCierre } from "./use-motivos-cierre";
 import { PildoraEdificio } from "./pildora-edificio";
+import { useVocabulario } from "@/components/vocabulario";
+import { enFrase, nombreEstado, pantallaOculta } from "@/lib/vocabulario";
 
 /**
  * War — La página de una oportunidad (ver WAR.md → «Página de la oportunidad»).
@@ -173,8 +176,10 @@ async function mensajeError(res: Response | null): Promise<string> {
 
 type IconoDeOrigen = Map<string, { icono: string; imagen: string | null }>;
 
-export function OportunidadDetalleClient() {
+export function OportunidadDetalleClient({ agenda = false }: { agenda?: boolean } = {}) {
   const { id } = useParams<{ id: string }>();
+  const voc = useVocabulario();
+  const singular = enFrase(voc.singular);
   const [datos, setDatos] = useState<OportunidadDetalleDto | null>(null);
   /** Los edificios para elegir el interés (también cuando todavía no tiene ninguno). */
   const [catalogo, setCatalogo] = useState<{ id: string; nombre: string; color: string | null }[]>([]);
@@ -253,9 +258,9 @@ export function OportunidadDetalleClient() {
   if (noExiste) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-        <p className="text-sm text-text-2">Esa oportunidad no existe (o se borró).</p>
+        <p className="text-sm text-text-2">Esa {singular} no existe (o se borró).</p>
         <Link href="/oportunidades" className="text-sm font-medium text-brand-ink hover:underline">
-          Volver a Oportunidades
+          Volver a {voc.plural}
         </Link>
       </div>
     );
@@ -294,7 +299,7 @@ export function OportunidadDetalleClient() {
           <div className="flex flex-wrap items-start gap-4">
             <Link
               href="/oportunidades"
-              aria-label="Volver a Oportunidades"
+              aria-label={`Volver a ${voc.plural}`}
               className="grid size-10 shrink-0 place-items-center rounded-full border border-border text-text-2 hover:bg-accent hover:text-foreground"
             >
               <ArrowLeft className="size-4" />
@@ -307,7 +312,7 @@ export function OportunidadDetalleClient() {
                 <h1 className="min-w-0 truncate text-[22px] font-bold tracking-tight">{op.nombre}</h1>
                 <Link
                   href={`/oportunidades?editar=${op.id}`}
-                  aria-label="Editar oportunidad"
+                  aria-label={`Editar ${singular}`}
                   title="Editar"
                   className="grid size-[30px] place-items-center rounded-md text-text-3 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
                 >
@@ -328,6 +333,22 @@ export function OportunidadDetalleClient() {
 
               <div className="mt-3 flex flex-wrap gap-x-10 gap-y-0.5 text-[13.5px]">
                 <dl className="flex min-w-0 flex-[1_1_300px] flex-col gap-0.5">
+                  {datos.reserva && (
+                    <Fila icono={CalendarCheck} titulo="Para">
+                      <span className="tabular-nums">
+                        {fechaCorta(datos.reserva.fecha)} · {datos.reserva.hora}
+                      </span>
+                      <span className="font-normal text-text-3">
+                        · {datos.reserva.personas} persona{datos.reserva.personas === 1 ? "" : "s"} ·{" "}
+                        {datos.reserva.sector}
+                      </span>
+                    </Fila>
+                  )}
+                  {datos.reserva?.observaciones && (
+                    <Fila icono={StickyNote} titulo="Pidió">
+                      {datos.reserva.observaciones}
+                    </Fila>
+                  )}
                   <Fila icono={Megaphone} titulo="Origen">
                     {op.origen ? (
                       <span className="flex items-center gap-2">
@@ -343,6 +364,8 @@ export function OportunidadDetalleClient() {
                       <SinDato />
                     )}
                   </Fila>
+                  {voc.inmobiliario && (
+                  <>
                   <Fila icono={Building2} titulo="Interés">
                     {contacto && catalogo.length > 0 ? (
                       // Se elige acá, tenga o no edificios todavía (la creada a mano arranca sin ninguno).
@@ -354,7 +377,7 @@ export function OportunidadDetalleClient() {
                         aria-label="Edificios de interés"
                         iconoDe={(v) => {
                           const color = catalogo.find((e) => e.id === v)?.color;
-                          return <span className="size-2.5 shrink-0 rounded-full" style={{ background: color ?? "var(--text-3)" }} />;
+                          return <span className="size-2.5 shrink-0 rounded-full" style={{ background: tonoDeEdificio(color).punto }} />;
                         }}
                         className="h-auto min-h-7 w-auto max-w-full rounded-full px-2 py-0.5 text-[13px]"
                       >
@@ -405,6 +428,8 @@ export function OportunidadDetalleClient() {
                       <SinDato />
                     )}
                   </Fila>
+                  </>
+                  )}
                   {interes && (
                     <Fila icono={DoorOpen} titulo={interes.nombre}>
                       <UnidadesDeInteres
@@ -420,7 +445,7 @@ export function OportunidadDetalleClient() {
                       <VinculoEnLinea vinculo={v} onGuardar={(ids) => objetos.guardarVinculo(v.relacion, ids)} />
                     </Fila>
                   ))}
-                  {!interes && !otrosVinculos.length && op.unidad && (
+                  {voc.inmobiliario && !interes && !otrosVinculos.length && op.unidad && (
                     <Fila icono={DoorOpen} titulo="Departamento">
                       <span className="inline-block rounded-full border border-border px-2.5 py-0.5 text-[12.5px]">
                         {op.unidad}
@@ -451,9 +476,11 @@ export function OportunidadDetalleClient() {
                   <Fila icono={Timer} titulo="En este estado">
                     desde {fechaExacta(op.estadoDesde)}
                   </Fila>
-                  <Fila icono={Tag} titulo="Tipo">
-                    {op.tipo ? etiqueta(TIPOS_OPORTUNIDAD, op.tipo) : <SinDato />}
-                  </Fila>
+                  {voc.inmobiliario && (
+                    <Fila icono={Tag} titulo="Tipo">
+                      {op.tipo ? etiqueta(TIPOS_OPORTUNIDAD, op.tipo) : <SinDato />}
+                    </Fila>
+                  )}
                   {/* 0050 — Responsable de la oportunidad (define quién la ve). */}
                   <Fila icono={UserRound} titulo="Responsable">
                     <ElegirResponsable
@@ -505,7 +532,7 @@ export function OportunidadDetalleClient() {
                 className="inline-flex items-center gap-2 underline-offset-2 hover:underline"
               >
                 <PildoraEdificio nombre={p.edificioNombre ?? p.nombre} color={p.edificioColor} />
-                {etiqueta(ESTADOS_OPORTUNIDAD, p.estado)}
+                {nombreEstado(voc, p.estado)}
               </Link>
             ))}
           </div>
@@ -547,7 +574,9 @@ export function OportunidadDetalleClient() {
                 proximos={datos.proximos}
                 origenes={origenes}
                 oportunidadId={op.id}
-                contactId={contacto?.id ?? null}
+                contacto={contacto ? { id: contacto.id, nombre: contacto.nombre } : null}
+                edificioOportunidad={edificios[0] ? { id: edificios[0].id, nombre: edificios[0].nombre } : null}
+                agenda={agenda}
                 onCambio={cargar}
               />
             )}
@@ -687,15 +716,21 @@ function BarraDeAvance({
 }) {
   const [cerrando, setCerrando] = useState(false);
   const [motivoNuevo, setMotivoNuevo] = useState("");
+  // War — los motivos salen de Ajustes → Motivos de cierre.
   const motivosCierre = useMotivosCierre();
-  const indice = CAMINO_OPORTUNIDAD.indexOf(estado);
-  const perdida = estado === "perdido" || estado === "no_calificado";
+  const voc = useVocabulario();
+  const camino = voc.camino;
+  // 071 — Los cierres que no están en el camino (Perdido, No calificado; en
+  // un restaurante, Cancelada y No vino), en el orden de la configuración.
+  const cierres = voc.cierres.filter((e) => !camino.includes(e));
+  const indice = camino.indexOf(estado);
+  const perdida = cierres.includes(estado) || estado === "perdido" || estado === "no_calificado";
 
   return (
     <div className="mt-5">
       {/* En pantallas angostas no se parte: se desplaza. */}
       <ol className="flex gap-1 overflow-x-auto pb-0.5" aria-label="Avance">
-        {CAMINO_OPORTUNIDAD.map((paso, i) => {
+        {camino.map((paso, i) => {
           const hecho = !perdida && indice >= 0 && i < indice;
           const actual = paso === estado;
           return (
@@ -714,7 +749,7 @@ function BarraDeAvance({
                 )}
               >
                 {(hecho || actual) && <Check className="size-3.5 shrink-0" />}
-                <span className="truncate">{etiqueta(ESTADOS_OPORTUNIDAD, paso)}</span>
+                <span className="truncate">{nombreEstado(voc, paso)}</span>
               </button>
             </li>
           );
@@ -733,7 +768,7 @@ function BarraDeAvance({
             )}
           >
             {perdida ? <X className="size-3.5 shrink-0" /> : <Flag className="size-3.5 shrink-0" />}
-            <span className="truncate">{perdida ? etiqueta(ESTADOS_OPORTUNIDAD, estado) : "Perdida"}</span>
+            <span className="truncate">{perdida ? nombreEstado(voc, estado) : voc.etiquetaCerrar}</span>
           </button>
         </li>
       </ol>
@@ -751,20 +786,16 @@ function BarraDeAvance({
               ))}
             </Select>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => void onCambiar("perdido", motivoNuevo || null).then(() => setCerrando(false))}
-          >
-            Perdido
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => void onCambiar("no_calificado", motivoNuevo || null).then(() => setCerrando(false))}
-          >
-            No calificado
-          </Button>
+          {cierres.map((cierre) => (
+            <Button
+              key={cierre}
+              size="sm"
+              variant="outline"
+              onClick={() => void onCambiar(cierre, motivoNuevo || null).then(() => setCerrando(false))}
+            >
+              {nombreEstado(voc, cierre)}
+            </Button>
+          ))}
         </div>
       )}
     </div>
@@ -841,7 +872,9 @@ function Timeline({
   proximos,
   origenes,
   oportunidadId,
-  contactId,
+  contacto,
+  edificioOportunidad,
+  agenda,
   onCambio,
 }: {
   items: ItemTimeline[];
@@ -849,12 +882,15 @@ function Timeline({
   proximos: ProximoPaso[];
   origenes: IconoDeOrigen;
   oportunidadId: string;
-  contactId: string | null;
+  contacto: { id: string; nombre: string } | null;
+  edificioOportunidad: { id: string; nombre: string } | null;
+  agenda: boolean;
   onCambio: () => Promise<void>;
 }) {
+  const voc = useVocabulario();
   const [verProximos, setVerProximos] = useState(true);
   const [verHistorial, setVerHistorial] = useState(true);
-  const [agregando, setAgregando] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function marcar(t: TareaCorta, estado: "listo" | "no_responde") {
@@ -879,53 +915,62 @@ function Timeline({
     await onCambio();
   }
 
+  // 071 — Sin tareas (el seguimiento es con notas), no hay próximos pasos que cargar.
+  const conTareas = !pantallaOculta(voc, "tareas");
+
   return (
     <div className="flex flex-col">
-      <TituloDeBloque abierto={verProximos} onToggle={() => setVerProximos((v) => !v)} titulo="Próximos pasos" n={proximos.length}>
-        <button
-          type="button"
-          onClick={() => {
-            setVerProximos(true);
-            setAgregando((v) => !v);
-          }}
-          className="inline-flex h-7 items-center gap-1 rounded-full border border-border bg-card px-3 text-[12.5px] font-medium hover:bg-accent"
-        >
-          <Plus className="size-3.5" /> Agregar tarea
-        </button>
-      </TituloDeBloque>
-      {verProximos && (
+      {conTareas && (
         <>
-          {agregando && (
-            <AgregarTarea
+          <TituloDeBloque abierto={verProximos} onToggle={() => setVerProximos((v) => !v)} titulo="Próximos pasos" n={proximos.length}>
+            <BotonesNuevaTarea
               oportunidadId={oportunidadId}
-              contactId={contactId}
-              onListo={async () => {
-                setAgregando(false);
+              contacto={contacto}
+              edificioOportunidad={edificioOportunidad}
+              agenda={agenda}
+              onCreada={async (texto) => {
+                setVerProximos(true);
+                setAviso(texto);
                 await onCambio();
               }}
-              onCancelar={() => setAgregando(false)}
             />
+          </TituloDeBloque>
+          {verProximos && (
+            <>
+              {aviso && (
+                <p
+                  role="status"
+                  className="mb-2 flex items-start gap-2 rounded-lg bg-success-tint px-3 py-2 text-[12.5px] text-success-text"
+                >
+                  <Check className="mt-0.5 size-3.5 shrink-0" />
+                  <span className="flex-1">{aviso}</span>
+                  <button type="button" onClick={() => setAviso(null)} aria-label="Cerrar aviso">
+                    <X className="size-3.5" />
+                  </button>
+                </p>
+              )}
+              {error && <p className="mb-2 text-sm text-danger-text">{error}</p>}
+              {proximos.length === 0 ? (
+                <p className="py-2 text-[13px] text-text-3">No hay nada por hacer. Agregá una tarea para el próximo paso.</p>
+              ) : (
+                <ol className="space-y-1">
+                  {proximos.map((p) => (
+                    <ProximoFila key={p.id} paso={p} onMarcar={marcar} />
+                  ))}
+                </ol>
+              )}
+            </>
           )}
-          {error && <p className="mb-2 text-sm text-danger-text">{error}</p>}
-          {proximos.length === 0 && !agregando ? (
-            <p className="py-2 text-[13px] text-text-3">No hay nada por hacer. Agregá una tarea para el próximo paso.</p>
-          ) : (
-            <ol className="space-y-1">
-              {proximos.map((p) => (
-                <ProximoFila key={p.id} paso={p} onMarcar={marcar} />
-              ))}
-            </ol>
-          )}
+
+          <div role="separator" aria-label="Hoy" className="flex items-center gap-2.5 py-2.5">
+            <span className="h-px flex-1 bg-border-strong" />
+            <span className="rounded-full bg-foreground px-3 py-[3px] text-[12px] font-semibold text-background">
+              Hoy · {hoyLargo()}
+            </span>
+            <span className="h-px flex-1 bg-border-strong" />
+          </div>
         </>
       )}
-
-      <div role="separator" aria-label="Hoy" className="flex items-center gap-2.5 py-2.5">
-        <span className="h-px flex-1 bg-border-strong" />
-        <span className="rounded-full bg-foreground px-3 py-[3px] text-[12px] font-semibold text-background">
-          Hoy · {hoyLargo()}
-        </span>
-        <span className="h-px flex-1 bg-border-strong" />
-      </div>
 
       <TituloDeBloque
         abierto={verHistorial}
@@ -947,9 +992,9 @@ function Timeline({
                   <History className="size-4" />
                 </span>
                 <div className="min-w-0 flex-1 text-[13.5px]">
-                  <p className="font-semibold">Oportunidad anterior: {anterior.edificioNombre ?? anterior.nombre}</p>
+                  <p className="font-semibold">{voc.singular} anterior: {anterior.edificioNombre ?? anterior.nombre}</p>
                   <p className="text-text-2">
-                    {etiqueta(ESTADOS_OPORTUNIDAD, anterior.estado)}
+                    {nombreEstado(voc, anterior.estado)}
                     {anterior.cerradaAt ? ` el ${fecha(anterior.cerradaAt, false)}` : ""}
                     {anterior.motivoCierre ? ` · motivo: ${anterior.motivoCierre}` : ""}
                   </p>
@@ -957,7 +1002,7 @@ function Timeline({
                     href={`/oportunidades/${anterior.id}`}
                     className="text-[12.5px] font-medium text-brand-ink hover:underline"
                   >
-                    Ver esa oportunidad →
+                    Ver esa {enFrase(voc.singular)} →
                   </Link>
                 </div>
               </li>
@@ -1065,79 +1110,6 @@ function HistorialFila({ item: it, origenes }: { item: ItemTimeline; origenes: I
         {it.quien && <p className="mt-0.5 text-[12px] text-text-3">{it.quien}</p>}
       </div>
     </li>
-  );
-}
-
-function AgregarTarea({
-  oportunidadId,
-  contactId,
-  onListo,
-  onCancelar,
-}: {
-  oportunidadId: string;
-  contactId: string | null;
-  onListo: () => Promise<void>;
-  onCancelar: () => void;
-}) {
-  const [titulo, setTitulo] = useState("");
-  const [tipo, setTipo] = useState<string>("llamada");
-  const [fechaNueva, setFechaNueva] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  async function agregar() {
-    if (!titulo.trim()) return;
-    setError(null);
-    const res = await fetch("/api/tareas", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ titulo, tipo, fecha: fechaNueva || null, oportunidadId, contactId }),
-    }).catch(() => null);
-    if (!res?.ok) {
-      setError(await mensajeError(res));
-      return;
-    }
-    await onListo();
-  }
-
-  return (
-    <div className="mb-2 space-y-2 rounded-2xl bg-subtle p-3">
-      <input
-        autoFocus
-        value={titulo}
-        onChange={(e) => setTitulo(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") void agregar();
-        }}
-        placeholder="Qué hay que hacer"
-        aria-label="Título de la tarea"
-        className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-      />
-      <div className="flex flex-wrap gap-2">
-        <Select value={tipo} onValueChange={setTipo} aria-label="Tipo" className="w-36">
-          {TIPOS_TAREA.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </Select>
-        <input
-          type="datetime-local"
-          value={fechaNueva}
-          onChange={(e) => setFechaNueva(e.target.value)}
-          aria-label="Fecha"
-          className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm"
-        />
-      </div>
-      {error && <p className="text-sm text-danger-text">{error}</p>}
-      <div className="flex gap-2">
-        <Button size="sm" onClick={() => void agregar()} disabled={!titulo.trim()}>
-          Agregar tarea
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onCancelar}>
-          Cancelar
-        </Button>
-      </div>
-    </div>
   );
 }
 
@@ -1304,10 +1276,11 @@ function UltimosMensajes({
   conversacion: OportunidadDetalleDto["conversacion"];
   enChat: string | null;
 }) {
+  const voc = useVocabulario();
   return (
     <div className="space-y-4">
       {mensajes.length === 0 ? (
-        <p className="py-8 text-center text-sm text-text-3">No hay mensajes en esta oportunidad.</p>
+        <p className="py-8 text-center text-sm text-text-3">No hay mensajes en esta {enFrase(voc.singular)}.</p>
       ) : (
         <ul className="space-y-2 rounded-2xl bg-chat p-3">
           {mensajes.map((m) => {
@@ -1361,6 +1334,7 @@ function UltimosMensajes({
 /** El contacto, plegado: avatar, nombre, tipo y desde cuándo. Abierto suma teléfono, correo y anuncio. */
 function TarjetaContacto({ contacto }: { contacto: OportunidadDetalleDto["contacto"] }) {
   const [abierto, setAbierto] = useState(false);
+  const voc = useVocabulario();
   if (!contacto) {
     return (
       <section className={cn(TARJETA, "p-5")}>
@@ -1384,8 +1358,9 @@ function TarjetaContacto({ contacto }: { contacto: OportunidadDetalleDto["contac
           <span className="min-w-0 flex-1">
             <span className="block truncate font-semibold">{contacto.nombre}</span>
             <span className="block text-[12px] font-normal text-text-3">
-              {contacto.tipoContacto ? etiqueta(TIPOS_CONTACTO, contacto.tipoContacto) : "Sin clasificar"}
-              {` · desde ${fecha(contacto.creadoAt, false)}`}
+              {voc.inmobiliario &&
+                `${contacto.tipoContacto ? etiqueta(TIPOS_CONTACTO, contacto.tipoContacto) : "Sin clasificar"} · `}
+              {`desde ${fecha(contacto.creadoAt, false)}`}
             </span>
           </span>
           <ChevronDown className={cn("size-4 shrink-0 text-text-3 transition-transform", abierto && "rotate-180")} />

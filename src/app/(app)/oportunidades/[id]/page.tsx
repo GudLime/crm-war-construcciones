@@ -1,8 +1,9 @@
+import { agendaEnabled } from "@/server/agenda/flag";
 import { OportunidadDetalleClient } from "@/components/ventas/oportunidad-detalle-client";
 
 export const dynamic = "force-dynamic";
 
-/** War — La página de una oportunidad. */
+/** La página de una oportunidad. Con la Agenda, «Reunión» agenda una cita. */
 export default function OportunidadPage() {
-  return <OportunidadDetalleClient />;
+  return <OportunidadDetalleClient agenda={agendaEnabled()} />;
 }
