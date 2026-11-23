@@ -9,6 +9,7 @@ import { TIPOS_CONTACTO } from "@/lib/ventas";
 import { cn, formatPhone } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
 import { SOURCE_LABELS } from "@/server/contact-source";
+import { Select } from "@/components/ui/select";
 
 /**
  * Cambios 23/11, punto 8 — Contactos compacta: buscador y filtros como
@@ -69,7 +70,6 @@ export function ContactosLista({
   const [pagina, setPagina] = useState(1);
   const [datos, setDatos] = useState<{ items: ContactDto[]; total: number } | null>(null);
   const [error, setError] = useState(false);
-  const [agregando, setAgregando] = useState(false);
 
   // Al buscar, filtrar u ordenar se vuelve a la página 1.
   useEffect(() => setPagina(1), [q, filtros, orden]);
@@ -128,18 +128,18 @@ export function ContactosLista({
         {activos.map((k) => (
           <span key={k} className="inline-flex h-8 items-center gap-1 rounded-full border border-border bg-card pl-3 pr-1 text-[13px]">
             <span className="text-text-3">{OPCIONES[k].titulo}:</span>
-            <select
+            <Select
               value={filtros[k]}
-              onChange={(e) => setFiltros({ ...filtros, [k]: e.target.value })}
+              onValueChange={(v) => setFiltros({ ...filtros, [k]: v })}
               aria-label={OPCIONES[k].titulo}
-              className="bg-transparent font-semibold outline-none"
+              className="h-7 w-auto min-w-[120px] border-0 bg-transparent px-1 font-semibold shadow-none"
             >
               {OPCIONES[k].opciones.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>
               ))}
-            </select>
+            </Select>
             <button
               type="button"
               aria-label={`Quitar ${OPCIONES[k].titulo}`}
@@ -155,36 +155,24 @@ export function ContactosLista({
           </span>
         ))}
         {libres.length > 0 &&
-          (agregando ? (
-            <select
-              autoFocus
-              defaultValue=""
-              onBlur={() => setAgregando(false)}
-              onChange={(e) => {
-                const k = e.target.value as Filtro;
-                if (k) setFiltros({ ...filtros, [k]: OPCIONES[k].opciones[0]!.value });
-                setAgregando(false);
+          (
+            <Select
+              value=""
+              placeholder="+ Filtro"
+              aria-label="Agregar un filtro"
+              onValueChange={(v) => {
+                const k = v as Filtro;
+                if (k in OPCIONES) setFiltros({ ...filtros, [k]: OPCIONES[k].opciones[0]!.value });
               }}
-              className="h-8 rounded-full border border-border bg-card px-3 text-[13px]"
+              className="h-8 w-auto min-w-[110px] rounded-full border-dashed text-[13px]"
             >
-              <option value="" disabled>
-                Filtrar por…
-              </option>
               {libres.map((k) => (
                 <option key={k} value={k}>
                   {OPCIONES[k].titulo}
                 </option>
               ))}
-            </select>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setAgregando(true)}
-              className="inline-flex h-8 items-center rounded-full border border-dashed border-border-strong px-3 text-[13px] text-text-2 hover:bg-accent"
-            >
-              + Filtro
-            </button>
-          ))}
+            </Select>
+          )}
         {(activos.length > 0 || q) && (
           <button
             type="button"
