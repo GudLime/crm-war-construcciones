@@ -153,8 +153,9 @@ export async function periodFromRequest(
 ): Promise<ResolvedPeriod> {
   const timezone = await businessTimezone(organizationId);
   return resolvePeriod({
-    from: url.searchParams.get("from"),
-    to: url.searchParams.get("to"),
+    // Resultados (rediseño) manda `desde`/`hasta`; `from`/`to` siguen valiendo.
+    from: url.searchParams.get("desde") ?? url.searchParams.get("from"),
+    to: url.searchParams.get("hasta") ?? url.searchParams.get("to"),
     timezone,
     now,
   });
