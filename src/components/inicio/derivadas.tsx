@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
 import { CHANNEL_LABEL, type Channel } from "@/lib/channels";
 import { DERIVADA_URGENTE_MIN, LINKS_INICIO, hace, type DerivadaDto, type TonoMotivo } from "@/lib/inicio";
+import { tonoDeEdificio } from "@/lib/colores-edificio";
 import { cn } from "@/lib/utils";
 
 const CHIP: Record<TonoMotivo, string> = {
@@ -81,7 +82,7 @@ export function Derivadas({
               <li key={d.conversationId} className="flex items-start gap-3 px-4 py-3">
                 <span
                   className="grid size-9 shrink-0 place-items-center rounded-full text-[12px] font-bold text-white"
-                  style={{ background: d.edificio?.color ?? "var(--text-3)" }}
+                  style={{ background: tonoDeEdificio(d.edificio?.color).punto }}
                 >
                   {iniciales(d.contacto.nombre)}
                 </span>
@@ -90,7 +91,7 @@ export function Derivadas({
                     <span className="truncate font-semibold">{d.contacto.nombre}</span>
                     {d.edificio && (
                       <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium">
-                        <span className="size-2 rounded-full" style={{ background: d.edificio.color ?? "var(--text-3)" }} />
+                        <span className="size-2 rounded-full" style={{ background: tonoDeEdificio(d.edificio.color).punto }} />
                         {d.edificio.nombre}
                       </span>
                     )}

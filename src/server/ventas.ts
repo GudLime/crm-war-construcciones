@@ -152,6 +152,10 @@ export const tareaSchema = z.object({
   oportunidadId: idOpcional,
   /** 0048 — Quién la hace. Si no viene: al crear, quien la crea; al editar, no se cambia. */
   responsableId: idOpcional,
+  /** 0058 — Dónde es (visita o reunión). Si no viene, al editar no se cambia. */
+  ubicacion: z.string().trim().max(300).nullable().optional(),
+  /** 0058 — El edificio de una visita. Si no viene, al editar no se cambia. */
+  edificioId: idOpcional,
 });
 
 export type EdificioDto = {
@@ -250,6 +254,8 @@ export type TareaDto = {
   /** 0048 — Quién la hace. */
   responsableId: string | null;
   responsableNombre: string | null;
+  /** 0058 — Dónde es (visita o reunión), o null. */
+  ubicacion: string | null;
 };
 
 function oNulo(v: string | null | undefined): string | null {
@@ -986,6 +992,7 @@ function aTarea(
         : null,
     responsableId: fila.responsableUserId,
     responsableNombre: fila.responsableUserId ? extra.responsableNombre : null,
+    ubicacion: fila.ubicacion ?? null,
   };
 }
 
@@ -1032,6 +1039,7 @@ async function valoresTarea(organizationId: string, datos: z.infer<typeof tareaS
     datos.oportunidadId,
     "Esa oportunidad no existe"
   );
+  await exigirEnOrganizacion(organizationId, "edificio", datos.edificioId, "Ese edificio no existe");
   return {
     titulo: datos.titulo.trim(),
     tipo: datos.tipo,
@@ -1040,6 +1048,8 @@ async function valoresTarea(organizationId: string, datos: z.infer<typeof tareaS
     comentarios: oNulo(datos.comentarios),
     contactId: datos.contactId ?? null,
     oportunidadId: datos.oportunidadId ?? null,
+    ...(datos.ubicacion !== undefined ? { ubicacion: oNulo(datos.ubicacion) } : {}),
+    ...(datos.edificioId !== undefined ? { edificioId: datos.edificioId ?? null } : {}),
   };
 }
 

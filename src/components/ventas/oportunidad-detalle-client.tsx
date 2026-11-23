@@ -24,7 +24,6 @@ import {
   Megaphone,
   Pencil,
   Phone,
-  Plus,
   RotateCcw,
   Sparkles,
   StickyNote,
@@ -50,6 +49,8 @@ import type {
 } from "@/lib/oportunidad-detalle";
 import type { OrigenDto } from "@/lib/origenes";
 import { formatearTelefono } from "@/lib/telefono-formato";
+import { tonoDeEdificio } from "@/lib/colores-edificio";
+import { BotonesNuevaTarea } from "@/components/ventas/nueva-tarea";
 import { cn } from "@/lib/utils";
 import {
   TIPOS_CONTACTO,
@@ -172,7 +173,7 @@ async function mensajeError(res: Response | null): Promise<string> {
 
 type IconoDeOrigen = Map<string, { icono: string; imagen: string | null }>;
 
-export function OportunidadDetalleClient() {
+export function OportunidadDetalleClient({ agenda = false }: { agenda?: boolean } = {}) {
   const { id } = useParams<{ id: string }>();
   const voc = useVocabulario();
   const singular = enFrase(voc.singular);
@@ -373,7 +374,7 @@ export function OportunidadDetalleClient() {
                         aria-label="Edificios de interés"
                         iconoDe={(v) => {
                           const color = catalogo.find((e) => e.id === v)?.color;
-                          return <span className="size-2.5 shrink-0 rounded-full" style={{ background: color ?? "var(--text-3)" }} />;
+                          return <span className="size-2.5 shrink-0 rounded-full" style={{ background: tonoDeEdificio(color).punto }} />;
                         }}
                         className="h-auto min-h-7 w-auto max-w-full rounded-full px-2 py-0.5 text-[13px]"
                       >
@@ -570,7 +571,9 @@ export function OportunidadDetalleClient() {
                 proximos={datos.proximos}
                 origenes={origenes}
                 oportunidadId={op.id}
-                contactId={contacto?.id ?? null}
+                contacto={contacto ? { id: contacto.id, nombre: contacto.nombre } : null}
+                edificioOportunidad={edificios[0] ? { id: edificios[0].id, nombre: edificios[0].nombre } : null}
+                agenda={agenda}
                 onCambio={cargar}
               />
             )}
@@ -864,7 +867,9 @@ function Timeline({
   proximos,
   origenes,
   oportunidadId,
-  contactId,
+  contacto,
+  edificioOportunidad,
+  agenda,
   onCambio,
 }: {
   items: ItemTimeline[];
@@ -872,13 +877,15 @@ function Timeline({
   proximos: ProximoPaso[];
   origenes: IconoDeOrigen;
   oportunidadId: string;
-  contactId: string | null;
+  contacto: { id: string; nombre: string } | null;
+  edificioOportunidad: { id: string; nombre: string } | null;
+  agenda: boolean;
   onCambio: () => Promise<void>;
 }) {
   const voc = useVocabulario();
   const [verProximos, setVerProximos] = useState(true);
   const [verHistorial, setVerHistorial] = useState(true);
-  const [agregando, setAgregando] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function marcar(t: TareaCorta, estado: "listo" | "no_responde") {
@@ -911,32 +918,34 @@ function Timeline({
       {conTareas && (
         <>
           <TituloDeBloque abierto={verProximos} onToggle={() => setVerProximos((v) => !v)} titulo="Próximos pasos" n={proximos.length}>
-            <button
-              type="button"
-              onClick={() => {
+            <BotonesNuevaTarea
+              oportunidadId={oportunidadId}
+              contacto={contacto}
+              edificioOportunidad={edificioOportunidad}
+              agenda={agenda}
+              onCreada={async (texto) => {
                 setVerProximos(true);
-                setAgregando((v) => !v);
+                setAviso(texto);
+                await onCambio();
               }}
-              className="inline-flex h-7 items-center gap-1 rounded-full border border-border bg-card px-3 text-[12.5px] font-medium hover:bg-accent"
-            >
-              <Plus className="size-3.5" /> Agregar tarea
-            </button>
+            />
           </TituloDeBloque>
           {verProximos && (
             <>
-              {agregando && (
-                <AgregarTarea
-                  oportunidadId={oportunidadId}
-                  contactId={contactId}
-                  onListo={async () => {
-                    setAgregando(false);
-                    await onCambio();
-                  }}
-                  onCancelar={() => setAgregando(false)}
-                />
+              {aviso && (
+                <p
+                  role="status"
+                  className="mb-2 flex items-start gap-2 rounded-lg bg-success-tint px-3 py-2 text-[12.5px] text-success-text"
+                >
+                  <Check className="mt-0.5 size-3.5 shrink-0" />
+                  <span className="flex-1">{aviso}</span>
+                  <button type="button" onClick={() => setAviso(null)} aria-label="Cerrar aviso">
+                    <X className="size-3.5" />
+                  </button>
+                </p>
               )}
               {error && <p className="mb-2 text-sm text-danger-text">{error}</p>}
-              {proximos.length === 0 && !agregando ? (
+              {proximos.length === 0 ? (
                 <p className="py-2 text-[13px] text-text-3">No hay nada por hacer. Agregá una tarea para el próximo paso.</p>
               ) : (
                 <ol className="space-y-1">
@@ -1096,79 +1105,6 @@ function HistorialFila({ item: it, origenes }: { item: ItemTimeline; origenes: I
         {it.quien && <p className="mt-0.5 text-[12px] text-text-3">{it.quien}</p>}
       </div>
     </li>
-  );
-}
-
-function AgregarTarea({
-  oportunidadId,
-  contactId,
-  onListo,
-  onCancelar,
-}: {
-  oportunidadId: string;
-  contactId: string | null;
-  onListo: () => Promise<void>;
-  onCancelar: () => void;
-}) {
-  const [titulo, setTitulo] = useState("");
-  const [tipo, setTipo] = useState<string>("llamada");
-  const [fechaNueva, setFechaNueva] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  async function agregar() {
-    if (!titulo.trim()) return;
-    setError(null);
-    const res = await fetch("/api/tareas", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ titulo, tipo, fecha: fechaNueva || null, oportunidadId, contactId }),
-    }).catch(() => null);
-    if (!res?.ok) {
-      setError(await mensajeError(res));
-      return;
-    }
-    await onListo();
-  }
-
-  return (
-    <div className="mb-2 space-y-2 rounded-2xl bg-subtle p-3">
-      <input
-        autoFocus
-        value={titulo}
-        onChange={(e) => setTitulo(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") void agregar();
-        }}
-        placeholder="Qué hay que hacer"
-        aria-label="Título de la tarea"
-        className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-      />
-      <div className="flex flex-wrap gap-2">
-        <Select value={tipo} onValueChange={setTipo} aria-label="Tipo" className="w-36">
-          {TIPOS_TAREA.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </Select>
-        <input
-          type="datetime-local"
-          value={fechaNueva}
-          onChange={(e) => setFechaNueva(e.target.value)}
-          aria-label="Fecha"
-          className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm"
-        />
-      </div>
-      {error && <p className="text-sm text-danger-text">{error}</p>}
-      <div className="flex gap-2">
-        <Button size="sm" onClick={() => void agregar()} disabled={!titulo.trim()}>
-          Agregar tarea
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onCancelar}>
-          Cancelar
-        </Button>
-      </div>
-    </div>
   );
 }
 

@@ -91,6 +91,8 @@ export async function createSessionBooking(input: {
   notes?: string | null;
   /** 0054 — Quién la confirma al cargarla (una persona a mano). Sin esto, nace sin confirmar. */
   confirmadaPor?: string | null;
+  /** 0058 — Dónde es (el edificio o la oficina). Va como ubicación del evento en el calendario. */
+  ubicacion?: string | null;
   /**
    * true ⇒ exige que el instante figure entre los ofrecidos a la conversación
    * (agente/bot). El operador elige de la disponibilidad que está viendo, así
@@ -200,6 +202,7 @@ export async function createSessionBooking(input: {
         connector: settings.connector,
         isTest,
         notes: input.notes ?? null,
+        ubicacion: input.ubicacion?.trim() || null,
         ...(input.confirmadaPor
           ? { confirmadaAt: new Date(), confirmadaPorUserId: input.confirmadaPor }
           : {}),
@@ -540,6 +543,7 @@ async function deliverMeeting(
             durationMinutes: booking.durationMinutes,
             timezone: settings.timezone,
             notes: booking.notes ?? undefined,
+            location: booking.ubicacion ?? undefined,
           });
 
     return await persistDelivery(booking.id, {
