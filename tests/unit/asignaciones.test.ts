@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { cargaDe, iniciales, sugerir, textoEspera, tonoEspera, vendedoresDeLaMesa } from "@/lib/asignaciones";
+import {
+  accionDeTecla,
+  agruparPorSugerencia,
+  cargaDe,
+  iniciales,
+  objetivoDe,
+  sugerir,
+  textoDeAviso,
+  textoEspera,
+  tonoEspera,
+  vendedoresDeLaMesa,
+} from "@/lib/asignaciones";
 
 describe("cargaDe", () => {
   it("normal, alta desde 65% y saturada desde 85%", () => {
@@ -88,5 +99,44 @@ describe("para la pantalla", () => {
   it("iniciales", () => {
     expect(iniciales("Carolina Méndez")).toBe("CM");
     expect(iniciales("lucía")).toBe("L");
+  });
+});
+
+describe("teclado y selección", () => {
+  const sin = { ctrlKey: false, metaKey: false, altKey: false };
+  it("cada tecla hace lo suyo; con Ctrl no", () => {
+    expect(accionDeTecla({ key: "3", ...sin })).toEqual({ tipo: "vendedor", tecla: 3 });
+    expect(accionDeTecla({ key: "0", ...sin })).toBeNull();
+    expect(accionDeTecla({ key: "Enter", ...sin })).toEqual({ tipo: "aceptar" });
+    expect(accionDeTecla({ key: "ArrowLeft", ...sin })).toEqual({ tipo: "saltar" });
+    expect(accionDeTecla({ key: "Z", ...sin })).toEqual({ tipo: "deshacer" });
+    expect(accionDeTecla({ key: "f", ...sin })).toEqual({ tipo: "foco" });
+    expect(accionDeTecla({ key: "Escape", ...sin })).toEqual({ tipo: "soltar" });
+    expect(accionDeTecla({ key: "z", ...sin, ctrlKey: true })).toBeNull();
+  });
+  it("objetivo: las elegidas en orden de la lista, o la de arriba", () => {
+    const lista = [{ id: "a" }, { id: "b" }, { id: "c" }];
+    expect(objetivoDe(lista, new Set(["c", "a"])).map((t) => t.id)).toEqual(["a", "c"]);
+    expect(objetivoDe(lista, new Set()).map((t) => t.id)).toEqual(["a"]);
+    expect(objetivoDe([], new Set())).toEqual([]);
+  });
+  it("agrupa por sugerido y deja afuera las que no tienen", () => {
+    const s = (userId: string) => ({ userId, nombre: userId.toUpperCase(), porque: "", regla: "carga" as const });
+    expect(
+      agruparPorSugerencia([
+        { id: "1", sugerencia: s("lu") },
+        { id: "2", sugerencia: null },
+        { id: "3", sugerencia: s("ma") },
+        { id: "4", sugerencia: s("lu") },
+      ])
+    ).toEqual([
+      { userId: "lu", nombre: "LU", ids: ["1", "4"] },
+      { userId: "ma", nombre: "MA", ids: ["3"] },
+    ]);
+  });
+  it("texto del aviso", () => {
+    expect(textoDeAviso(["Carolina Méndez"], ["Sebastián"])).toBe("Carolina Méndez → Sebastián");
+    expect(textoDeAviso(["a", "b", "c"], ["Lucía"])).toBe("3 → Lucía");
+    expect(textoDeAviso(["a", "b"], ["Lucía", "Martín"])).toBe("2 → 2 vendedores");
   });
 });
