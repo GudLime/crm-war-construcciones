@@ -1,5 +1,6 @@
 "use client";
 
+import { ResultadoLlamada } from "@/components/ventas/resultado-llamada";
 import Link from "next/link";
 import { useState } from "react";
 import { Check, Plus } from "lucide-react";
@@ -60,7 +61,11 @@ export function TuDia({ items, zona, onCambio }: { items: ItemDelDia[]; zona: st
             <p className="truncate text-[11.5px] text-text-3">{[it.contacto, it.edificio].filter(Boolean).join(" · ")}</p>
           )}
         </div>
-        {it.clase === "tarea" && (
+        {it.clase === "tarea" && it.tipo === "llamada" && !hecha && (
+          // 0061 — Una llamada se cierra diciendo cómo salió.
+          <ResultadoLlamada tareaId={it.id} oportunidadId={it.oportunidadId ?? null} onListo={onCambio} />
+        )}
+        {it.clase === "tarea" && it.tipo !== "llamada" && (
           <button
             type="button"
             aria-label={`Marcar «${it.titulo}» como hecha`}

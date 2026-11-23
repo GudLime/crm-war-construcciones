@@ -14,6 +14,7 @@ import {
   Users,
   X,
   ClipboardList,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
@@ -26,6 +27,10 @@ import type { FormaDeVer } from "@/lib/oportunidades-lista";
 import { agruparTareas, fechaPropuesta, grupoConAlta, type GrupoTarea } from "@/lib/tareas-grupos";
 import { cn } from "@/lib/utils";
 import { ESTADOS_TAREA, TIPOS_TAREA, etiqueta } from "@/lib/ventas";
+import { ResultadoLlamada } from "./resultado-llamada";
+import { BookingsClient } from "@/components/bookings/bookings-client";
+import type { CalendarView } from "@/lib/time/calendar";
+import type { WeeklyHours } from "@/server/agenda/settings";
 import type { OportunidadDto, TareaDto } from "@/server/ventas";
 import { SelectorDeForma } from "./oportunidades-vistas";
 import { PildoraEdificio } from "./pildora-edificio";
@@ -142,6 +147,18 @@ function textoTemporal(f: Temporal): string {
 const GUARDADO = "tareas.vista.v1";
 
 /** El ícono de cada tipo, en un cuadradito de color. */
+/** 0062 — La tarea la creó la IA al derivar la conversación (dos chispas). */
+export function MarcaIa({ agente = "la IA" }: { agente?: string }) {
+  return (
+    <span
+      title={`La creó ${agente} al derivar la conversación`}
+      className="grid size-[18px] shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#ede9fe] to-[#e0f2fe] text-[#6d28d9]"
+    >
+      <Sparkles className="size-2.5" />
+    </span>
+  );
+}
+
 export function IconoTipo({ tipo }: { tipo: string }) {
   const estilo: Record<string, string> = {
     mensaje: "bg-success-tint text-success-text",
@@ -176,7 +193,19 @@ function Iniciales({ nombre, className }: { nombre: string; className?: string }
 /** Lo que manda /api/tareas: la tarea y si quien mira la puede cambiar. */
 type Tarea = TareaDto & { editable?: boolean };
 
-export function TareasClient() {
+/** Cambios 23/11, punto 2 — Lo que necesita la vista Calendario (lo resuelve el servidor). */
+export type CalendarioTareas = {
+  agenda: boolean;
+  timezone: string;
+  weeklyHours: WeeklyHours;
+  hoy: string;
+  vista: CalendarView | null;
+  fecha: string | null;
+};
+
+type FormaTareas = FormaDeVer | "calendario";
+
+export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) {
   const avisar = useAvisoGuardado();
   const [filas, setFilas] = useState<Tarea[]>([]);
   const [contactos, setContactos] = useState<Contacto[]>([]);
@@ -208,7 +237,7 @@ export function TareasClient() {
     if (l.temporal) setTemporal(l.temporal);
     if (l.estado || l.temporal || l.responsableYo || l.responsableId) window.history.replaceState(null, "", window.location.pathname);
   }, []);
-  const [forma, setForma] = useState<FormaDeVer>("lista");
+  const [forma, setForma] = useState<FormaTareas>("lista");
   const [agrupar, setAgrupar] = useState(true);
   const [plegados, setPlegados] = useState<Partial<Record<GrupoTarea, boolean>>>({});
   const [abierto, setAbierto] = useState(false);
@@ -222,16 +251,19 @@ export function TareasClient() {
   useEffect(() => {
     try {
       const g = JSON.parse(window.localStorage.getItem(GUARDADO) ?? "null") as {
-        forma?: FormaDeVer;
+        forma?: FormaTareas;
         agrupar?: boolean;
       } | null;
-      if (g?.forma) setForma(g.forma);
+      // `?vista=calendario` (lo que era Citas) manda sobre lo recordado.
+      const pedida = new URLSearchParams(window.location.search).get("vista");
+      if (pedida === "calendario" && calendario) setForma("calendario");
+      else if (g?.forma && (g.forma !== "calendario" || calendario)) setForma(g.forma);
       if (typeof g?.agrupar === "boolean") setAgrupar(g.agrupar);
     } catch {
       // sin almacenamiento
     }
   }, []);
-  function recordar(cambios: { forma?: FormaDeVer; agrupar?: boolean }) {
+  function recordar(cambios: { forma?: FormaTareas; agrupar?: boolean }) {
     try {
       window.localStorage.setItem(GUARDADO, JSON.stringify({ forma, agrupar, ...cambios }));
     } catch {
@@ -384,9 +416,14 @@ export function TareasClient() {
         <div className="flex flex-wrap items-center gap-2">
           <SelectorDeForma
             forma={forma}
+            conCalendario={Boolean(calendario)}
             onCambio={(f) => {
               setForma(f);
               recordar({ forma: f });
+              const u = new URL(window.location.href);
+              if (f === "calendario") u.searchParams.set("vista", "calendario");
+              else for (const k of ["vista", "cal", "fecha", "desde", "hasta"]) u.searchParams.delete(k);
+              window.history.replaceState(null, "", u.toString());
             }}
           />
           <Button size="sm" onClick={() => abrirNueva()}>
@@ -490,6 +527,20 @@ export function TareasClient() {
 
       {abierto && (
         <Ficha titulo={soloLectura ? "Visita de otra persona (solo lectura)" : editando ? "Editar tarea" : "Nueva tarea"}>
+          {editando && !soloLectura && form.tipo === "llamada" && form.estado === "realizar" && (
+            // 0061 — Una llamada se cierra diciendo cómo salió.
+            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg bg-subtle px-3 py-2.5 text-[13px]">
+              <span className="font-medium">¿Cómo salió la llamada?</span>
+              <ResultadoLlamada
+                tareaId={editando}
+                oportunidadId={form.oportunidadId || null}
+                onListo={async () => {
+                  setAbierto(false);
+                  await cargar();
+                }}
+              />
+            </div>
+          )}
           <form onSubmit={guardar} className={grilla}>
             <fieldset disabled={soloLectura} className="contents">
             <Campo label="Qué hay que hacer" className="sm:col-span-2">
@@ -606,7 +657,37 @@ export function TareasClient() {
         </Ficha>
       )}
 
-      {listo && filas.length === 0 && !abierto ? (
+      {forma === "calendario" && calendario ? (
+        // Las citas y las tareas juntas (lo que era la página Citas), con los filtros de la página.
+        <div className="flex h-[calc(100vh-220px)] min-h-[520px] flex-col">
+          <BookingsClient
+            initialView={calendario.vista}
+            initialDate={calendario.fecha ?? calendario.hoy}
+            initialListTo={null}
+            timezone={calendario.timezone}
+            weeklyHours={calendario.weeklyHours}
+            embebido={{
+              conCitas: calendario.agenda,
+              tareas: visibles
+                .filter((t) => t.fecha && (!calendario.agenda || (t.tipo !== "visita" && t.tipo !== "reunion")))
+                .map((t) => ({
+                  id: t.id,
+                  titulo: t.titulo,
+                  tipo: t.tipo,
+                  estado: t.estado,
+                  fecha: t.fecha!,
+                  contacto: t.contactoNombre,
+                  edificio: t.edificio?.nombre ?? null,
+                })),
+              onSelectTarea: (tc) => {
+                const t = filas.find((x) => x.id === tc.id);
+                if (t) abrir(t);
+              },
+              renderIconoTarea: (tipo) => <IconoTipo tipo={tipo} />,
+            }}
+          />
+        </div>
+      ) : listo && filas.length === 0 && !abierto ? (
         <EmptyState
           icon={ListTodo}
           title="No hay tareas"
@@ -812,7 +893,12 @@ function GrupoEnTabla({
                 <span className="text-text-2">{etiqueta(TIPOS_TAREA, t.tipo)}</span>
               </span>
             </td>
-            <td className="px-3 py-2 font-medium">{t.titulo}</td>
+            <td className="px-3 py-2 font-medium">
+              <span className="inline-flex items-center gap-1.5">
+                {t.creadaPor === "ia" && <MarcaIa />}
+                {t.titulo}
+              </span>
+            </td>
             <td className="px-3 py-2">
               <EstadoPill opciones={ESTADOS_TAREA} value={t.estado} />
             </td>

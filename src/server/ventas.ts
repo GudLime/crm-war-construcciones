@@ -260,6 +260,10 @@ export type TareaDto = {
   responsableNombre: string | null;
   /** 0058 — Dónde es (visita o reunión), o null. */
   ubicacion: string | null;
+  /** 0062 — La creó una persona, la IA al derivar o una plantilla. */
+  creadaPor?: "persona" | "ia" | "plantilla";
+  /** 0062 — La conversación derivada (tareas de la IA). */
+  conversationId?: string | null;
 };
 
 function oNulo(v: string | null | undefined): string | null {
@@ -1006,6 +1010,8 @@ function aTarea(
     responsableId: fila.responsableUserId,
     responsableNombre: fila.responsableUserId ? extra.responsableNombre : null,
     ubicacion: fila.ubicacion ?? null,
+    creadaPor: fila.creadaPor,
+    conversationId: fila.conversationId ?? null,
   };
 }
 

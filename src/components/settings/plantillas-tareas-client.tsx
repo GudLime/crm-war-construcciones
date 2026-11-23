@@ -34,6 +34,7 @@ const NUEVA: Borrador = {
   vence: "hoy",
   mensaje: "",
   activa: true,
+  origenes: [],
 };
 
 function resumen(p: Plantilla): string {
@@ -43,6 +44,8 @@ function resumen(p: Plantilla): string {
     `vence ${venc}`,
     p.situacion === "no_contesta" ? `sin respuesta hace ${p.diasSinRespuesta ?? 3} días` : null,
     p.mensaje ? "con mensaje" : null,
+    p.origenes?.length ? `solo ${p.origenes.join(", ")}` : null,
+    p.situacion === "al_asignar" ? "se crea sola" : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -60,6 +63,14 @@ export function PlantillasTareasClient() {
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const mensajeRef = useRef<HTMLTextAreaElement>(null);
+  // 0061 — Los orígenes de Configuración → Orígenes, para limitar una plantilla.
+  const [origenes, setOrigenes] = useState<string[]>([]);
+  useEffect(() => {
+    void fetch("/api/origenes")
+      .then((r) => (r.ok ? r.json() : { origenes: [] }))
+      .then((d: { origenes: { nombre: string }[] }) => setOrigenes(d.origenes.map((o) => o.nombre)))
+      .catch(() => undefined);
+  }, []);
 
   async function cargar() {
     const r = await fetch("/api/settings/tareas").catch(() => null);
@@ -105,6 +116,7 @@ export function PlantillasTareasClient() {
       vence: borrador.vence,
       mensaje: borrador.mensaje || null,
       activa: borrador.activa,
+      origenes: borrador.origenes ?? [],
     };
     const r = await fetch(borrador.id ? `/api/settings/tareas/${borrador.id}` : "/api/settings/tareas", {
       method: borrador.id ? "PATCH" : "POST",
@@ -162,8 +174,8 @@ export function PlantillasTareasClient() {
         <div>
           <h1 className="text-[20px] font-bold tracking-tight">Plantillas de tareas</h1>
           <p className="text-sm text-text-2">
-            Lo que se le sugiere al vendedor en cada oportunidad según en qué situación está. Nunca se crean
-            tareas solas: siempre las elige el vendedor.
+            Lo que se le sugiere al vendedor en cada oportunidad según en qué situación está. Solo las de «Al
+            asignarle responsable» se crean solas; las demás las elige el vendedor.
           </p>
         </div>
         <Button size="sm" onClick={() => setBorrador({ ...NUEVA })}>
@@ -235,7 +247,7 @@ export function PlantillasTareasClient() {
               </div>
             </div>
             <label className="block space-y-1">
-              <span className="text-[12px] font-medium text-text-3">Cuándo se sugiere</span>
+              <span className="text-[12px] font-medium text-text-3">{borrador.situacion === "al_asignar" ? "Cuándo se crea" : "Cuándo se sugiere"}</span>
               <Select
                 value={borrador.situacion}
                 onValueChange={(s) =>
@@ -279,6 +291,33 @@ export function PlantillasTareasClient() {
               </div>
             )}
             <div className="space-y-1">
+              <span className="text-[12px] font-medium text-text-3">Solo si llegó por</span>
+              <div className="flex flex-wrap gap-1.5">
+                {origenes.length === 0 && <span className="text-[12px] text-text-3">No hay orígenes cargados.</span>}
+                {[...new Set([...origenes, ...(borrador.origenes ?? [])])].map((o) => {
+                  const on = (borrador.origenes ?? []).includes(o);
+                  return (
+                    <button
+                      key={o}
+                      type="button"
+                      onClick={() =>
+                        setBorrador({
+                          ...borrador,
+                          origenes: on ? (borrador.origenes ?? []).filter((x) => x !== o) : [...(borrador.origenes ?? []), o],
+                        })
+                      }
+                      className={pastilla(on)}
+                    >
+                      {o}
+                    </button>
+                  );
+                })}
+              </div>
+              <span className="block text-[11.5px] text-text-3">
+                {(borrador.origenes ?? []).length ? "Solo para las que llegaron por esos orígenes." : "Ninguno elegido: vale para todos los orígenes."}
+              </span>
+            </div>
+            <div className="space-y-1">
               <span className="text-[12px] font-medium text-text-3">Vence</span>
               <div className="flex flex-wrap gap-1.5">
                 {VENCIMIENTOS.filter((v) => v.value !== "antes_visita" || borrador.situacion === "visita_agendada").map((v) => (
@@ -314,7 +353,7 @@ export function PlantillasTareasClient() {
               <span className="text-[12px] font-medium text-text-3">Así le llega al vendedor</span>
               <div className="rounded-lg border border-brand-soft bg-gradient-to-b from-brand-tint to-card p-3">
                 <p className="mb-1.5 flex items-center gap-1.5 text-[11.5px] font-semibold text-brand-ink">
-                  <Sparkles className="size-3.5" /> Sugerida para esta etapa
+                  <Sparkles className="size-3.5" /> {borrador.situacion === "al_asignar" ? "Se crea sola al asignar" : "Sugerida para esta etapa"}
                 </p>
                 <div className="flex items-start gap-2">
                   <IconoTipo tipo={borrador.tipo} />

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
-import { PLANTILLAS_DE_FABRICA, VALORES_SITUACION, type Plantilla } from "@/lib/sugerencias";
+import { PLANTILLA_LLAMADA_SIN_ATENDER, PLANTILLAS_DE_FABRICA, VALORES_SITUACION, type Plantilla } from "@/lib/sugerencias";
 import { VALORES_TIPO_TAREA, type TipoTarea } from "@/lib/ventas";
 
 /**
@@ -22,6 +22,8 @@ export const plantillaSchema = z.object({
   mensaje: z.string().trim().max(1000).nullable().optional(),
   activa: z.boolean().optional(),
   orden: z.number().int().min(0).max(100_000).optional(),
+  /** 0061 — Solo para estos orígenes (vacío = todos). */
+  origenes: z.array(z.string().trim().min(1).max(80)).max(60).optional(),
 });
 
 export type PlantillaDatos = z.infer<typeof plantillaSchema>;
@@ -37,6 +39,7 @@ function aPlantilla(f: typeof schema.tareaPlantilla.$inferSelect): Plantilla {
     mensaje: f.mensaje,
     activa: f.activa,
     orden: f.orden,
+    origenes: f.origenes ?? [],
   };
 }
 
@@ -62,7 +65,7 @@ export async function asegurarPlantillas(organizationId: string): Promise<void> 
       .returning({ id: schema.ventasAjustes.organizationId });
     if (!marcadas.length) return;
     await tx.insert(schema.tareaPlantilla).values(
-      PLANTILLAS_DE_FABRICA.map((p) => ({ id: newId("tareaPlantilla"), organizationId, ...p, tipo: p.tipo as TipoTarea }))
+      [...PLANTILLAS_DE_FABRICA, PLANTILLA_LLAMADA_SIN_ATENDER].map((p) => ({ id: newId("tareaPlantilla"), organizationId, ...p, tipo: p.tipo as TipoTarea }))
     );
   });
 }
@@ -86,6 +89,7 @@ function valores(d: PlantillaDatos) {
     vence: d.vence === "antes_visita" && d.situacion !== "visita_agendada" ? "hoy" : d.vence,
     mensaje: d.mensaje?.trim() || null,
     ...(d.activa !== undefined ? { activa: d.activa } : {}),
+    ...(d.origenes !== undefined ? { origenes: [...new Set(d.origenes)] } : {}),
   };
 }
 

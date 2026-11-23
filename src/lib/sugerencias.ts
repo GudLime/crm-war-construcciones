@@ -13,6 +13,18 @@ export const SITUACIONES = [
     ayuda: "Tiene responsable y todavía nadie le escribió.",
   },
   {
+    clave: "al_asignar",
+    etapa: "recibido",
+    nombre: "Al asignarle responsable",
+    ayuda: "No se sugiere: se crea sola cuando se le asigna una persona.",
+  },
+  {
+    clave: "llamada_sin_atender",
+    etapa: "recibido",
+    nombre: "Llamada sin atender",
+    ayuda: "La última llamada quedó «No atendió» y el cliente no escribió después.",
+  },
+  {
     clave: "no_contesta",
     etapa: "en_charlas",
     nombre: "No contesta",
@@ -62,6 +74,8 @@ export type Plantilla = {
   mensaje: string | null;
   activa: boolean;
   orden: number;
+  /** 0061 — Solo para estos orígenes (vacío = todos). */
+  origenes: string[];
 };
 
 export type Cita = { at: string; status: "agendada" | "realizada" | "no_show" | "cancelada" };
@@ -74,7 +88,11 @@ export type ContextoSugerencias = {
     estado: string;
     responsableId: string | null;
     primerContactoAt: string | null;
+    /** 0061 — Por dónde llegó (para las plantillas con orígenes). */
+    origen?: string | null;
   };
+  /** 0061 — La última llamada ya marcada (atendida o no) y cuándo se marcó. */
+  ultimaLlamada?: { estado: "listo" | "no_responde"; at: string } | null;
   datos: {
     nombre: string | null;
     vendedor: string | null;
@@ -169,6 +187,15 @@ function situaciones(ctx: ContextoSugerencias) {
     const entro = ctx.ultimoEntranteAt ? Date.parse(ctx.ultimoEntranteAt) : 0;
     if (salio > entro) diasSinRespuesta = Math.floor((ahora - salio) / DIA);
   }
+  // 0061 — La última llamada no la atendió y el cliente no escribió después.
+  const llamada = ctx.ultimaLlamada;
+  if (
+    llamada?.estado === "no_responde" &&
+    ["recibido", "en_charlas"].includes(estado) &&
+    (!ctx.ultimoEntranteAt || Date.parse(ctx.ultimoEntranteAt) < Date.parse(llamada.at))
+  ) {
+    cumple.set("llamada_sin_atender", `Lo llamamos el ${fmt(llamada.at).dia} a las ${fmt(llamada.at).hora} y no atendió`);
+  }
   if (estado === "conoce_informacion" && !proxima) cumple.set("conoce", "Ya conoce la información y no tiene visita agendada");
   if (proxima && ABIERTOS.includes(estado)) {
     const f = fmt(proxima.at);
@@ -183,6 +210,13 @@ function situaciones(ctx: ContextoSugerencias) {
   if (estado === "reservo") cumple.set("reservo", "Reservó: falta coordinar el boleto");
   if (estado === "compro") cumple.set("compro", "Compró");
   return { cumple, diasSinRespuesta, proxima };
+}
+
+/** 0061 — Una plantilla con orígenes solo aplica a las oportunidades que llegaron por alguno. */
+export function aplicaAlOrigen(p: Pick<Plantilla, "origenes">, origen: string | null): boolean {
+  if (!p.origenes?.length) return true;
+  const plano = (x: string) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  return Boolean(origen) && p.origenes.some((o) => plano(o) === plano(origen!));
 }
 
 /** Hasta 3 sugerencias, en el orden de las plantillas. */
@@ -203,6 +237,9 @@ export function sugerencias(plantillas: readonly Plantilla[], ctx: ContextoSuger
   const salida: Sugerencia[] = [];
   for (const p of [...plantillas].sort((a, b) => a.orden - b.orden)) {
     if (!p.activa || descartadas.has(p.id) || abiertas.has(p.id)) continue;
+    // Las «al asignar» se crean solas, nunca se sugieren.
+    if (p.situacion === "al_asignar") continue;
+    if (!aplicaAlOrigen(p, ctx.oportunidad.origen ?? null)) continue;
     let porque: string | undefined;
     if (p.situacion === "no_contesta") {
       const n = p.diasSinRespuesta ?? 3;
@@ -238,6 +275,7 @@ export const PLANTILLAS_DE_FABRICA: Omit<Plantilla, "id">[] = [
     mensaje: "Hola {nombre}, soy {vendedor}. Te escribo por tu consulta sobre {edificio}. ¿Cuándo te queda cómodo que hablemos?",
     activa: true,
     orden: 10,
+    origenes: [],
   },
   {
     nombre: "Llamar",
@@ -248,6 +286,7 @@ export const PLANTILLAS_DE_FABRICA: Omit<Plantilla, "id">[] = [
     mensaje: null,
     activa: true,
     orden: 20,
+    origenes: [],
   },
   {
     nombre: "Último intento por WhatsApp",
@@ -258,6 +297,7 @@ export const PLANTILLAS_DE_FABRICA: Omit<Plantilla, "id">[] = [
     mensaje: "Hola {nombre}, ¿pudiste ver la información de {edificio}? Si querés lo charlamos o coordinamos una visita.",
     activa: true,
     orden: 30,
+    origenes: [],
   },
   {
     nombre: "Invitar a visitar",
@@ -268,6 +308,7 @@ export const PLANTILLAS_DE_FABRICA: Omit<Plantilla, "id">[] = [
     mensaje: "Hola {nombre}, ¿te gustaría conocer {edificio} en persona? Te propongo un par de horarios esta semana.",
     activa: true,
     orden: 40,
+    origenes: [],
   },
   {
     nombre: "Confirmar visita",
@@ -278,6 +319,7 @@ export const PLANTILLAS_DE_FABRICA: Omit<Plantilla, "id">[] = [
     mensaje: "Hola {nombre}, te confirmo la visita a {edificio} el {fecha_visita}. ¡Te esperamos!",
     activa: true,
     orden: 50,
+    origenes: [],
   },
   {
     nombre: "Follow-up post visita",
@@ -288,6 +330,7 @@ export const PLANTILLAS_DE_FABRICA: Omit<Plantilla, "id">[] = [
     mensaje: null,
     activa: true,
     orden: 60,
+    origenes: [],
   },
   {
     nombre: "Enviar propuesta o plan de pagos",
@@ -298,6 +341,7 @@ export const PLANTILLAS_DE_FABRICA: Omit<Plantilla, "id">[] = [
     mensaje: null,
     activa: true,
     orden: 70,
+    origenes: [],
   },
   {
     nombre: "Reprogramar visita",
@@ -308,6 +352,7 @@ export const PLANTILLAS_DE_FABRICA: Omit<Plantilla, "id">[] = [
     mensaje: "Hola {nombre}, te esperábamos en {edificio}. ¿Querés que reprogramemos la visita?",
     activa: true,
     orden: 80,
+    origenes: [],
   },
   {
     nombre: "Coordinar firma del boleto",
@@ -318,6 +363,7 @@ export const PLANTILLAS_DE_FABRICA: Omit<Plantilla, "id">[] = [
     mensaje: null,
     activa: true,
     orden: 90,
+    origenes: [],
   },
   {
     nombre: "Pedir referidos",
@@ -328,5 +374,19 @@ export const PLANTILLAS_DE_FABRICA: Omit<Plantilla, "id">[] = [
     mensaje: "Hola {nombre}, ¿cómo va todo? Si conocés a alguien que esté buscando, nos encantaría ayudarlo.",
     activa: false,
     orden: 100,
+    origenes: [],
   },
 ];
+
+/** 0061 — De fábrica también para las organizaciones que ya tenían sus plantillas (la siembra la migración). */
+export const PLANTILLA_LLAMADA_SIN_ATENDER: Omit<Plantilla, "id"> = {
+  nombre: "Avisar que lo llamamos",
+  tipo: "mensaje",
+  situacion: "llamada_sin_atender",
+  diasSinRespuesta: null,
+  vence: "hoy",
+  mensaje: "Hola {nombre}, soy {vendedor}. Te llamamos recién y no pudimos hablar. Cuando puedas, contame por acá qué estás buscando.",
+  activa: true,
+  orden: 15,
+  origenes: [],
+};

@@ -8,6 +8,7 @@ import {
   Columns3,
   EyeOff,
   KanbanSquare,
+  CalendarDays,
   LayoutGrid,
   List,
   ChevronLeft,
@@ -38,7 +39,8 @@ import { enFrase, nombreEstado, opcionesEstado } from "@/lib/vocabulario";
 import type { OportunidadDto } from "@/server/ventas";
 import { OrigenIcono } from "./origen-icono";
 import { PildoraEdificio, estiloDeEdificio } from "./pildora-edificio";
-import { EstadoPill, plata } from "./ui";
+import { EtapaPill, plata } from "./ui";
+import { colorDeEtapa, varsDeEtapa } from "@/lib/colores-etapa";
 
 /**
  * Las tres formas de ver las oportunidades: Lista (tabla con orden, columnas
@@ -229,7 +231,7 @@ function celda(
     case "estado":
       return (
         <span className="flex flex-col items-start gap-1">
-          <EstadoPill opciones={estados} value={o.estado} />
+          <EtapaPill opciones={estados} value={o.estado} />
           <Alerta o={o} />
         </span>
       );
@@ -255,12 +257,22 @@ function celda(
   }
 }
 
-export function SelectorDeForma({ forma, onCambio }: { forma: FormaDeVer; onCambio: (f: FormaDeVer) => void }) {
-  const opciones: [FormaDeVer, string, typeof List][] = [
+/** Lista · Mosaico · Pipeline (y, en Tareas, Calendario). */
+export function SelectorDeForma<F extends FormaDeVer | "calendario" = FormaDeVer>({
+  forma,
+  onCambio,
+  conCalendario = false,
+}: {
+  forma: F;
+  onCambio: (f: F) => void;
+  conCalendario?: boolean;
+}) {
+  const opciones = [
     ["lista", "Lista", List],
     ["mosaico", "Mosaico", LayoutGrid],
     ["pipeline", "Pipeline", KanbanSquare],
-  ];
+    ...(conCalendario ? [["calendario", "Calendario", CalendarDays]] : []),
+  ] as [F, string, typeof List][];
   return (
     <div role="tablist" aria-label="Forma de ver" className="inline-flex gap-0.5 rounded-full bg-muted p-[3px]">
       {opciones.map(([valor, texto, Icono]) => (
@@ -615,7 +627,8 @@ function Lista({
             <tr
               key={o.id}
               onClick={() => onElegir(o.id)}
-              className="group cursor-pointer border-b last:border-0 hover:bg-accent/40"
+              className="fondo-etapa group cursor-pointer border-b last:border-0"
+              style={varsDeEtapa(o.estado) as React.CSSProperties}
             >
               {columnas.map((c) => (
                 <td
@@ -672,7 +685,8 @@ function Tarjeta({
           onElegir(o.id);
         }
       }}
-      className="group relative flex cursor-pointer flex-col gap-2.5 rounded-[10px] border border-border bg-card p-3.5 text-[13px] transition-shadow hover:border-border-strong hover:shadow-sm"
+      className="fondo-etapa borde-etapa group relative flex cursor-pointer flex-col gap-2.5 rounded-[10px] border p-3.5 text-[13px] transition-shadow hover:shadow-sm"
+      style={varsDeEtapa(o.estado) as React.CSSProperties}
     >
       <BotonAbrir o={o} className="absolute right-2.5 top-2.5" />
       <div className="flex items-center gap-2.5 pr-8">
@@ -695,7 +709,7 @@ function Tarjeta({
         {compacta ? (
           <span className="shrink-0 text-[12px] text-text-3">{haceCuanto(o.ultimaInteraccion)}</span>
         ) : (
-          <EstadoPill opciones={opcionesEstado(voc)} value={o.estado} />
+          <EtapaPill opciones={opcionesEstado(voc)} value={o.estado} />
         )}
       </div>
       <Alerta o={o} />
@@ -703,14 +717,6 @@ function Tarjeta({
   );
 }
 
-const PUNTO_ETAPA: Record<string, string> = {
-  recibido: "bg-text-3",
-  en_charlas: "bg-info",
-  conoce_informacion: "bg-warning",
-  visito: "bg-brand",
-  reservo: "bg-brand",
-  compro: "bg-success",
-};
 
 function Pipeline({
   filas,
@@ -756,7 +762,7 @@ function Pipeline({
         >
           <header className="flex items-center justify-between gap-2 px-1 pb-1">
             <span className="inline-flex items-center gap-2">
-              <span aria-hidden className={cn("size-2 rounded-full", PUNTO_ETAPA[c.estado] ?? "bg-text-3")} />
+              <span aria-hidden className="size-2 rounded-full" style={{ background: colorDeEtapa(c.estado).solido }} />
               <span className="text-[13.5px] font-semibold">{nombreEstado(voc, c.estado)}</span>
               <span className="rounded-full bg-muted px-[7px] py-px text-[11.5px] font-semibold text-text-2">
                 {c.items.length}
@@ -910,7 +916,7 @@ function PanelOportunidad({
   const voc = useVocabulario();
   const eds = edificiosDe(o);
   const filas: [string, React.ReactNode][] = [
-    ["Estado", <EstadoPill key="e" opciones={opcionesEstado(voc)} value={o.estado} />],
+    ["Estado", <EtapaPill key="e" opciones={opcionesEstado(voc)} value={o.estado} />],
     ["Origen", <Origen key="o" o={o} iconoDe={iconoDe} />],
     [
       "Interés",

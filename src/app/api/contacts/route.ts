@@ -1,4 +1,4 @@
-import { desc, eq, inArray, or, sql } from "drizzle-orm";
+import { asc, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { VALORES_TIPO_CONTACTO, type TipoContacto } from "@/lib/ventas";
 import { clasificarContacto } from "@/server/oportunidades";
@@ -11,6 +11,7 @@ import { digitsOnly, normalizeText } from "@/lib/search";
 import { serializeContact } from "@/server/contacts";
 import { createLeadForContact } from "@/server/inbox/lead-activity";
 import { alcanceDe, contactoVisible } from "@/server/acceso";
+import { filtrosContactos } from "@/lib/contactos-lista";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +72,39 @@ export const GET = withAuth(async (session, req: Request) => {
           sql`lower(coalesce(${schema.contact.email}, '')) like ${`%${qLike}%`}`
         )
       : undefined;
+
+  // Cambios 23/11, punto 8 — Con `pagina`, la lista paginada de Contactos
+  // (de a 50, filtros y orden en el servidor). Sin `pagina`, lo de siempre.
+  if (url.searchParams.has("pagina")) {
+    const f = filtrosContactos(url.searchParams);
+    const c = schema.contact;
+    const condiciones = [
+      search,
+      f.archivados ? isNotNull(c.archivedAt) : isNull(c.archivedAt),
+      f.tipo ? (f.tipo === "sin" ? isNull(c.tipoContacto) : eq(c.tipoContacto, f.tipo as TipoContacto)) : undefined,
+      f.fuente ? (f.fuente === "desconocida" ? isNull(c.source) : eq(c.source, f.fuente)) : undefined,
+      f.agente === "con" ? eq(c.aiPaused, false) : f.agente === "sin" ? eq(c.aiPaused, true) : undefined,
+      contactoVisible(alcanceDe(session), c.id),
+    ];
+    const donde = scoped(c.organizationId, session.organizationId, ...condiciones);
+    const columna = f.orden === "telefono" ? c.phone : f.orden === "creado" ? c.createdAt : sql`lower(${c.name})`;
+    const [filas, [cuenta]] = await Promise.all([
+      db
+        .select()
+        .from(c)
+        .where(donde)
+        .orderBy(f.dir === "desc" ? sql`${columna} desc nulls last` : sql`${columna} asc nulls last`, asc(c.id))
+        .limit(f.porPagina)
+        .offset((f.pagina - 1) * f.porPagina),
+      db.select({ n: sql<number>`count(*)`.mapWith(Number) }).from(c).where(donde),
+    ]);
+    return Response.json({
+      items: filas.map((x) => serializeContact(x, stageByContact.get(x.id) ?? null, priorityByContact.get(x.id) ?? null)),
+      total: cuenta?.n ?? 0,
+      pagina: f.pagina,
+      porPagina: f.porPagina,
+    });
+  }
 
   // El filtro de etapa se aplica ANTES del límite: si no, un contacto de la
   // etapa buscada podría quedar fuera por el corte de 200.
