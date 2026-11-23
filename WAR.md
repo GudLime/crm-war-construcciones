@@ -659,3 +659,22 @@ pregunta que no sabe → «Contestar consulta»; si no, «Responder a {nombre}»
 sola cuando una persona responde (`registrarSaliente` →
 `cerrarTareasDeDerivacion`). En Tareas y en el widget del Inicio lleva la
 marca de chispas; en el widget suma «Responder en Bandeja».
+
+## WAR — tanda del 23/11 (lo propio de WAR)
+
+- **Menú** (`clientes/war.json` → `menu`): Trabajo = Inicio · Bandeja ·
+  Oportunidades · Tareas (· Asignaciones, admin) · Contactos. Pipeline y Citas
+  ocultos: `/bookings` lleva a `/tareas?vista=calendario`.
+- **Inicio** (`inicio.bloques`): saludo con el mini dashboard por etapa y el
+  widget de Tareas. Los bloques de antes siguen en el código: se vuelven a
+  sumar agregándolos a la lista.
+- **«¿Qué buscaba?»** en la ventana de «Atendió»
+  (`components/extensiones/llamada-atendida.tsx`, archivo propio de WAR que el
+  núcleo no toca): edificio y ambientes (se guardan al tocarlos, como en
+  Interés) y una unidad en particular del interés encadenado (se vincula al
+  Guardar). La tipología «1A» no está: se elige en la oportunidad.
+- **Derivaciones → Gloria** (`war_0011`): si Gloria no tiene usuario todavía,
+  queda vacío y se elige en Ajustes → Ventas.
+- **Primera llamada del cartel:** es configuración. En Ajustes → Plantillas de
+  tareas, una plantilla «Primera llamada», tipo Llamada, «Al asignarle
+  responsable», solo origen Cartel.

@@ -2,6 +2,11 @@
   "version": 1,
   "cliente": "WAR Construcciones",
   "rubro": "construccion",
+  "menu": {
+    "trabajo": ["inicio", "inbox", "oportunidades", "tareas", "contacts"],
+    "ocultar": ["pipeline", "bookings"]
+  },
+  "inicio": { "bloques": ["etapas", "tareas"] },
   "objetos": [
     {
       "clave": "edificio",
