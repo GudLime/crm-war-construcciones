@@ -22,6 +22,7 @@ import { esCampoDeTexto } from "@/lib/atajos";
 import { tonoDeEdificio } from "@/lib/colores-edificio";
 import { etiqueta, TIPOS_OPORTUNIDAD } from "@/lib/ventas";
 import { useEvents } from "@/components/use-events";
+import { ModoFoco } from "./modo-foco";
 import { cn } from "@/lib/utils";
 
 /**
@@ -249,6 +250,7 @@ export function AsignacionesClient() {
   const [error, setError] = useState<string | null>(null);
   const [edificio, setEdificio] = useState("");
   const [pestana, setPestana] = useState<"sin" | "auto">("sin");
+  const [modo, setModo] = useState<"mesa" | "foco">("mesa");
   const [elegidas, setElegidas] = useState<Set<string>>(() => new Set());
   const [sobre, setSobre] = useState<string | null>(null);
   const [pulso, setPulso] = useState<string | null>(null);
@@ -374,6 +376,8 @@ export function AsignacionesClient() {
   // Teclado (§2.3): los números van a las elegidas o, sin ninguna, a la de arriba.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // En foco manda su propio teclado.
+      if (modo === "foco") return;
       if (esCampoDeTexto(e.target) || document.querySelector('[role="dialog"]')) return;
       const a = accionDeTecla(e);
       if (!a || !data) return;
@@ -397,11 +401,14 @@ export function AsignacionesClient() {
         void deshacer();
       } else if (a.tipo === "soltar") {
         setElegidas(new Set());
+      } else if (a.tipo === "foco") {
+        e.preventDefault();
+        setModo("foco");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [aVendedor, aceptarSugerencias, data, deshacer, elegidas, lista, pestana]);
+  }, [aVendedor, aceptarSugerencias, data, deshacer, elegidas, lista, modo, pestana]);
 
   const elegir = (id: string, e: React.MouseEvent) => {
     setElegidas((prev) => {
@@ -461,6 +468,26 @@ export function AsignacionesClient() {
               : "Cargando…"}
           </p>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+        <div role="tablist" className="inline-flex rounded-full border border-border p-0.5 text-[12.5px]">
+          {(
+            [
+              ["mesa", "Mesa"],
+              ["foco", "Foco · F"],
+            ] as const
+          ).map(([k, t]) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={modo === k}
+              onClick={() => setModo(k)}
+              className={cn("rounded-full px-3 py-1 font-medium", modo === k ? "bg-foreground text-background" : "text-text-2")}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
         <button
           type="button"
           disabled={!conSugerencia}
@@ -469,6 +496,7 @@ export function AsignacionesClient() {
         >
           Aceptar todas las sugerencias ({conSugerencia})
         </button>
+        </div>
       </header>
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2 sm:px-6">
@@ -492,147 +520,161 @@ export function AsignacionesClient() {
         <p className="text-[11.5px] text-text-3">Sugerencia: regla por edificio y, si no hay, el que tiene menos carga.</p>
       </div>
 
-      {/* Barra de teclado (§2.3): siempre visible, con el nombre al lado de cada número. */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 bg-[#0f172a] px-4 py-2 text-[12px] text-white/80 sm:px-6">
-        {teclas.map((v) => (
-          <span key={v.userId} className="inline-flex items-center gap-1.5">
-            <Kbd oscuro>{v.tecla}</Kbd>
-            {v.nombre.split(" ")[0]}
-          </span>
-        ))}
-        <span className="inline-flex items-center gap-1.5">
-          <Kbd oscuro>Enter</Kbd> Aceptar sugerencia
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <Kbd oscuro>Shift</Kbd>+clic Elegir varias
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <Kbd oscuro>Z</Kbd> Deshacer
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <Kbd oscuro>Esc</Kbd> Soltar
-        </span>
-        <span className="ml-auto text-[11.5px] text-white/60">
-          Los números van a la tarjeta elegida o, si no elegiste ninguna, a la de arriba de todo.
-        </span>
-      </div>
-
       {error && <p className="mx-4 mt-3 rounded-md bg-danger-tint px-3 py-2 text-sm text-danger-text sm:mx-6">{error}</p>}
 
-      <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-3 sm:p-6 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <div className="min-h-0 space-y-2.5">
-          <div role="tablist" className="inline-flex rounded-full border border-border p-0.5 text-[12.5px]">
-            {(
-              [
-                ["sin", `Sin asignar · ${data?.sinAsignar.length ?? 0}`],
-                ["auto", `Asignadas automáticamente · ${data?.automaticas.length ?? 0}`],
-              ] as const
-            ).map(([k, t]) => (
-              <button
-                key={k}
-                type="button"
-                role="tab"
-                aria-selected={pestana === k}
-                onClick={() => setPestana(k)}
-                className={cn("rounded-full px-3 py-1 font-medium", pestana === k ? "bg-foreground text-background" : "text-text-2")}
-              >
-                {t}
-              </button>
+      {modo === "foco" && data ? (
+        <ModoFoco
+          tarjetas={data.sinAsignar}
+          vendedores={data.vendedores}
+          onAsignar={(t, v) => void asignar([{ userId: v.userId, nombre: v.nombre, ids: [t.id] }], [t.nombre])}
+          onDeshacer={() => void deshacer()}
+          onSalir={() => setModo("mesa")}
+        />
+      ) : (
+        <>
+          {/* Barra de teclado (§2.3): siempre visible, con el nombre al lado de cada número. */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 bg-[#0f172a] px-4 py-2 text-[12px] text-white/80 sm:px-6">
+            {teclas.map((v) => (
+              <span key={v.userId} className="inline-flex items-center gap-1.5">
+                <Kbd oscuro>{v.tecla}</Kbd>
+                {v.nombre.split(" ")[0]}
+              </span>
             ))}
+            <span className="inline-flex items-center gap-1.5">
+              <Kbd oscuro>Enter</Kbd> Aceptar sugerencia
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Kbd oscuro>Shift</Kbd>+clic Elegir varias
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Kbd oscuro>Z</Kbd> Deshacer
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Kbd oscuro>Esc</Kbd> Soltar
+            </span>
+            <span className="ml-auto text-[11.5px] text-white/60">
+              Los números van a la tarjeta elegida o, si no elegiste ninguna, a la de arriba de todo.
+            </span>
           </div>
 
-          {elegidas.size > 0 && (
-            <div className="flex items-center justify-between gap-2 rounded-lg bg-brand-tint px-3 py-2 text-[12.5px] text-brand-ink">
-              <span>
-                <strong>{elegidas.size} elegida{elegidas.size === 1 ? "" : "s"}</strong> · apretá 1–{Math.max(1, teclas.length)} o arrastralas juntas
-              </span>
-              <button type="button" onClick={() => setElegidas(new Set())} className="font-semibold hover:underline">
-                Soltar
-              </button>
+
+          <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-3 sm:p-6 lg:grid-cols-[360px_minmax(0,1fr)]">
+            <div className="min-h-0 space-y-2.5">
+              <div role="tablist" className="inline-flex rounded-full border border-border p-0.5 text-[12.5px]">
+                {(
+                  [
+                    ["sin", `Sin asignar · ${data?.sinAsignar.length ?? 0}`],
+                    ["auto", `Asignadas automáticamente · ${data?.automaticas.length ?? 0}`],
+                  ] as const
+                ).map(([k, t]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    role="tab"
+                    aria-selected={pestana === k}
+                    onClick={() => setPestana(k)}
+                    className={cn("rounded-full px-3 py-1 font-medium", pestana === k ? "bg-foreground text-background" : "text-text-2")}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+
+              {elegidas.size > 0 && (
+                <div className="flex items-center justify-between gap-2 rounded-lg bg-brand-tint px-3 py-2 text-[12.5px] text-brand-ink">
+                  <span>
+                    <strong>{elegidas.size} elegida{elegidas.size === 1 ? "" : "s"}</strong> · apretá 1–{Math.max(1, teclas.length)} o arrastralas juntas
+                  </span>
+                  <button type="button" onClick={() => setElegidas(new Set())} className="font-semibold hover:underline">
+                    Soltar
+                  </button>
+                </div>
+              )}
+
+              {!data ? (
+                <p className="text-sm text-text-3">Cargando…</p>
+              ) : lista.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-text-3">
+                  {pestana === "sin" ? "Nada sin asignar. 🎉" : "Ninguna asignada automáticamente en las últimas 24 h."}
+                </p>
+              ) : (
+                lista.map((t) => {
+                  const auto = pestana === "auto" ? (t as TarjetaAutomatica) : null;
+                  const tecla = t.sugerencia ? data.vendedores.find((v) => v.userId === t.sugerencia!.userId)?.tecla : null;
+                  return (
+                    <Tarjeta
+                      key={t.id}
+                      t={t}
+                      elegida={elegidas.has(t.id)}
+                      onClick={(e) => elegir(t.id, e)}
+                      onDragStart={(e) => empezarArrastre(t, e)}
+                      onDragEnd={() => {
+                        arrastradas.current = [];
+                        setSobre(null);
+                      }}
+                      pie={
+                        auto ? (
+                          auto.corregida ? (
+                            <span className="rounded-full bg-[#e0f2fe] px-2 py-0.5 text-[11px] font-semibold text-[#075985]">
+                              Corregida → {auto.actual.nombre ?? "sin asignar"}
+                            </span>
+                          ) : (
+                            <span className="truncate rounded-full bg-warning-tint px-2 py-0.5 text-[11px] font-semibold text-warning-text">
+                              Auto → {auto.auto.nombre}
+                              {t.edificio ? ` · ${t.edificio.nombre} → ${auto.auto.nombre.split(" ")[0]}` : ""}
+                            </span>
+                          )
+                        ) : t.sugerencia ? (
+                          <button
+                            type="button"
+                            title={`Sugerido: ${t.sugerencia.porque}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              aceptarSugerencias([t]);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-full bg-brand-tint px-2 py-0.5 text-[11.5px] font-semibold text-brand-ink hover:bg-brand-soft"
+                          >
+                            → {t.sugerencia.nombre.split(" ")[0]}
+                            {tecla ? <Kbd>{tecla}</Kbd> : null}
+                          </button>
+                        ) : null
+                      }
+                    />
+                  );
+                })
+              )}
             </div>
-          )}
 
-          {!data ? (
-            <p className="text-sm text-text-3">Cargando…</p>
-          ) : lista.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-text-3">
-              {pestana === "sin" ? "Nada sin asignar. 🎉" : "Ninguna asignada automáticamente en las últimas 24 h."}
-            </p>
-          ) : (
-            lista.map((t) => {
-              const auto = pestana === "auto" ? (t as TarjetaAutomatica) : null;
-              const tecla = t.sugerencia ? data.vendedores.find((v) => v.userId === t.sugerencia!.userId)?.tecla : null;
-              return (
-                <Tarjeta
-                  key={t.id}
-                  t={t}
-                  elegida={elegidas.has(t.id)}
-                  onClick={(e) => elegir(t.id, e)}
-                  onDragStart={(e) => empezarArrastre(t, e)}
-                  onDragEnd={() => {
-                    arrastradas.current = [];
-                    setSobre(null);
+            <div className="space-y-3">
+              {data && data.vendedores.length === 0 && (
+                <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-text-3">
+                  Nadie del equipo recibe asignaciones todavía.
+                </p>
+              )}
+              {data?.vendedores.map((v) => (
+                <Carril
+                  key={v.userId}
+                  v={v}
+                  otros={data.vendedores.filter((o) => o.userId !== v.userId)}
+                  tope={data.tope}
+                  sobre={sobre === v.userId}
+                  pulso={pulso === v.userId}
+                  onDragOver={(e) => {
+                    if (!arrastradas.current.length && !e.dataTransfer.types.includes(TIPO_ARRASTRE)) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    if (sobre !== v.userId) setSobre(v.userId);
                   }}
-                  pie={
-                    auto ? (
-                      auto.corregida ? (
-                        <span className="rounded-full bg-[#e0f2fe] px-2 py-0.5 text-[11px] font-semibold text-[#075985]">
-                          Corregida → {auto.actual.nombre ?? "sin asignar"}
-                        </span>
-                      ) : (
-                        <span className="truncate rounded-full bg-warning-tint px-2 py-0.5 text-[11px] font-semibold text-warning-text">
-                          Auto → {auto.auto.nombre}
-                          {t.edificio ? ` · ${t.edificio.nombre} → ${auto.auto.nombre.split(" ")[0]}` : ""}
-                        </span>
-                      )
-                    ) : t.sugerencia ? (
-                      <button
-                        type="button"
-                        title={`Sugerido: ${t.sugerencia.porque}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          aceptarSugerencias([t]);
-                        }}
-                        className="inline-flex items-center gap-1 rounded-full bg-brand-tint px-2 py-0.5 text-[11.5px] font-semibold text-brand-ink hover:bg-brand-soft"
-                      >
-                        → {t.sugerencia.nombre.split(" ")[0]}
-                        {tecla ? <Kbd>{tecla}</Kbd> : null}
-                      </button>
-                    ) : null
-                  }
+                  onDragLeave={() => setSobre((s) => (s === v.userId ? null : s))}
+                  onDrop={(e) => soltarEn(v, e)}
+                  onPasar={(id, nombre, a) => void asignar([{ userId: a.userId, nombre: a.nombre, ids: [id] }], [nombre])}
                 />
-              );
-            })
-          )}
-        </div>
+              ))}
+            </div>
+          </div>
 
-        <div className="space-y-3">
-          {data && data.vendedores.length === 0 && (
-            <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-text-3">
-              Nadie del equipo recibe asignaciones todavía.
-            </p>
-          )}
-          {data?.vendedores.map((v) => (
-            <Carril
-              key={v.userId}
-              v={v}
-              otros={data.vendedores.filter((o) => o.userId !== v.userId)}
-              tope={data.tope}
-              sobre={sobre === v.userId}
-              pulso={pulso === v.userId}
-              onDragOver={(e) => {
-                if (!arrastradas.current.length && !e.dataTransfer.types.includes(TIPO_ARRASTRE)) return;
-                e.preventDefault();
-                e.dataTransfer.dropEffect = "move";
-                if (sobre !== v.userId) setSobre(v.userId);
-              }}
-              onDragLeave={() => setSobre((s) => (s === v.userId ? null : s))}
-              onDrop={(e) => soltarEn(v, e)}
-              onPasar={(id, nombre, a) => void asignar([{ userId: a.userId, nombre: a.nombre, ids: [id] }], [nombre])}
-            />
-          ))}
-        </div>
-      </div>
+        </>
+      )}
 
       {aviso && (
         <div
