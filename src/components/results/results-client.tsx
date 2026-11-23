@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { HygieneBlockDto, SalesBlockDto } from "@/lib/analytics";
+import type { HygieneBlockDto } from "@/lib/analytics";
+import type { VisitasDto } from "@/lib/visitas-resultados";
 import { parametrosResultados, rangoDeAtajo, FECHAS_POR_DEFECTO } from "@/lib/resultados";
 import { BarraResultados, type EstadoBarra } from "./barra-resultados";
 import { HygieneSection } from "./hygiene-section";
 import { OportunidadesResumen } from "./oportunidades-resumen";
 import type { EstadisticasOportunidadesDto } from "@/lib/estadisticas-oportunidades";
-import { SalesSection } from "./sales-section";
+import { VisitasSection } from "./visitas-section";
 import { useVocabulario } from "@/components/vocabulario";
 import { nombrePantalla } from "@/lib/vocabulario";
 
@@ -78,18 +79,18 @@ export function ResultsClient({
     edificioIds: [],
     filtros: {},
   }));
-  const [sales, setSales] = useState<Block<SalesBlockDto>>(inicial);
+  const [visitas, setVisitas] = useState<Block<VisitasDto>>(inicial);
   const [hygiene, setHygiene] = useState<Block<HygieneBlockDto>>(inicial);
   const [ops, setOps] = useState<Block<EstadisticasOportunidadesDto>>(inicial);
 
   useEffect(() => {
     const ctl = new AbortController();
-    if (!admin) return () => ctl.abort();
-    // «Origen y anuncios» y «El agente» salieron por ahora (sus endpoints siguen).
+    // Visitas reemplaza a Ventas; «Origen y anuncios» y «El agente» salieron por
+    // ahora (sus endpoints siguen). El operador ve solo las de sus oportunidades.
     const q = parametrosResultados(barra.rango, barra.edificioIds, barra.filtros);
-    void cargar(`/api/analytics/sales?${q.toString()}`, setSales, ctl.signal);
+    void cargar(`/api/analytics/visitas?${q.toString()}`, setVisitas, ctl.signal);
     return () => ctl.abort();
-  }, [barra, admin]);
+  }, [barra]);
 
   // Paso 7 — Oportunidades: depende del rango y de «Ver por» / filtros.
   useEffect(() => {
@@ -114,7 +115,7 @@ export function ResultsClient({
         <div className="min-w-0">
           <h2 className="text-[17px] font-bold tracking-tight">{nombrePantalla(voc, "results", "Resultados")}</h2>
           <p className="text-xs text-text-3">
-            {voc.plural}, ventas y qué se está cayendo.
+            {voc.plural}, visitas y qué se está cayendo.
           </p>
         </div>
       </header>
@@ -122,12 +123,8 @@ export function ResultsClient({
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3 sm:p-6">
         <OportunidadesResumen {...ops} />
-        {admin && (
-          <>
-            <SalesSection {...sales} currency={currency} />
-            <HygieneSection {...hygiene} currency={currency} />
-          </>
-        )}
+        <VisitasSection {...visitas} />
+        {admin && <HygieneSection {...hygiene} currency={currency} />}
       </div>
     </div>
   );
