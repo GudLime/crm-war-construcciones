@@ -408,3 +408,18 @@ devuelve hasta 3 y no repite una plantilla con tarea abierta
   (`…/descartar`) la oculta mientras siga en esa etapa; «N descartadas ·
   mostrar» permite volver a mostrarlas. Se recalcula con la etapa, los mensajes
   y las citas. El admin ve «Configurar plantillas».
+
+## Resultados: barra de período, edificio y filtros
+
+Arriba de Resultados, tres filas (`components/results/barra-resultados.tsx`):
+**Período** (pestañas de fábrica relativas a hoy — 7 / 30 / este mes / mes
+pasado / 90 / este año — y propias con fechas fijas, «+ Guardar fechas» con el
+calendario propio), **Edificio** (Todos, una por edificio y grupos propios,
+«+ Guardar grupo») y **Filtros** manuales que no se guardan (Origen, Responsable
+para el admin, Operación). Las pestañas viven en `vista_guardada` con `pagina =
+'resultados.fechas' | 'resultados.edificios'` (del equipo si las guarda un
+admin, o propias) y la última de cada fila en `vista_ultima`
+(`/api/resultados/pestanas`). Los endpoints de `/api/analytics/*` aceptan
+`desde`, `hasta` (además de `from`/`to`), `edificioIds`, `origen`,
+`responsable` y `operacion` (`server/analytics/filtros.ts`). «Origen y
+anuncios» y «El agente» dejaron de mostrarse (el código y los endpoints siguen).
