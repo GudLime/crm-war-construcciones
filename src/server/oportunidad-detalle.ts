@@ -104,6 +104,8 @@ function aTareaCorta(t: typeof schema.tareaVenta.$inferSelect): TareaCorta {
     oportunidadId: t.oportunidadId,
     createdAt: t.createdAt.toISOString(),
     updatedAt: t.updatedAt.toISOString(),
+    creadaPor: t.creadaPor,
+    conversationId: t.conversationId ?? null,
   };
 }
 

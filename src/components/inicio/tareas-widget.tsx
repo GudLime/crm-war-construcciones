@@ -26,7 +26,6 @@ const TIPOS = [
   { tipo: "correo", nombre: "Mail", color: "#7c3aed" },
   { tipo: "tarea", nombre: "Tarea", color: "#64748b" },
 ] as const;
-const COLOR = Object.fromEntries(TIPOS.map((t) => [t.tipo, t.color])) as Record<string, string>;
 const ALTO = 172;
 
 function Icono({ tipo, className }: { tipo: string; className?: string }) {
@@ -35,11 +34,23 @@ function Icono({ tipo, className }: { tipo: string; className?: string }) {
   return <I className={className} />;
 }
 
+/** v2, punto 6 — El estilo lavado de los íconos de tipo de la pantalla Tareas (`IconoTipo`). */
+const LAVADO: Record<string, string> = {
+  mensaje: "bg-success-tint text-success-text",
+  llamada: "bg-info-tint text-info-text",
+  visita: "bg-brand-tint text-brand-ink",
+  correo: "bg-warning-tint text-warning-text",
+  reunion: "bg-muted text-text-2",
+  tarea: "bg-muted text-text-2",
+};
+
 function Circulo({ tipo, apagado = false }: { tipo: string; apagado?: boolean }) {
   return (
     <span
-      className={cn("grid size-[22px] shrink-0 place-items-center rounded-full text-white", apagado && "border border-dashed border-border-strong bg-transparent text-text-3")}
-      style={apagado ? undefined : { background: COLOR[tipo] ?? COLOR.tarea }}
+      className={cn(
+        "grid size-[22px] shrink-0 place-items-center rounded-full",
+        apagado ? "border border-dashed border-border-strong bg-transparent text-text-3" : (LAVADO[tipo] ?? LAVADO.tarea)
+      )}
     >
       <Icono tipo={tipo} className="size-3" />
     </span>

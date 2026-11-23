@@ -36,6 +36,9 @@ export type TareaCorta = {
   oportunidadId: string | null;
   createdAt: string;
   updatedAt: string;
+  /** v2, punto 3 — La creó la IA al derivar: chispas y «Responder en Bandeja». */
+  creadaPor?: string;
+  conversationId?: string | null;
 };
 
 export type EventoCorto = {

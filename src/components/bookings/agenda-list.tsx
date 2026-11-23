@@ -6,6 +6,7 @@ import { bookingSegments, hhmm, longDayLabel, spanLabel, type DateRange } from "
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { STATUS_LABEL, bookingTitle, bookingTone, hasDeliveryIssue, type Booking } from "./booking-look";
+import type { TareaCal } from "./time-grid";
 
 /**
  * 215 — La Lista: las citas del rango, agrupadas por día, como la «Agenda» de
@@ -19,29 +20,39 @@ export function AgendaList({
   today,
   selectedId,
   onSelect,
+  tareas = [],
+  onSelectTarea,
+  renderIconoTarea,
 }: {
   range: DateRange;
   bookings: Booking[];
+  /** v2, punto 4 — En el Calendario de Tareas, la Lista suma todas las tareas. */
+  tareas?: TareaCal[];
+  onSelectTarea?: (t: TareaCal) => void;
+  renderIconoTarea?: (tipo: string) => React.ReactNode;
   timezone: string;
   today: string;
   selectedId: string | null;
   onSelect: (b: Booking) => void;
 }) {
+  type Fila = { booking?: Booking; tarea?: TareaCal; startMin: number; endMin: number };
   const groups = useMemo(() => {
-    const map = new Map<string, { booking: Booking; startMin: number; endMin: number }[]>();
-    for (const b of bookings) {
-      const segs = bookingSegments(b.scheduledAtUtc, b.durationMinutes, timezone);
+    const map = new Map<string, Fila[]>();
+    const sumar = (startUtc: string, minutos: number, x: { booking: Booking } | { tarea: TareaCal }) => {
+      const segs = bookingSegments(startUtc, minutos, timezone);
       const first = segs[0];
       const last = segs[segs.length - 1];
-      if (!first || !last || first.day < range.from || first.day > range.to) continue;
+      if (!first || !last || first.day < range.from || first.day > range.to) return;
       const list = map.get(first.day) ?? [];
-      list.push({ booking: b, startMin: first.startMin, endMin: last.endMin });
+      list.push({ ...x, startMin: first.startMin, endMin: last.endMin });
       map.set(first.day, list);
-    }
+    };
+    for (const b of bookings) sumar(b.scheduledAtUtc, b.durationMinutes, { booking: b });
+    for (const t of tareas) sumar(t.fecha, 30, { tarea: t });
     return [...map.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([day, items]) => ({ day, items: items.sort((a, b) => a.startMin - b.startMin) }));
-  }, [bookings, timezone, range.from, range.to]);
+  }, [bookings, tareas, timezone, range.from, range.to]);
 
   if (groups.length === 0) {
     return (
@@ -67,7 +78,25 @@ export function AgendaList({
             )}
           </h3>
           <ul className="divide-y">
-            {items.map(({ booking: b, startMin, endMin }) => (
+            {items.map(({ booking: b, tarea: t, startMin, endMin }) =>
+              t ? (
+                <li key={`t:${t.id}`}>
+                  <button
+                    type="button"
+                    onClick={() => onSelectTarea?.(t)}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-row-hover"
+                  >
+                    <span className="w-[6.5rem] shrink-0 font-mono text-[12px] text-text-2">{hhmm(startMin)}</span>
+                    {renderIconoTarea ? <span className="shrink-0">{renderIconoTarea(t.tipo)}</span> : null}
+                    <span className="min-w-0 flex-1">
+                      <span className={cn("block truncate text-sm font-semibold", t.estado !== "realizar" && "text-text-3 line-through")}>
+                        {t.titulo}
+                      </span>
+                      <span className="block truncate text-xs text-text-3">{[t.contacto, t.edificio].filter(Boolean).join(" · ") || "Tarea"}</span>
+                    </span>
+                  </button>
+                </li>
+              ) : b ? (
               <li key={b.id}>
                 <button
                   type="button"
@@ -110,7 +139,8 @@ export function AgendaList({
                   </span>
                 </button>
               </li>
-            ))}
+              ) : null
+            )}
           </ul>
         </section>
       ))}

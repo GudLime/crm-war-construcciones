@@ -437,6 +437,9 @@ export function BookingsClient({
               />
             ) : (
               <AgendaList
+                tareas={embebido?.tareas}
+                onSelectTarea={embebido?.onSelectTarea}
+                renderIconoTarea={embebido?.renderIconoTarea}
                 range={range}
                 bookings={visible}
                 timezone={timezone}
