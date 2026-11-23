@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { WhatsAppLogo } from "@/components/whatsapp-logo";
+import { VentanaTarea } from "./ventana-tarea";
 import type { FormaDeVer } from "@/lib/oportunidades-lista";
 import { agruparTareas, fechaPropuesta, grupoConAlta, type GrupoTarea } from "@/lib/tareas-grupos";
 import { cn } from "@/lib/utils";
@@ -244,6 +245,8 @@ export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) 
   const [plegados, setPlegados] = useState<Partial<Record<GrupoTarea, boolean>>>({});
   const [abierto, setAbierto] = useState(false);
   const [editando, setEditando] = useState<string | null>(null);
+  /** v2, punto 2 — La tarea abierta en la ventana de detalle. */
+  const [ventana, setVentana] = useState<string | null>(null);
   const [form, setForm] = useState<Formulario>(vacio);
   const [error, setError] = useState<string | null>(null);
   const [listo, setListo] = useState(false);
@@ -315,21 +318,11 @@ export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) 
     setAbierto(true);
   }
 
+  /** v2, punto 2 — Una tarea existente se abre en su ventana de detalle. */
   function abrir(t: Tarea) {
-    setEditando(t.id);
-    setSoloLectura(t.editable === false);
-    setForm({
-      titulo: t.titulo,
-      tipo: t.tipo,
-      estado: t.estado,
-      fecha: aLocal(t.fecha),
-      comentarios: t.comentarios ?? "",
-      contactId: t.contactId ?? "",
-      oportunidadId: t.oportunidadId ?? "",
-      responsableId: t.responsableId ?? "",
-    });
-    setError(null);
-    setAbierto(true);
+    setAbierto(false);
+    setEditando(null);
+    setVentana(t.id);
   }
 
   async function guardar(e: FormEvent) {
@@ -636,6 +629,8 @@ export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) 
           </div>
         )}
       </div>
+
+      {ventana && <VentanaTarea tareaId={ventana} onCerrar={() => setVentana(null)} onCambio={cargar} />}
 
       {abierto && (
         <Ficha titulo={soloLectura ? "Visita de otra persona (solo lectura)" : editando ? "Editar tarea" : "Nueva tarea"}>

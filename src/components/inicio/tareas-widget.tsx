@@ -5,17 +5,17 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ClipboardList, Mail, Phone, Sparkles, Users } from "lucide-react";
 import { WhatsAppLogo } from "@/components/whatsapp-logo";
 import { PildoraEdificio } from "@/components/ventas/pildora-edificio";
-import { ResultadoLlamada } from "@/components/ventas/resultado-llamada";
-import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
+import { VentanaCita, VentanaTarea } from "@/components/ventas/ventana-tarea";
 import { seccionesWidget, type ItemWidget } from "@/lib/inicio";
 import { cn } from "@/lib/utils";
+import type { Booking } from "@/components/bookings/booking-look";
 
 /**
  * Cambios 23/11, punto 7 — El widget «Tareas» del Inicio: una lista continua
  * (Vencidas → Sin hora → Hoy con la línea de «Ahora» → los días siguientes)
  * repartida en columnas según el ancho, con alto fijo. Los filtros por tipo
- * restan: tocar uno oculta ese tipo. Tocar un ítem lo despliega con sus
- * acciones (solo uno a la vez).
+ * restan: tocar uno oculta ese tipo. Tocar un ítem abre su ventana de
+ * detalle (v2, punto 2).
  */
 
 const TIPOS = [
@@ -78,6 +78,30 @@ function tituloSeccion(clave: string, hoy: string): string {
   return larga.charAt(0).toUpperCase() + larga.slice(1);
 }
 
+/** La cita del widget con la forma que pide la ventana de detalle. */
+function citaDeItem(it: ItemWidget): Booking {
+  return {
+    id: it.id,
+    kind: "session",
+    status: it.estado as Booking["status"],
+    source: it.agendo ?? "manual",
+    scheduledAtUtc: it.at!,
+    durationMinutes: it.minutos ?? 60,
+    date: "",
+    time: "",
+    weekday: "",
+    contact: null,
+    conversationId: it.conversationId,
+    connector: null,
+    meetingLink: null,
+    linkPending: false,
+    isTest: false,
+    notes: it.comentario,
+    confirmadaAt: it.confirmada ? new Date(0).toISOString() : null,
+    ubicacion: it.ubicacion,
+  };
+}
+
 export function TareasWidget({
   items,
   hoy,
@@ -91,10 +115,9 @@ export function TareasWidget({
   agente: string;
   onCambio: () => void;
 }) {
-  const avisar = useAvisoGuardado();
   const [ocultos, setOcultos] = useState<Set<string>>(() => new Set());
-  const [abierto, setAbierto] = useState<string | null>(null);
-  const [hechas, setHechas] = useState<Set<string>>(() => new Set());
+  /** v2, punto 2 — El ítem abierto en la ventana de detalle. */
+  const [abierto, setAbierto] = useState<ItemWidget | null>(null);
   const [fuera, setFuera] = useState(0);
   const caja = useRef<HTMLDivElement>(null);
   const [ahora, setAhora] = useState(() => Date.now());
@@ -119,42 +142,10 @@ export function TareasWidget({
     const ro = new ResizeObserver(medir);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [secciones, abierto]);
-
-  async function marcarHecha(it: ItemWidget) {
-    setHechas((h) => new Set(h).add(it.id));
-    const r = await fetch(`/api/tareas/${it.id}/hecha`, { method: "POST" }).catch(() => null);
-    if (!r?.ok) {
-      setHechas((h) => {
-        const n = new Set(h);
-        n.delete(it.id);
-        return n;
-      });
-      avisar("No se pudo marcar", "error");
-      return;
-    }
-    avisar("Tarea hecha");
-    onCambio();
-  }
-  async function cita(it: ItemWidget, accion: "confirmar" | "realizada" | "no_show") {
-    const r =
-      accion === "confirmar"
-        ? await fetch(`/api/bookings/${it.id}/confirmar`, { method: "POST" }).catch(() => null)
-        : await fetch(`/api/bookings/${it.id}`, {
-            method: "PATCH",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ action: "status", status: accion }),
-          }).catch(() => null);
-    if (!r?.ok) {
-      avisar("No se pudo guardar", "error");
-      return;
-    }
-    avisar(accion === "confirmar" ? "Visita confirmada" : "Listo");
-    onCambio();
-  }
+  }, [secciones]);
 
   const fila = (it: ItemWidget, i: number, lista: ItemWidget[], clave: string) => {
-    const hecha = hechas.has(it.id) || (it.clase === "tarea" && it.estado !== "realizar") || (it.clase === "cita" && it.estado !== "agendada");
+    const hecha = (it.clase === "tarea" && it.estado !== "realizar") || (it.clase === "cita" && it.estado !== "agendada");
     const pasada = it.at ? Date.parse(it.at) < ahora : false;
     const marcaAhora = clave === "hoy" && it.at && pasada && (!lista[i + 1]?.at || Date.parse(lista[i + 1]!.at!) >= ahora);
     const punto =
@@ -165,12 +156,12 @@ export function TareasWidget({
             ? "#16a34a"
             : "#f59e0b"
         : null;
-    const open = abierto === `${it.clase}:${it.id}`;
+    const open = abierto?.clase === it.clase && abierto.id === it.id;
     return (
       <div key={`${it.clase}:${it.id}`} data-item className="break-inside-avoid">
         <button
           type="button"
-          onClick={() => setAbierto(open ? null : `${it.clase}:${it.id}`)}
+          onClick={() => setAbierto(it)}
           className={cn("flex h-[34px] w-full items-center gap-2 rounded-md px-1.5 text-left text-[13px] hover:bg-subtle", open && "bg-subtle")}
         >
           <span className={cn("w-10 shrink-0 font-mono text-[11.5px] tabular-nums", it.vencida ? "text-danger-text" : "text-text-3")}>
@@ -189,64 +180,6 @@ export function TareasWidget({
           {it.edificio && <PildoraEdificio nombre={it.edificio.nombre} color={it.edificio.color} className="max-w-[110px] truncate px-2 text-[11px]" />}
           {punto && <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: punto }} />}
         </button>
-        {open && (
-          <div className="mb-1.5 ml-12 space-y-1.5 rounded-md border border-border bg-card p-2 text-[12px] text-text-2">
-            <p>
-              {[
-                it.contacto,
-                it.clase === "cita" && it.agendo === "ai" ? `la agendó ${agente}` : null,
-                it.at && it.minutos ? `hasta las ${hora(new Date(Date.parse(it.at) + it.minutos * 60_000).toISOString(), zona)}` : null,
-                it.ubicacion,
-                it.clase === "cita" ? (it.estado === "realizada" ? "vino" : it.estado === "no_show" ? "no vino" : it.confirmada ? "confirmada" : "sin confirmar") : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-            {it.comentario && <p className="italic">«{it.comentario}»</p>}
-            <div className="flex flex-wrap items-center gap-1.5">
-              {it.clase === "tarea" && !hecha && it.tipo === "llamada" && (
-                <ResultadoLlamada tareaId={it.id} oportunidadId={it.oportunidadId} onListo={onCambio} />
-              )}
-              {it.clase === "tarea" && !hecha && it.tipo !== "llamada" && (
-                <button type="button" onClick={() => void marcarHecha(it)} className="rounded-full border border-border px-2.5 py-0.5 font-medium hover:bg-accent">
-                  ✓ Marcar hecha
-                </button>
-              )}
-              {it.clase === "cita" && it.estado === "agendada" && !pasada && !it.confirmada && (
-                <button type="button" onClick={() => void cita(it, "confirmar")} className="rounded-full border border-border px-2.5 py-0.5 font-medium hover:bg-accent">
-                  Confirmar
-                </button>
-              )}
-              {it.clase === "cita" && it.estado === "agendada" && pasada && (
-                <>
-                  <span>¿Vino?</span>
-                  <button type="button" onClick={() => void cita(it, "realizada")} className="rounded-full border border-border px-2.5 py-0.5 font-medium hover:bg-accent">
-                    Sí
-                  </button>
-                  <button type="button" onClick={() => void cita(it, "no_show")} className="rounded-full border border-border px-2.5 py-0.5 font-medium hover:bg-accent">
-                    No vino
-                  </button>
-                </>
-              )}
-              {it.ia && it.conversationId && (
-                <Link href={`/inbox?conversation=${it.conversationId}`} className="rounded-full bg-brand px-2.5 py-0.5 font-semibold text-brand-fg">
-                  Responder en Bandeja
-                </Link>
-              )}
-              <Link
-                href={it.clase === "cita" ? "/tareas?vista=calendario" : "/tareas"}
-                className="rounded-full px-2.5 py-0.5 hover:bg-accent"
-              >
-                Reprogramar
-              </Link>
-              {it.oportunidadId && (
-                <Link href={`/oportunidades/${it.oportunidadId}`} className="rounded-full px-2.5 py-0.5 hover:bg-accent">
-                  Abrir oportunidad ↗
-                </Link>
-              )}
-            </div>
-          </div>
-        )}
         {marcaAhora && (
           <div className="my-0.5 flex items-center gap-1.5 text-[10.5px] font-semibold text-danger-text">
             <span className="h-px flex-1 bg-danger" />
@@ -289,7 +222,7 @@ export function TareasWidget({
       <div
         ref={caja}
         className="overflow-hidden px-2.5"
-        style={{ height: abierto ? undefined : ALTO, minHeight: ALTO, columnWidth: 280, columnFill: "auto", columnGap: 16 }}
+        style={{ height: ALTO, minHeight: ALTO, columnWidth: 280, columnFill: "auto", columnGap: 16 }}
       >
         {secciones.length === 0 && <p className="px-2 py-6 text-center text-[13px] text-text-3">Nada pendiente. 🎉</p>}
         {secciones.map((s) => (
@@ -312,6 +245,27 @@ export function TareasWidget({
           Ver todas las tareas →
         </Link>
       </footer>
+      {abierto?.clase === "tarea" && (
+        <VentanaTarea
+          tareaId={abierto.id}
+          onCerrar={() => setAbierto(null)}
+          onCambio={onCambio}
+        />
+      )}
+      {abierto?.clase === "cita" && abierto.at && (
+        <VentanaCita
+          cita={citaDeItem(abierto)}
+          titulo={abierto.titulo}
+          timezone={zona}
+          today={hoy}
+          nowMs={ahora}
+          onCerrar={() => setAbierto(null)}
+          onCambio={() => {
+            setAbierto(null);
+            onCambio();
+          }}
+        />
+      )}
     </section>
   );
 }
