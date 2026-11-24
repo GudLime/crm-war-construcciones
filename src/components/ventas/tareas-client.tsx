@@ -36,7 +36,7 @@ import type { WeeklyHours } from "@/server/agenda/settings";
 import type { OportunidadDto, TareaDto } from "@/server/ventas";
 import { SelectorDeForma } from "./oportunidades-vistas";
 import { PildoraEdificio } from "./pildora-edificio";
-import { Acciones, Campo, EstadoPill, Ficha, Pagina, aLocal, fechaVisible, grilla, mensajeDe } from "./ui";
+import { Acciones, Campo, EstadoPill, Ficha, Pagina, fechaVisible, grilla, mensajeDe } from "./ui";
 
 /**
  * Tareas (rediseño, PR 6): Lista, Mosaico y Calendario (v3: sin Pipeline,
