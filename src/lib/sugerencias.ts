@@ -60,7 +60,27 @@ export const VENCIMIENTOS = [
   { value: "+7", label: "+7 días" },
   { value: "+30", label: "+30 días" },
   { value: "antes_visita", label: "El día antes de la visita" },
+  /** v3 — Contando hacia atrás desde el cierre de la ventana de 24 h de WhatsApp. */
+  { value: "cierre-1h", label: "1 h antes de que cierre la ventana de WhatsApp" },
+  { value: "cierre-2h", label: "2 h antes de que cierre la ventana de WhatsApp" },
+  { value: "cierre-4h", label: "4 h antes de que cierre la ventana de WhatsApp" },
 ] as const;
+
+/** v3 — La ventana de servicio de WhatsApp: 24 h desde el último mensaje del cliente. */
+const VENTANA_WHATSAPP_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * v3 — «N h antes de que cierre la ventana»: el instante, o null si no hay
+ * ventana (el cliente nunca escribió) o ese momento ya pasó. Undefined si el
+ * vencimiento no es de este tipo.
+ */
+export function instanteAntesDelCierre(vence: string, ultimoEntranteAt: string | null, ahora: string): string | null | undefined {
+  const m = /^cierre-(\d{1,2})h$/.exec(vence);
+  if (!m) return undefined;
+  if (!ultimoEntranteAt) return null;
+  const at = Date.parse(ultimoEntranteAt) + VENTANA_WHATSAPP_MS - Number(m[1]) * 3_600_000;
+  return Number.isFinite(at) && at > Date.parse(ahora) ? new Date(at).toISOString() : null;
+}
 
 export const VARIABLES = ["nombre", "vendedor", "edificio", "unidad", "fecha_visita"] as const;
 
@@ -109,6 +129,8 @@ export type ContextoSugerencias = {
   descartadas: readonly { plantillaId: string; estado: string }[];
   /** Para formatear «13/11 a las 11:00» en la zona del negocio. */
   formatearFecha?: (iso: string) => { dia: string; hora: string };
+  /** v3 — El día (AAAA-MM-DD) de un instante en la zona del negocio. */
+  diaDe?: (iso: string) => string;
 };
 
 export type Sugerencia = {
@@ -117,6 +139,8 @@ export type Sugerencia = {
   tipo: string;
   /** AAAA-MM-DD */
   vence: string;
+  /** v3 — El instante exacto, cuando el vencimiento cuenta desde el cierre de la ventana. */
+  venceAt?: string;
   porque: string;
   mensaje: string | null;
 };
@@ -249,13 +273,18 @@ export function sugerencias(plantillas: readonly Plantilla[], ctx: ContextoSuger
       porque = cumple.get(p.situacion as Situacion);
       if (!porque) continue;
     }
-    const vence = vencimiento(p.vence, ctx.hoy, proxima?.at ?? null);
+    const antesDelCierre = instanteAntesDelCierre(p.vence, ctx.ultimoEntranteAt, ctx.ahora);
+    if (antesDelCierre === null) continue;
+    const vence = antesDelCierre
+      ? (ctx.diaDe ?? ((iso: string) => iso.slice(0, 10)))(antesDelCierre)
+      : vencimiento(p.vence, ctx.hoy, proxima?.at ?? null);
     if (!vence) continue;
     salida.push({
       plantillaId: p.id,
       titulo: p.nombre,
       tipo: p.tipo,
       vence,
+      ...(antesDelCierre ? { venceAt: antesDelCierre } : {}),
       porque,
       mensaje: p.mensaje ? completarMensaje(p.mensaje, valores) || null : null,
     });

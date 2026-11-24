@@ -3,7 +3,7 @@ import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
 import { sugerencias, type Cita, type Sugerencia } from "@/lib/sugerencias";
-import { todayInTz, zonedWallClockToUtc } from "@/lib/time/slots";
+import { dayIsoInTz, todayInTz, zonedWallClockToUtc } from "@/lib/time/slots";
 import { businessTimezone } from "@/server/analytics/period";
 import { listarPlantillas } from "@/server/plantillas-tareas";
 
@@ -152,6 +152,7 @@ async function contexto(organizationId: string, oportunidadId: string) {
       plantillasConTareaAbierta: abiertas.map((a) => a.plantillaId!).filter(Boolean),
       descartadas: descartes,
       formatearFecha: (iso: string) => ({ dia: fmtDia.format(new Date(iso)), hora: fmtHora.format(new Date(iso)) }),
+      diaDe: (iso: string) => dayIsoInTz(new Date(iso), tz),
     },
   };
 }
@@ -194,7 +195,10 @@ export async function crearDesdeSugerencia(
   if (!c) throw new SugerenciaError(404, "not_found", "Esa oportunidad no existe");
   const s = sugerencias(plantillas, c.ctx, 100).find((x) => x.plantillaId === plantillaId);
   if (!s) throw new SugerenciaError(409, "ya_no_aplica", "Esa sugerencia ya no aplica");
-  const fecha = zonedWallClockToUtc(s.vence, HORA, c.tz) ?? new Date();
+  const fecha = s.venceAt ? new Date(s.venceAt) : (zonedWallClockToUtc(s.vence, HORA, c.tz) ?? new Date());
+  // v3 — Un WhatsApp con su mensaje y la hora contada desde el cierre de la
+  // ventana sale solo a esa hora (queda Programado); el resto, Pendiente.
+  const programado = Boolean(s.venceAt && s.tipo === "mensaje" && s.mensaje);
   const id = newId("tareaVenta");
   await getDb()
     .insert(schema.tareaVenta)
@@ -203,9 +207,10 @@ export async function crearDesdeSugerencia(
       organizationId,
       titulo: s.titulo,
       tipo: s.tipo as typeof schema.tareaVenta.$inferInsert.tipo,
-      estado: "realizar",
+      estado: programado ? "programado" : "realizar",
       fecha,
-      comentarios: s.mensaje,
+      comentarios: s.tipo === "mensaje" || s.tipo === "correo" ? null : s.mensaje,
+      mensaje: s.tipo === "mensaje" || s.tipo === "correo" ? s.mensaje : null,
       contactId: c.o.contactId,
       oportunidadId,
       responsableUserId: c.o.responsableUserId ?? userId,
