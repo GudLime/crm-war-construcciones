@@ -616,3 +616,26 @@ marca de chispas; en el widget suma «Responder en Bandeja».
   tira `BotonesNuevaTarea` (con `modal`) entre la IA y la etapa.
 - **Asignaciones:** orden por llegada (más nuevas / más viejas).
 - **Edificios:** `en_venta` booleano (0065), desplegable Sí/No.
+
+## v4 (24/11) — tipos de contacto, lector, llamadas, respuestas con fotos
+
+- **Tipos de contacto** (0066, `contact.tipos_contacto`, selección múltiple):
+  Cliente, Proveedor, Inquilino, Inmobiliaria, Propio. Lo que busca va en el
+  tipo de la oportunidad (Venta, Alquiler, Inmobiliaria). «Lead» ya no es un
+  tipo: los que lo eran pasan a Venta (`pasarLeadsAVentaAlArrancar`).
+- **Quién atiende la IA** (`iaAtiende` en `lib/ventas.ts`): con oportunidad
+  abierta, solo Venta; sin oportunidad, si no es Proveedor, Propio ni
+  Inmobiliaria.
+- **La ficha del agente** (`normalizarTipoContacto` → `aplicarClasificacionIa`):
+  «lead» abre Venta, «alquiler» abre Alquiler, el resto se suma al contacto.
+- **El lector** (`server/lector.ts`): con el agente apagado o la IA en pausa,
+  lee el chat por ráfaga (90 s) y arma la oportunidad por el mismo camino, sin
+  contestar. Solo si hace falta (sin nada clasificado o sin interés).
+- **Sidebar del chat:** el interés (edificio, tipología y la extensión
+  `components/extensiones/oportunidad-chat.tsx`) arriba de la etapa;
+  «Crear oportunidad» con su tipo.
+- **Llamadas** (`server/inbox/llamadas.ts`, webhook `calls`): quedan en el chat
+  como mensaje `type: "call"`; cada aviso queda en el log.
+- **Respuestas rápidas con fotos y videos** (0067, `quick_reply.adjuntos`).
+- El nombre del chat abre el contacto; buscador en Oportunidades.
+

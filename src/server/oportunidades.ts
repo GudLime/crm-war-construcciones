@@ -422,7 +422,7 @@ export async function cambiarTiposContacto(input: {
 }
 
 /**
- * v4 — Lo que la IA detectó (la ficha del agente o el lector): abre o
+ * v4 — Lo que la IA detectó (lo que dejó el agente o el lector): abre o
  * completa la oportunidad con lo que busca y suma lo que la persona es.
  */
 export async function aplicarClasificacionIa(input: {
