@@ -259,11 +259,9 @@ export function TareasWidget({
           timezone={zona}
           today={hoy}
           nowMs={ahora}
+          oportunidadId={abierto.oportunidadId}
           onCerrar={() => setAbierto(null)}
-          onCambio={() => {
-            setAbierto(null);
-            onCambio();
-          }}
+          onCambio={onCambio}
         />
       )}
     </section>

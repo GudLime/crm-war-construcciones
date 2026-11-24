@@ -20,6 +20,7 @@ import type { TareaDto } from "@/server/ventas";
 import { IconoTipo, MarcaIa } from "./tareas-client";
 import { PildoraEdificio } from "./pildora-edificio";
 import { ResultadoLlamada } from "./resultado-llamada";
+import { ExtraCitaVisita } from "@/components/extensiones/cita-visita";
 import { aLocal, mensajeDe } from "./ui";
 
 /**
@@ -523,15 +524,19 @@ function duracion(min: number): string {
   return m ? `${h} h ${m} min` : `${h} h`;
 }
 
+type EdificioCita = { id: string; nombre: string; direccion: string | null; color: string | null };
+
 /**
- * v2, punto 2 — La cita (visita o reunión) en la misma ventana. Reemplaza al
- * panel lateral cuando el calendario vive dentro de Tareas. Sin «Ver como»,
- * sin caja de confirmar (se confirma con el estado), sin el enlace de la
- * reunión ni «Reintentar el enlace».
+ * v3 — La cita: visita o reunión en la misma ventana, con una pestaña para
+ * pasar de una a otra. Es UNA sola cosa con la Agenda (ocupa el horario, la
+ * ve el agente). La visita es en un edificio; la reunión, en la oficina.
+ * Reemplaza al panel lateral: sin «Ver como», sin caja de confirmar (se
+ * confirma con el estado), sin el enlace de la reunión ni «Reintentar».
  */
 export function VentanaCita({
-  cita,
+  cita: inicial,
   titulo,
+  oportunidadId: oportunidadDada,
   timezone,
   nowMs,
   today,
@@ -542,6 +547,8 @@ export function VentanaCita({
   cita: Booking;
   /** El título si no es el nombre del contacto (el widget ya lo trae armado). */
   titulo?: string;
+  /** La oportunidad, si quien abre la ventana ya la sabe. */
+  oportunidadId?: string | null;
   /** La zona del negocio: la fecha se lee en su hora. */
   timezone: string;
   nowMs: number;
@@ -551,12 +558,57 @@ export function VentanaCita({
   onReprogramada?: (startUtc: string) => void;
 }) {
   const avisar = useAvisoGuardado();
+  const [cita, setCita] = useState<Booking>(inicial);
+  const [editable, setEditable] = useState(true);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [moviendo, setMoviendo] = useState(false);
+  const [notas, setNotas] = useState(inicial.notes ?? "");
+  const [edificios, setEdificios] = useState<EdificioCita[]>([]);
+  const [equipo, setEquipo] = useState<Miembro[]>([]);
+  const [oficina, setOficina] = useState("");
+  const [oportunidadId, setOportunidadId] = useState<string | null>(oportunidadDada ?? null);
+
+  const recargar = useCallback(async () => {
+    const r = await fetch(`/api/bookings/${inicial.id}`).catch(() => null);
+    if (!r?.ok) return;
+    const d = (await r.json()) as { booking: Booking; editable: boolean };
+    setCita(d.booking);
+    setEditable(d.editable);
+    setNotas(d.booking.notes ?? "");
+  }, [inicial.id]);
+
+  useEffect(() => {
+    void recargar();
+    void Promise.all([
+      fetch("/api/edificios").then((r) => (r.ok ? r.json() : { edificios: [] })),
+      fetch("/api/equipo").then((r) => (r.ok ? r.json() : { equipo: [] })),
+      fetch("/api/settings/ventas/oficina").then((r) => (r.ok ? r.json() : { direccion: "" })),
+    ])
+      .then(([e, q, o]: [{ edificios: EdificioCita[] }, { equipo: Miembro[] }, { direccion: string }]) => {
+        setEdificios(e.edificios ?? []);
+        setEquipo(q.equipo ?? []);
+        setOficina(o.direccion ?? "");
+      })
+      .catch(() => undefined);
+  }, [recargar]);
+
+  // La oportunidad del contacto (para el enlace y lo del cliente).
+  const contactId = cita.contact?.id ?? null;
+  useEffect(() => {
+    if (oportunidadId || !contactId) return;
+    void fetch(`/api/contacts/${contactId}/oportunidad`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { abierta?: { id: string } | null } | null) => setOportunidadId(d?.abierta?.id ?? null))
+      .catch(() => undefined);
+  }, [contactId, oportunidadId]);
+
   const estado = estadoDeCita(cita);
   const activa = cita.status === "agendada";
   const termino = Date.parse(cita.scheduledAtUtc) + cita.durationMinutes * 60_000 < nowMs;
+  const modo = cita.modo ?? null;
+  const edificio = edificios.find((e) => e.id === cita.edificioId) ?? null;
+  const bloqueada = !editable || ocupado;
 
   async function accion(url: string, metodo: "PATCH" | "POST", cuerpo?: Record<string, unknown>) {
     setOcupado(true);
@@ -571,8 +623,20 @@ export function VentanaCita({
       setError(res ? await mensajeDe(res) : "No se pudo completar la acción");
       return false;
     }
+    await recargar();
     await onCambio();
     return true;
+  }
+
+  const datos = (d: Record<string, unknown>) => accion(`/api/bookings/${cita.id}`, "PATCH", { action: "datos", ...d });
+
+  function ubicacionDeEdificio(e: EdificioCita | null): string | null {
+    return e ? [`Edificio ${e.nombre}`, e.direccion].filter(Boolean).join(" · ") : null;
+  }
+
+  async function cambiarModo(m: "visita" | "reunion") {
+    if (m === modo) return;
+    await datos(m === "reunion" ? { modo: m, ubicacion: oficina || null } : { modo: m, ubicacion: ubicacionDeEdificio(edificio) });
   }
 
   async function cambiarEstado(v: string) {
@@ -586,6 +650,11 @@ export function VentanaCita({
         avisar("Cita cancelada");
       }
     }
+  }
+
+  async function guardarYCerrar() {
+    if ((cita.notes ?? "") !== notas && !(await datos({ notes: notas || null }))) return;
+    onCerrar();
   }
 
   const opciones: { value: EstadoCita; label: string }[] = activa
@@ -602,16 +671,50 @@ export function VentanaCita({
       ]
     : [{ value: estado, label: { realizada: "Vino", no_show: "No vino", cancelada: "Cancelada" }[estado as "realizada"] ?? estado }];
 
+  const nombreModo = modo === "reunion" ? "Reunión" : modo === "visita" ? "Visita" : null;
+  const Extra = modo === "visita" && oportunidadId ? ExtraCitaVisita : null;
+
   return (
     <Ventana
-      titulo={<Encabezado tipo="visita" etiqueta="Cita" titulo={titulo ?? (cita.contact?.name.trim() || "Sin contacto")} ia={false} />}
+      titulo={
+        <Encabezado
+          tipo={modo === "reunion" ? "reunion" : "visita"}
+          etiqueta={nombreModo ? `Cita · ${nombreModo}` : "Cita"}
+          titulo={titulo ?? (cita.contact?.name.trim() || "Sin contacto")}
+          ia={false}
+        />
+      }
       onCerrar={onCerrar}
-      className="sm:max-w-[420px]"
+      className="sm:max-w-[440px]"
     >
+      <div role="tablist" aria-label="Tipo de cita" className="mb-3 grid grid-cols-2 gap-1 rounded-lg bg-subtle p-1">
+        {(
+          [
+            ["visita", "Visita", "en el edificio"],
+            ["reunion", "Reunión", "en la oficina"],
+          ] as const
+        ).map(([m, nombre, donde]) => (
+          <button
+            key={m}
+            type="button"
+            role="tab"
+            aria-selected={modo === m}
+            disabled={bloqueada || !activa}
+            onClick={() => void cambiarModo(m)}
+            className={cn(
+              "rounded-md px-2 py-1.5 text-[12.5px] transition-colors disabled:cursor-default",
+              modo === m ? "bg-card font-semibold shadow-sm" : "text-text-2 hover:text-foreground"
+            )}
+          >
+            {nombre} <span className="font-normal text-text-3">· {donde}</span>
+          </button>
+        ))}
+      </div>
+
       <Fila etiqueta="Estado">
         <Select
           value={estado}
-          disabled={!activa || ocupado}
+          disabled={!activa || bloqueada}
           onValueChange={(v) => void cambiarEstado(v)}
           className={cn("h-8 w-auto rounded-full", estado === "cancelada" && "text-text-3")}
         >
@@ -623,18 +726,20 @@ export function VentanaCita({
         </Select>
       </Fila>
       <Fila etiqueta="Fecha">
-        <button
-          type="button"
-          disabled={!activa || ocupado}
-          onClick={() => setMoviendo((m) => !m)}
-          className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-[13px] hover:bg-accent disabled:opacity-60"
-        >
-          {textoDeFecha(
-            `${dayIsoInTz(new Date(cita.scheduledAtUtc), timezone)}T${hhmm(wallClock(new Date(cita.scheduledAtUtc), timezone).minutes)}`,
-            today
-          )}
-        </button>
-        <span className="ml-2 text-[12px] text-text-3">{duracion(cita.durationMinutes)}</span>
+        <span className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={!activa || bloqueada}
+            onClick={() => setMoviendo((m) => !m)}
+            className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-[13px] hover:bg-accent disabled:opacity-60"
+          >
+            {textoDeFecha(
+              `${dayIsoInTz(new Date(cita.scheduledAtUtc), timezone)}T${hhmm(wallClock(new Date(cita.scheduledAtUtc), timezone).minutes)}`,
+              today
+            )}
+          </button>
+          <span className="text-[12px] text-text-3">{duracion(cita.durationMinutes)}</span>
+        </span>
       </Fila>
       {moviendo && (
         <div className="-mx-4">
@@ -652,11 +757,81 @@ export function VentanaCita({
           />
         </div>
       )}
-      {cita.ubicacion && (
-        <Fila etiqueta="Dirección">
+      <Fila etiqueta="Responsable">
+        {equipo.length > 0 && editable ? (
+          <Select
+            value={cita.responsableId ?? ""}
+            placeholder="Sin asignar"
+            disabled={bloqueada}
+            onValueChange={(v) => void datos({ responsableId: v || null })}
+            className="h-8 w-auto"
+          >
+            <option value="">Sin asignar</option>
+            {equipo.map((m) => (
+              <option key={m.userId} value={m.userId}>
+                {m.nombre}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <span>{equipo.find((m) => m.userId === cita.responsableId)?.nombre ?? "Sin asignar"}</span>
+        )}
+      </Fila>
+      {oportunidadId && (
+        <Fila etiqueta="Oportunidad">
+          <Link href={`/oportunidades/${oportunidadId}`} className="font-medium text-brand-text hover:underline">
+            {cita.contact?.name.trim() || "Ver oportunidad"}
+          </Link>
+        </Fila>
+      )}
+
+      {modo === "visita" && (
+        <>
+          <Fila etiqueta="Edificio">
+            {edificios.length > 0 ? (
+              <Select
+                value={cita.edificioId ?? ""}
+                placeholder="Elegí el edificio"
+                disabled={bloqueada || !activa}
+                onValueChange={(v) => {
+                  const e = edificios.find((x) => x.id === v) ?? null;
+                  void datos({ edificioId: v || null, ubicacion: ubicacionDeEdificio(e) });
+                }}
+                className="h-8 w-auto rounded-full"
+              >
+                {edificios.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.nombre}
+                  </option>
+                ))}
+              </Select>
+            ) : edificio ? (
+              <PildoraEdificio nombre={edificio.nombre} color={edificio.color} />
+            ) : (
+              <span className="text-text-3">—</span>
+            )}
+          </Fila>
+          {Extra && oportunidadId && (
+            <div className="py-1.5">
+              <Extra oportunidadId={oportunidadId} edificioId={cita.edificioId ?? null} disabled={bloqueada} />
+            </div>
+          )}
+          <Fila etiqueta="Dirección">
+            <span className="text-text-2">{edificio?.direccion || cita.ubicacion || "—"}</span>
+          </Fila>
+        </>
+      )}
+      {modo === "reunion" && (
+        <Fila etiqueta="Ubicación">
+          <span className="text-text-2">{oficina || cita.ubicacion || "Falta cargar la dirección de la oficina en Ajustes → Ventas"}</span>
+        </Fila>
+      )}
+      {!modo && cita.ubicacion && (
+        <Fila etiqueta="Ubicación">
           <span className="text-text-2">{cita.ubicacion}</span>
         </Fila>
       )}
+
       <Fila etiqueta="Agendó">
         <span className="inline-flex items-center gap-1.5 text-text-2">
           {cita.source === "ai" ? (
@@ -668,13 +843,23 @@ export function VentanaCita({
           )}
         </span>
       </Fila>
-      {cita.notes && (
-        <div className="mt-2">
-          <span className="mb-1 block text-[12px] text-text-3">Comentarios</span>
-          <p className="whitespace-pre-wrap rounded-md bg-subtle px-3 py-2 text-[13px] text-text-2">{cita.notes}</p>
-        </div>
-      )}
-      {activa && termino && (
+
+      <label className="mt-2 block">
+        <span className="mb-1 block text-[12px] text-text-3">Comentarios</span>
+        <Textarea
+          value={notas}
+          disabled={!editable}
+          onChange={(e) => setNotas(e.target.value)}
+          onBlur={() => {
+            if ((cita.notes ?? "") !== notas) void datos({ notes: notas || null });
+          }}
+          rows={3}
+          maxLength={4000}
+          placeholder="Sin comentarios"
+        />
+      </label>
+
+      {activa && termino && editable && (
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-warning-tint px-3 py-2 text-[13px] text-warning-text">
           <span className="mr-auto font-medium">¿Vino?</span>
           <Button size="sm" variant="secondary" disabled={ocupado} onClick={() => void cambiarEstado("realizada")}>
@@ -690,28 +875,38 @@ export function VentanaCita({
           Confirmada el {new Date(cita.confirmadaAt).toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
         </p>
       )}
+      {!editable && <p className="mt-2 text-[12px] text-text-3">Es de otra persona: la podés ver, no cambiar.</p>}
       {error && (
         <p role="alert" className="mt-3 rounded-sm bg-danger-tint px-3 py-2 text-sm text-danger-text">
           {error}
         </p>
       )}
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-3">
-        {activa && (
+        {activa && editable && (
           <Button size="sm" variant="ghost" className="text-danger-text" disabled={ocupado} onClick={() => void cambiarEstado("cancelada")}>
-            Cancelar cita
+            {modo === "reunion" ? "Cancelar reunión" : modo === "visita" ? "Cancelar visita" : "Cancelar cita"}
           </Button>
         )}
         <span className="flex-1" />
-        {(cita.conversationId || cita.contact) && (
+        {oportunidadId ? (
           <Link
-            href={cita.conversationId ? `/inbox?conversation=${cita.conversationId}` : `/inbox?contact=${cita.contact!.id}`}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-[13px] font-medium hover:bg-accent"
+            href={`/oportunidades/${oportunidadId}`}
+            className="inline-flex h-8 items-center rounded-md border px-3 text-[13px] font-medium hover:bg-accent"
           >
-            <MessageSquareText className="size-3.5" /> Abrir conversación
+            Abrir oportunidad
           </Link>
+        ) : (
+          (cita.conversationId || cita.contact) && (
+            <Link
+              href={cita.conversationId ? `/inbox?conversation=${cita.conversationId}` : `/inbox?contact=${cita.contact!.id}`}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-[13px] font-medium hover:bg-accent"
+            >
+              <MessageSquareText className="size-3.5" /> Abrir conversación
+            </Link>
+          )
         )}
-        <Button size="sm" onClick={onCerrar}>
-          Listo
+        <Button size="sm" onClick={() => void guardarYCerrar()}>
+          {editable ? "Guardar" : "Cerrar"}
         </Button>
       </div>
     </Ventana>

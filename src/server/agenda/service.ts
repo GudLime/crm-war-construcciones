@@ -93,6 +93,10 @@ export async function createSessionBooking(input: {
   confirmadaPor?: string | null;
   /** 0058 — Dónde es (el edificio o la oficina). Va como ubicación del evento en el calendario. */
   ubicacion?: string | null;
+  /** 0064 — Visita (en un edificio) o reunión (en la oficina), el edificio y quién la atiende. */
+  modo?: "visita" | "reunion" | null;
+  edificioId?: string | null;
+  responsableUserId?: string | null;
   /**
    * true ⇒ exige que el instante figure entre los ofrecidos a la conversación
    * (agente/bot). El operador elige de la disponibilidad que está viendo, así
@@ -203,6 +207,9 @@ export async function createSessionBooking(input: {
         isTest,
         notes: input.notes ?? null,
         ubicacion: input.ubicacion?.trim() || null,
+        modo: input.modo ?? null,
+        edificioId: input.edificioId ?? null,
+        responsableUserId: input.responsableUserId ?? null,
         ...(input.confirmadaPor
           ? { confirmadaAt: new Date(), confirmadaPorUserId: input.confirmadaPor }
           : {}),
@@ -474,6 +481,32 @@ export async function markBookingStatus(input: {
     type: "booking.updated",
     data: { bookingId: booking.id },
   });
+}
+
+/**
+ * v3 — Los datos de la cita que se cambian desde su ventana: visita o
+ * reunión, el edificio, dónde es, quién la atiende y los comentarios. No
+ * mueve la cita ni habla con el conector (la hora se cambia con reschedule).
+ */
+export async function updateBookingDatos(input: {
+  organizationId: string;
+  bookingId: string;
+  notes?: string | null;
+  modo?: "visita" | "reunion";
+  edificioId?: string | null;
+  ubicacion?: string | null;
+  responsableUserId?: string | null;
+}): Promise<void> {
+  const booking = await getOwnBooking(input.organizationId, input.bookingId);
+  if (booking.kind !== "session") throw new BookingError("invalid", "Un bloqueo no tiene esos datos");
+  const cambios: Partial<typeof schema.booking.$inferInsert> = { updatedAt: new Date() };
+  if (input.notes !== undefined) cambios.notes = input.notes?.trim() || null;
+  if (input.modo !== undefined) cambios.modo = input.modo;
+  if (input.edificioId !== undefined) cambios.edificioId = input.edificioId;
+  if (input.ubicacion !== undefined) cambios.ubicacion = input.ubicacion?.trim() || null;
+  if (input.responsableUserId !== undefined) cambios.responsableUserId = input.responsableUserId;
+  await getDb().update(schema.booking).set(cambios).where(eq(schema.booking.id, booking.id));
+  publish(input.organizationId, { type: "booking.updated", data: { bookingId: booking.id } });
 }
 
 /**

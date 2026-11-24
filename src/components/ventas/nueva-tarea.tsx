@@ -229,7 +229,7 @@ function VentanaNuevaTarea({
   const tituloRef = useRef<HTMLInputElement>(null);
   useEffect(() => tituloRef.current?.focus(), []);
 
-  // Una reunión con Agenda es una cita (no tiene responsable propio).
+  // Una reunión con Agenda es una cita (0064: con quién la atiende).
   const esCita = tipo === "reunion" && agenda && Boolean(contacto);
   const ubicacion =
     tipo === "reunion"
@@ -275,6 +275,10 @@ function VentanaNuevaTarea({
             startUtc: inicio.toISOString(),
             notes: [titulo.trim(), nota.trim()].filter(Boolean).join("\n\n"),
             ubicacion: ubicacion || null,
+            // 0064 — La cita guarda si es visita o reunión, el edificio y quién la atiende.
+            modo,
+            edificioId: modo === "visita" ? edificioId : null,
+            ...(responsable ? { responsableId: responsable } : {}),
           }),
         }).catch(() => null)
       : await fetch("/api/tareas", {
@@ -462,7 +466,7 @@ function VentanaNuevaTarea({
           )}
         </div>
 
-        {!esCita && equipo.length > 0 && (
+        {equipo.length > 0 && (
           <label className="block space-y-1">
             <span className="text-[11.5px] font-medium text-text-3">Responsable</span>
             <Select value={responsable} onValueChange={setResponsable} aria-label="Responsable" className="w-full">

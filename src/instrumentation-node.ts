@@ -1,3 +1,5 @@
+import { convertirTareasDeVisitaAlArrancar } from "@/server/agenda/convertir-tareas";
+import { agendaEnabled } from "@/server/agenda/flag";
 import { iniciarTareasProgramadas } from "@/server/tareas-envio";
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
@@ -136,6 +138,8 @@ export function resumeVentas(): void {
   iniciarBarridoSilencios();
   // v3 — Los WhatsApp programados de las tareas.
   iniciarTareasProgramadas();
+  // v3 — Visita y Reunión son citas: las tareas viejas con fecha pasan solas.
+  if (agendaEnabled()) setTimeout(() => void convertirTareasDeVisitaAlArrancar(), 30_000).unref?.();
 }
 
 /**
