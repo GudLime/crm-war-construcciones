@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { VALORES_TIPO_CONTACTO, type TipoContacto } from "@/lib/ventas";
-import { clasificarContacto } from "@/server/oportunidades";
+import { cambiarTiposContacto } from "@/server/oportunidades";
 import { apiError, parseBody, withAuth } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
@@ -56,10 +56,8 @@ const patchSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   notes: z.string().max(4000).nullable().optional(),
   /** 068 — Tipo de contacto (lo decide una persona); `null` = sin clasificar. */
-  tipoContacto: z
-    .enum(VALORES_TIPO_CONTACTO as [TipoContacto, ...TipoContacto[]])
-    .nullable()
-    .optional(),
+  /** v4 — Lo que la persona es (selección múltiple). Reemplaza la lista. */
+  tiposContacto: z.array(z.enum(VALORES_TIPO_CONTACTO as [TipoContacto, ...TipoContacto[]])).max(10).optional(),
   /** War: correo opcional; `null` lo borra. */
   email: z.string().trim().max(254).email("Correo no válido").nullable().optional(),
   /** 027 — El agente no le responde a esta persona; se lleva a su conversación. */
@@ -120,12 +118,12 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
     )
     .returning();
   if (!updated[0]) return apiError(404, "not_found", "Contacto no encontrado");
-  // 068 — Clasificar abre la oportunidad o apaga el agente: va por su puerta.
-  if (body.data.tipoContacto !== undefined) {
-    await clasificarContacto({
+  // v4 — Lo que la persona es: va por su puerta.
+  if (body.data.tiposContacto !== undefined) {
+    await cambiarTiposContacto({
       organizationId: session.organizationId,
       contactId: id,
-      tipo: body.data.tipoContacto,
+      tipos: body.data.tiposContacto,
       fuente: "persona",
       userId: session.userId,
     });

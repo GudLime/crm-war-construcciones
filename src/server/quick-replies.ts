@@ -7,9 +7,13 @@ import {
   ATAJO_RE,
   normalizarAtajo,
   TEXTO_MAX,
+  TOPE_ADJUNTOS,
   TOPE_RESPUESTAS,
+  type AdjuntoRespuesta,
   type RespuestaRapida,
 } from "@/lib/respuestas-rapidas";
+import { borrarMedia, guardarMedia, leerMedia } from "@/lib/storage/medios";
+import { MediaValidationError, validateOutgoing } from "@/server/whatsapp/media";
 
 /**
  * 049 — Respuestas rápidas de la organización. Las rutas solo validan sesión
@@ -38,7 +42,81 @@ export const respuestaSchema = z.object({
 });
 
 function aDto(fila: typeof schema.quickReply.$inferSelect): RespuestaRapida {
-  return { id: fila.id, atajo: fila.atajo, texto: fila.texto };
+  return { id: fila.id, atajo: fila.atajo, texto: fila.texto, adjuntos: fila.adjuntos ?? [] };
+}
+
+async function filaDe(organizationId: string, id: string) {
+  const [fila] = await getDb()
+    .select()
+    .from(schema.quickReply)
+    .where(scoped(schema.quickReply.organizationId, organizationId, eq(schema.quickReply.id, id)))
+    .limit(1);
+  if (!fila) throw new QuickReplyError(404, "not_found", "Respuesta no encontrada");
+  return fila;
+}
+
+/**
+ * 0067 — Sumar una foto o un video a la respuesta. Con los límites de
+ * WhatsApp (imagen 5 MB, video 16 MB): el CRM no achica nada.
+ */
+export async function agregarAdjunto(
+  organizationId: string,
+  id: string,
+  archivo: { data: Buffer; mime: string; nombre: string }
+): Promise<RespuestaRapida> {
+  const fila = await filaDe(organizationId, id);
+  const adjuntos = fila.adjuntos ?? [];
+  if (adjuntos.length >= TOPE_ADJUNTOS) {
+    throw new QuickReplyError(409, "tope", `Caben hasta ${TOPE_ADJUNTOS} archivos por respuesta`);
+  }
+  const mime = archivo.mime.split(";")[0]!.trim();
+  if (!/^(image\/(jpeg|png|webp)|video\/(mp4|3gpp))$/.test(mime)) {
+    throw new QuickReplyError(415, "unsupported_type", "Solo fotos (jpg, png, webp) y videos (mp4, 3gp)");
+  }
+  try {
+    validateOutgoing(mime, archivo.data.length);
+  } catch (err) {
+    if (err instanceof MediaValidationError) throw new QuickReplyError(err.code === "too_large" ? 413 : 415, err.code, err.message);
+    throw err;
+  }
+  const adjunto: AdjuntoRespuesta = {
+    id: newId("quickReplyAdjunto"),
+    nombre: archivo.nombre.slice(0, 120) || "archivo",
+    mime,
+    bytes: archivo.data.length,
+  };
+  await guardarMedia(organizationId, adjunto.id, archivo.data, mime);
+  const [actualizada] = await getDb()
+    .update(schema.quickReply)
+    .set({ adjuntos: [...adjuntos, adjunto], updatedAt: new Date() })
+    .where(eq(schema.quickReply.id, fila.id))
+    .returning();
+  return aDto(actualizada!);
+}
+
+export async function quitarAdjunto(organizationId: string, id: string, adjuntoId: string): Promise<RespuestaRapida> {
+  const fila = await filaDe(organizationId, id);
+  const adjuntos = fila.adjuntos ?? [];
+  if (!adjuntos.some((a) => a.id === adjuntoId)) throw new QuickReplyError(404, "not_found", "Ese archivo no está");
+  const [actualizada] = await getDb()
+    .update(schema.quickReply)
+    .set({ adjuntos: adjuntos.filter((a) => a.id !== adjuntoId), updatedAt: new Date() })
+    .where(eq(schema.quickReply.id, fila.id))
+    .returning();
+  await borrarMedia(organizationId, adjuntoId).catch(() => undefined);
+  return aDto(actualizada!);
+}
+
+/** El archivo, para mandarlo desde el compositor o verlo en Ajustes. */
+export async function leerAdjunto(
+  organizationId: string,
+  id: string,
+  adjuntoId: string
+): Promise<{ data: Buffer; adjunto: AdjuntoRespuesta }> {
+  const fila = await filaDe(organizationId, id);
+  const adjunto = (fila.adjuntos ?? []).find((a) => a.id === adjuntoId);
+  if (!adjunto) throw new QuickReplyError(404, "not_found", "Ese archivo no está");
+  return { data: await leerMedia(organizationId, adjuntoId), adjunto };
 }
 
 function esDuplicado(err: unknown): boolean {
@@ -106,8 +184,9 @@ export async function borrarRespuesta(organizationId: string, id: string): Promi
   const filas = await getDb()
     .delete(schema.quickReply)
     .where(scoped(schema.quickReply.organizationId, organizationId, eq(schema.quickReply.id, id)))
-    .returning({ id: schema.quickReply.id });
+    .returning({ id: schema.quickReply.id, adjuntos: schema.quickReply.adjuntos });
   if (!filas[0]) throw new QuickReplyError(404, "not_found", "Respuesta no encontrada");
+  for (const a of filas[0].adjuntos ?? []) await borrarMedia(organizationId, a.id).catch(() => undefined);
 }
 
 /** Las cuatro de la demo (D6). Idempotente: no pisa ni duplica. */

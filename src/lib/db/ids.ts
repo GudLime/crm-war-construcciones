@@ -39,6 +39,7 @@ const prefixes = {
   webhookEvent: "whe",
   // 049 — respuestas rápidas
   quickReply: "qr",
+  quickReplyAdjunto: "qra",
   // 050 — notas internas del hilo
   conversationNote: "nota",
   // Ventas de la constructora

@@ -41,6 +41,7 @@ import {
   filtrarRespuestas,
   rellenarVariables,
   tokenRapido,
+  type AdjuntoRespuesta,
   type RespuestaRapida,
 } from "@/lib/respuestas-rapidas";
 
@@ -75,6 +76,8 @@ export function Composer({
   const [templates, setTemplates] = useState<TemplateDto[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
+  /** 0067 — Las fotos y videos de la respuesta rápida elegida: salen al enviar. */
+  const [adjuntosRapidos, setAdjuntosRapidos] = useState<{ respuestaId: string; adjunto: AdjuntoRespuesta }[]>([]);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   // 042 — `sending` tarda un render en verse; esto corta el doble envío ya.
@@ -234,6 +237,14 @@ export function Composer({
     setText(next.texto);
     setToken(null);
     setCerradoEn(null);
+    // 0067 — Los archivos de la respuesta quedan listos para salir con el texto.
+    if (r.adjuntos?.length) {
+      if (!conversation.composer.media) {
+        setError(`${CHANNEL_LABEL[conversation.channel]} no admite adjuntos: sale solo el texto.`);
+      } else {
+        setAdjuntosRapidos((prev) => [...prev, ...r.adjuntos!.map((adjunto) => ({ respuestaId: r.id, adjunto }))]);
+      }
+    }
   }
 
   /** 041 — El emoji entra en el cursor (o en lugar de la selección); no envía. */
@@ -366,8 +377,84 @@ export function Composer({
     }
   }
 
+  /**
+   * 0067 — Manda las fotos y videos de la respuesta rápida, uno por uno. El
+   * texto va como pie del primero si entra (1 024 caracteres); si no, sale
+   * aparte después. Lo que no salió queda en la caja para reintentar.
+   */
+  async function enviarAdjuntosRapidos(): Promise<void> {
+    if (mediaSending.current) return;
+    mediaSending.current = true;
+    setSending(true);
+    const texto = text.trim();
+    let pieUsado = false;
+    const pendientes = [...adjuntosRapidos];
+    let fallo: string | null = null;
+    // Un adjunto elegido a mano sale primero, con el pie.
+    const manual = file;
+    const lista: (File | { respuestaId: string; adjunto: AdjuntoRespuesta })[] = manual ? [manual, ...pendientes] : pendientes;
+    let enviados = 0;
+    for (const item of lista) {
+      let archivo: File;
+      if (item instanceof File) archivo = item;
+      else {
+        const r = await fetch(`/api/quick-replies/${item.respuestaId}/adjuntos/${item.adjunto.id}`).catch(() => null);
+        if (!r?.ok) {
+          fallo = `No se pudo leer ${item.adjunto.nombre}`;
+          break;
+        }
+        archivo = new File([await r.blob()], item.adjunto.nombre, { type: item.adjunto.mime });
+      }
+      const form = new FormData();
+      form.set("file", archivo);
+      if (!pieUsado && texto && texto.length <= 1024) {
+        form.set("caption", texto);
+        pieUsado = true;
+      }
+      if (enviados === 0 && replyTo) form.set("replyToMessageId", replyTo.id);
+      const err = await apiSend(`/api/conversations/${conversation.id}/messages/media`, { method: "POST", body: form });
+      if (err) {
+        fallo = err;
+        break;
+      }
+      enviados++;
+    }
+    setSending(false);
+    mediaSending.current = false;
+    if (manual && enviados > 0) pickFile(null);
+    const restantes = manual ? lista.slice(Math.max(1, enviados)).filter((x) => !(x instanceof File)) : pendientes.slice(enviados);
+    setAdjuntosRapidos(restantes as { respuestaId: string; adjunto: AdjuntoRespuesta }[]);
+    if (fallo) {
+      setError(fallo);
+      if (pieUsado && enviados > 0) setText("");
+      return;
+    }
+    if (enviados > 0) onReplyChange?.(null);
+    if (pieUsado) {
+      setText("");
+      if (taRef.current) taRef.current.style.height = "auto";
+      onSent();
+      return;
+    }
+    if (texto) {
+      setText("");
+      if (taRef.current) taRef.current.style.height = "auto";
+      const err = await onSend(texto, null);
+      if (err) {
+        setError(err);
+        setText(texto);
+      }
+    }
+    onSent();
+  }
+
   async function submit() {
     setError(null);
+
+    if (adjuntosRapidos.length > 0) {
+      await enviarAdjuntosRapidos();
+      return;
+    }
 
     if (file) {
       // El adjunto sí espera: sube el archivo y no tiene sentido encolar otro
@@ -621,9 +708,9 @@ export function Composer({
   const opcionesRapidas = token ? filtrarRespuestas(respuestas ?? [], token.consulta).slice(0, 50) : [];
   const menuRapido = token !== null && respuestas !== null && cerradoEn !== token.inicio;
 
-  const canSubmit = file !== null || text.trim().length > 0;
+  const canSubmit = file !== null || text.trim().length > 0 || adjuntosRapidos.length > 0;
   // 044 — Con la caja vacía el botón graba, como en WhatsApp.
-  const puedeGrabar = conversation.composer.media && !file && !text.trim();
+  const puedeGrabar = conversation.composer.media && !file && !text.trim() && adjuntosRapidos.length === 0;
 
   const soloPersona = !conversation.windowOpen && Boolean(human?.open);
 
@@ -685,6 +772,36 @@ export function Composer({
         </div>
       )}
 
+      {adjuntosRapidos.length > 0 && (
+        <div className="mb-2.5 flex flex-wrap items-center gap-2 rounded-md border bg-subtle p-2.5" data-testid="adjuntos-respuesta">
+          {adjuntosRapidos.map((a, i) => (
+            <span key={`${a.adjunto.id}-${i}`} className="relative block size-14 overflow-hidden rounded border bg-background" title={a.adjunto.nombre}>
+              {a.adjunto.mime.startsWith("image/") ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={`/api/quick-replies/${a.respuestaId}/adjuntos/${a.adjunto.id}`}
+                  alt={a.adjunto.nombre}
+                  className="size-full object-cover"
+                />
+              ) : (
+                <span className="grid size-full place-items-center text-[10px] font-semibold text-text-3">VIDEO</span>
+              )}
+              <button
+                type="button"
+                onClick={() => setAdjuntosRapidos((prev) => prev.filter((_, j) => j !== i))}
+                disabled={sending}
+                aria-label={`Quitar ${a.adjunto.nombre}`}
+                className="absolute right-0.5 top-0.5 grid size-4 place-items-center rounded-full bg-background/90 text-text-2"
+              >
+                <X className="h-3 w-3" strokeWidth={1.7} />
+              </button>
+            </span>
+          ))}
+          <p className="text-xs text-text-3">
+            {adjuntosRapidos.length === 1 ? "Sale con el texto de abajo como pie." : `Salen los ${adjuntosRapidos.length}; el texto va como pie del primero.`}
+          </p>
+        </div>
+      )}
       {file && (
         <div className="mb-2.5 flex items-center gap-2.5 rounded-md border bg-subtle p-2.5">
           {filePreview ? (

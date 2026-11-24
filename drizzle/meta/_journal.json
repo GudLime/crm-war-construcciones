@@ -547,6 +547,20 @@
       "when": 1795486460000,
       "tag": "war_0012_en_venta",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1795497200000,
+      "tag": "0066_tipos_de_contacto",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1795508000000,
+      "tag": "0067_respuestas_con_adjuntos",
+      "breakpoints": true
     }
   ]
 }

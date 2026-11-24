@@ -77,6 +77,12 @@ const contactoSchema = z.object({
   notas: z.array(notaSchema).max(500).default([]),
   oportunidades: z.array(oportunidadSchema).max(200).default([]),
 });
+/** v4 — El tipo de Notion (uno solo) a la lista del contacto. */
+function tiposDeNotion(tipo: string | null | undefined): string[] {
+  if (!tipo || tipo === "lead") return [];
+  return [tipo === "comprador" ? "cliente" : tipo];
+}
+
 const edificioSchema = z.object({
   nombre: z.string().min(1).max(120),
   direccion: z.string().max(300).nullable().optional(),
@@ -278,8 +284,9 @@ class Contexto {
         name: nombre,
         nameSource: "manual",
         email,
-        tipoContacto: c.tipo ?? null,
-        // Solo los leads van a la IA (068).
+        // v4 — Lo que es va a la lista (Comprador → Cliente). «Lead» no es un
+        // tipo: lo dicen sus oportunidades.
+        tiposContacto: tiposDeNotion(c.tipo),
         aiPaused: Boolean(c.tipo && c.tipo !== "lead"),
         createdAt: creado,
         updatedAt: creado,
@@ -288,13 +295,13 @@ class Contexto {
     } else if (existia) {
       // Completa lo vacío, no pisa: el CRM manda.
       const [actual] = await this.tx
-        .select({ email: schema.contact.email, tipo: schema.contact.tipoContacto })
+        .select({ email: schema.contact.email, tipos: schema.contact.tiposContacto })
         .from(schema.contact)
         .where(eq(schema.contact.id, contactId))
         .limit(1);
       const set: Record<string, unknown> = {};
       if (!actual?.email && email) set.email = email;
-      if (!actual?.tipo && c.tipo) set.tipoContacto = c.tipo;
+      if (!actual?.tipos?.length && tiposDeNotion(c.tipo).length) set.tiposContacto = tiposDeNotion(c.tipo);
       if (Object.keys(set).length) await this.tx.update(schema.contact).set(set).where(eq(schema.contact.id, contactId));
     }
     for (const k of claves) await this.recordar(k, "contacto", contactId);
