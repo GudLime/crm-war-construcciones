@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronLeft, PanelRight } from "lucide-react";
@@ -511,7 +512,14 @@ export function InboxClient({
                 <div className="min-w-0">
                   <p className="flex min-w-0 items-center gap-1.5 text-[15px] font-bold leading-tight tracking-tight lg:text-[18px] lg:font-semibold">
                     {multiChannel && <ChannelBadge channel={selected.channel} />}
-                    <span className="truncate">{selected.contact.name}</span>
+                    {/* v4 — Tocar el nombre abre la ficha del contacto. */}
+                    <Link
+                      href={`/contacts/${selected.contact.id}`}
+                      title="Abrir el contacto"
+                      className="truncate hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {selected.contact.name}
+                    </Link>
                   </p>
                   <p
                     className={cn(
