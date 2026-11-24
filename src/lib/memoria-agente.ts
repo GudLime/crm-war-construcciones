@@ -42,7 +42,8 @@ export type EdificioParaMemoria = {
   nombre: string;
   direccion: string | null;
   estado: EstadoEdificio;
-  enVenta: string | null;
+  /** 0065 — Si está a la venta. */
+  enVenta: boolean;
   notasAgente: string | null;
   unidades: UnidadParaMemoria[];
 };
@@ -182,7 +183,7 @@ export function renderEdificioParaMemoria(e: EdificioParaMemoria): string {
   const lineas: string[] = [`### Edificio ${e.nombre}`];
   if (e.direccion) lineas.push(`Dirección: ${e.direccion}`);
   lineas.push(`Estado de obra: ${etiqueta(ESTADOS_EDIFICIO, e.estado)}`);
-  if (e.enVenta?.trim()) lineas.push(`En venta: ${e.enVenta.trim()}`);
+  lineas.push(`En venta: ${e.enVenta ? "sí" : "no (no se ofrece)"}`);
   if (e.notasAgente?.trim()) lineas.push(`Notas: ${e.notasAgente.trim()}`);
 
   const ofrecibles = e.unidades.filter((u) => OFRECIBLES.includes(u.estado));

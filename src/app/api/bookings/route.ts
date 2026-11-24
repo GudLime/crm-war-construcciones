@@ -55,6 +55,10 @@ const postSchema = z.discriminatedUnion("kind", [
     notes: z.string().nullish(),
     /** 0058 — Dónde es: va como ubicación del evento en el calendario. */
     ubicacion: z.string().trim().max(300).nullish(),
+    /** 0064 — Visita o reunión, el edificio y quién la atiende. */
+    modo: z.enum(["visita", "reunion"]).nullish(),
+    edificioId: z.string().min(1).nullish(),
+    responsableId: z.string().min(1).nullish(),
   }),
   z.object({
     kind: z.literal("block"),
@@ -103,6 +107,9 @@ export const POST = withAuth(async (session, req: Request) => {
       startUtc: body.data.startUtc,
       notes: body.data.notes ?? null,
       ubicacion: body.data.ubicacion ?? null,
+      modo: body.data.modo ?? null,
+      edificioId: body.data.edificioId ?? null,
+      responsableUserId: body.data.responsableId ?? session.userId,
       source: "manual",
       // 0054 — Una cita que carga una persona nace confirmada por ella.
       confirmadaPor: session.userId,

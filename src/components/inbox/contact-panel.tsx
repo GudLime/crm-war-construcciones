@@ -23,16 +23,14 @@ import type {
   FichaDto,
   FichaValue,
 } from "@/lib/types";
-import { cn, formatPhone } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { AnuncioOrigen } from "@/components/anuncio-origen";
-import { ContactAvatar } from "@/components/avatar";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { FichaPanel } from "@/components/ficha-panel";
 import { OportunidadPanel } from "@/components/ventas/oportunidad-panel";
 import { DeleteConversationDialog } from "./delete-conversation-dialog";
-import { DatosPersonales } from "@/components/contacts/datos-personales";
 
 
 export function ContactPanel({
@@ -41,7 +39,10 @@ export function ContactPanel({
   onPatchConversation,
   onDeleteConversation,
   onClose,
+  agenda = false,
 }: {
+  /** v3 — Con la Agenda, «Reunión» en la tira de tareas crea una cita. */
+  agenda?: boolean;
   conversation: ConversationDto;
   /** Aumenta con cada evento SSE relevante: dispara un refetch en vivo. */
   refreshKey?: number;
@@ -55,8 +56,6 @@ export function ContactPanel({
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [notes, setNotes] = useState("");
-  // War: el correo viene del detalle del contacto (la conversación no lo trae).
-  const [email, setEmail] = useState<string | null>(null);
   const [ficha, setFicha] = useState<FichaDto>({});
   const [notesLoaded, setNotesLoaded] = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
@@ -95,7 +94,6 @@ export function ContactPanel({
       .catch(() => null);
     if (detail) {
       setNotes(detail.contact?.notes ?? "");
-      setEmail(detail.contact?.email ?? null);
       setFicha(detail.contact?.ficha ?? {});
       setAnuncio(detail.anuncio ?? null);
     }
@@ -177,37 +175,12 @@ export function ContactPanel({
       </header>
 
       <div className="flex-1 overflow-y-auto">
-        {/* Contacto */}
+        {/* v3 — El contacto (nombre, teléfono, email y sus datos) ya no va
+            acá: está en el encabezado del chat y en la ficha de la oportunidad.
+            Quedan la IA, la tira de tareas y el avance de etapa. */}
         <section className="border-b p-4">
-          <div className="flex items-center gap-3">
-            <ContactAvatar
-              name={conversation.contact.name}
-              seed={conversation.contact.id}
-              size="md"
-            />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold tracking-tight">
-                {conversation.contact.name}
-              </p>
-              <p className="text-xs text-text-3">
-                {formatPhone(conversation.contact.phone)}
-              </p>
-              {email && (
-                <a
-                  href={`mailto:${email}`}
-                  className="block truncate text-xs text-text-3 hover:underline"
-                >
-                  {email}
-                </a>
-              )}
-            </div>
-          </div>
-
-          {/* War — DNI, CUIL, nacimiento, dirección y parientes. */}
-          <DatosPersonales contactId={conversation.contact.id} className="mb-0 mt-3 p-3" />
-
           {conversation.handoffAt && (
-            <div className="mt-3 rounded-md border border-warning-soft bg-warning-tint p-3">
+            <div className="mb-3 rounded-md border border-warning-soft bg-warning-tint p-3">
               <p className="flex items-center gap-1.5 text-[13px] font-medium text-warning-text">
                 <UserRound className="h-4 w-4" strokeWidth={1.7} /> Atención humana
               </p>
@@ -226,7 +199,7 @@ export function ContactPanel({
             </div>
           )}
 
-          <div className="mt-3 rounded-md border bg-subtle px-3 py-2.5">
+          <div className="rounded-md border bg-subtle px-3 py-2.5">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[13px] font-medium">IA en esta conversación</p>
@@ -315,7 +288,13 @@ export function ContactPanel({
 
         {/* 068 — En War avanza la OPORTUNIDAD, no el contacto: tipo de
             contacto + oportunidad abierta reemplazan el stepper del pipeline. */}
-        <OportunidadPanel contactId={contactId} refreshKey={refreshKey} />
+        <OportunidadPanel
+          contactId={contactId}
+          refreshKey={refreshKey}
+          enChat
+          agenda={agenda}
+          contactoNombre={conversation.contact.name}
+        />
 
         {/* Ficha: lo que se SABE del lead. Va antes de Notas —lo que alguien
             OPINA— porque es lo que se consulta a mitad de una conversación. */}

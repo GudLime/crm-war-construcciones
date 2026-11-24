@@ -25,7 +25,7 @@ import { Select } from "@/components/ui/select";
 import { tonoDeEdificio } from "@/lib/colores-edificio";
 import { SelectorColumnasTabla, TablaConfigurable, usePrefTabla, type ColumnaTabla } from "@/components/ui/tabla-configurable";
 
-const vacio = { nombre: "", direccion: "", estado: "en_construccion", enVenta: "" };
+const vacio = { nombre: "", direccion: "", estado: "en_construccion", enVenta: "si" };
 
 /** v2, punto 5 — Las columnas de la lista de edificios (tabla configurable). */
 const columnasEdificios: ColumnaTabla<EdificioDto>[] = [
@@ -62,7 +62,13 @@ const columnasEdificios: ColumnaTabla<EdificioDto>[] = [
     valor: (e) => e.estado,
     celda: (e) => <EstadoPill opciones={ESTADOS_EDIFICIO} value={e.estado} />,
   },
-  { clave: "enVenta", titulo: "En venta", ancho: 200, valor: (e) => e.enVenta ?? null, celda: (e) => <span className="text-text-2">{e.enVenta || "—"}</span> },
+  {
+    clave: "enVenta",
+    titulo: "En venta",
+    ancho: 120,
+    valor: (e) => (e.enVenta ? "Sí" : "No"),
+    celda: (e) => <span className={e.enVenta ? "font-medium text-success-text" : "text-text-3"}>{e.enVenta ? "Sí" : "No"}</span>,
+  },
   {
     clave: "unidades",
     titulo: "Unidades",
@@ -113,7 +119,7 @@ export function EdificiosClient() {
         nombre: form.nombre,
         direccion: form.direccion || null,
         estado: form.estado,
-        enVenta: form.enVenta || null,
+        enVenta: form.enVenta === "si",
       }),
     }).catch(() => null);
     setGuardando(false);
@@ -172,13 +178,11 @@ export function EdificiosClient() {
                 ))}
               </Select>
             </Campo>
-            <Campo label="En venta" className="sm:col-span-2">
-              <Input
-                value={form.enVenta}
-                onChange={(e) => setForm({ ...form, enVenta: e.target.value })}
-                maxLength={400}
-                placeholder="Unidades de 2 y 3 ambientes"
-              />
+            <Campo label="En venta">
+              <Select value={form.enVenta} onValueChange={(enVenta) => setForm({ ...form, enVenta })}>
+                <option value="si">Sí</option>
+                <option value="no">No</option>
+              </Select>
             </Campo>
             <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2 lg:col-span-3">
               <span className="text-xs font-medium text-text-2">

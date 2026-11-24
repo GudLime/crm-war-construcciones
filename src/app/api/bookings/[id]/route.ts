@@ -1,13 +1,18 @@
+import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAuth } from "@/lib/api";
+import { getDb, schema } from "@/lib/db";
+import { scoped } from "@/lib/db/tenant";
 import { agendaDisabledResponse, agendaEnabled } from "@/server/agenda/flag";
 import {
   cancelBooking,
   markBookingStatus,
   rescheduleBooking,
   retryMeetingLink,
+  updateBookingDatos,
 } from "@/server/agenda/service";
 import { bookingErrorResponse } from "@/server/agenda/http";
+import { getBookingItem } from "@/server/agenda/queries";
 import { alcanceDe, prohibido, puedeEditarReunion } from "@/server/acceso";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +27,25 @@ const patchSchema = z.discriminatedUnion("action", [
     status: z.enum(["realizada", "no_show"]),
   }),
   z.object({ action: z.literal("retry_link") }),
+  // v3 — Los datos de la ventana de la cita.
+  z.object({
+    action: z.literal("datos"),
+    notes: z.string().max(4000).nullish(),
+    modo: z.enum(["visita", "reunion"]).optional(),
+    edificioId: z.string().min(1).nullable().optional(),
+    ubicacion: z.string().trim().max(300).nullable().optional(),
+    responsableId: z.string().min(1).nullable().optional(),
+  }),
 ]);
+
+/** v3 — Una cita para su ventana de detalle (la abre el widget del Inicio). */
+export const GET = withAuth(async (session, _req: Request, ctx: Params) => {
+  if (!agendaEnabled()) return agendaDisabledResponse();
+  const { id } = await ctx.params;
+  const cita = await getBookingItem(session.organizationId, id);
+  if (!cita) return apiError(404, "not_found", "Esa cita no existe");
+  return Response.json({ booking: cita, editable: await puedeEditarReunion(alcanceDe(session), id) });
+});
 
 /**
  * 015 — Reprogramar, cancelar (idempotente), marcar el resultado o reintentar
@@ -57,6 +80,35 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
           organizationId: session.organizationId,
           bookingId: id,
           status: body.data.status,
+        });
+        return Response.json({ ok: true });
+      }
+      case "datos": {
+        const d = body.data;
+        if (d.edificioId) {
+          const [e] = await getDb()
+            .select({ id: schema.edificio.id })
+            .from(schema.edificio)
+            .where(scoped(schema.edificio.organizationId, session.organizationId, eq(schema.edificio.id, d.edificioId)))
+            .limit(1);
+          if (!e) return apiError(422, "invalid_body", "Ese edificio no existe");
+        }
+        if (d.responsableId) {
+          const [m] = await getDb()
+            .select({ id: schema.member.id })
+            .from(schema.member)
+            .where(scoped(schema.member.organizationId, session.organizationId, eq(schema.member.userId, d.responsableId)))
+            .limit(1);
+          if (!m) return apiError(422, "invalid_body", "Esa persona no es del equipo");
+        }
+        await updateBookingDatos({
+          organizationId: session.organizationId,
+          bookingId: id,
+          ...(d.notes !== undefined ? { notes: d.notes } : {}),
+          ...(d.modo !== undefined ? { modo: d.modo } : {}),
+          ...(d.edificioId !== undefined ? { edificioId: d.edificioId } : {}),
+          ...(d.ubicacion !== undefined ? { ubicacion: d.ubicacion } : {}),
+          ...(d.responsableId !== undefined ? { responsableUserId: d.responsableId } : {}),
         });
         return Response.json({ ok: true });
       }

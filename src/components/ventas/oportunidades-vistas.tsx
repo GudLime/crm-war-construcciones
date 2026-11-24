@@ -265,15 +265,18 @@ export function SelectorDeForma<F extends FormaDeVer | "calendario" = FormaDeVer
   forma,
   onCambio,
   conCalendario = false,
+  sinPipeline = false,
 }: {
   forma: F;
   onCambio: (f: F) => void;
   conCalendario?: boolean;
+  /** v3 — Tareas no tiene Pipeline: cada tipo tiene sus estados. */
+  sinPipeline?: boolean;
 }) {
   const opciones = [
     ["lista", "Lista", List],
     ["mosaico", "Mosaico", LayoutGrid],
-    ["pipeline", "Pipeline", KanbanSquare],
+    ...(sinPipeline ? [] : [["pipeline", "Pipeline", KanbanSquare]]),
     ...(conCalendario ? [["calendario", "Calendario", CalendarDays]] : []),
   ] as [F, string, typeof List][];
   return (

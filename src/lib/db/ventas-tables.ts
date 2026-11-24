@@ -36,8 +36,8 @@ export const edificio = pgTable(
     })
       .notNull()
       .default("en_construccion"),
-    /** Texto libre, como en Notion («unidades de 2 y 3 ambientes»). */
-    enVenta: text("en_venta"),
+    /** 0065 — Si está a la venta (Sí / No). Antes era un texto libre. */
+    enVenta: boolean("en_venta").notNull().default(true),
     /** 0032 — Si está prendido, el edificio y sus unidades van en la memoria del agente. */
     memoriaAgente: boolean("memoria_agente").notNull().default(false),
     /** 0032 — Lo que el agente tiene que saber de este edificio (visitas, entrega, amenities…). */
@@ -237,7 +237,7 @@ export const tareaVenta = pgTable(
       enum: ["llamada", "visita", "mensaje", "reunion", "correo", "tarea"],
     }).notNull(),
     estado: text("estado", {
-      enum: ["realizar", "no_responde", "listo"],
+      enum: ["realizar", "no_responde", "listo", "programado"],
     })
       .notNull()
       .default("realizar"),
@@ -259,6 +259,14 @@ export const tareaVenta = pgTable(
     creadaPor: text("creada_por", { enum: ["persona", "ia", "plantilla"] }).notNull().default("persona"),
     /** 0062 — La conversación derivada (tareas de la IA): se cierra sola cuando una persona responde. */
     conversationId: text("conversation_id"),
+    /** 0063 — Lo que se le manda (WhatsApp o mail). */
+    mensaje: text("mensaje"),
+    /** 0063 — El asunto del mail. */
+    asunto: text("asunto"),
+    /** 0063 — Cuándo salió el WhatsApp programado o enviado ahora. */
+    enviadaAt: timestamp("enviada_at"),
+    /** 0063 — Por qué no salió (la ventana de 24 h estaba cerrada…). */
+    aviso: text("aviso"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

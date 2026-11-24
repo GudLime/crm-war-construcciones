@@ -219,7 +219,8 @@ class Contexto {
         nombre: e.nombre,
         direccion: e.direccion ?? null,
         estado: e.estado ?? "terminado",
-        enVenta: e.enVenta ?? null,
+        // v3 — «En venta» es Sí / No: en Notion viene como texto («Si», «No»).
+        enVenta: /^s[ií]/i.test(e.enVenta?.trim() ?? ""),
       });
       this.edificios.set(planoEdificio(e.nombre), id);
       this.informe.edificiosCreados.push(e.nombre);
