@@ -20,10 +20,6 @@ import { OrigenIcono } from "./origen-icono";
 import { SelectorDeColumnas, SelectorDeForma, VistaOportunidades, usePreferenciasDeLista } from "./oportunidades-vistas";
 import { BarraDeFiltros, PestanasDeVistas, useVistas, type Miembro } from "./filtros-oportunidades";
 
-/** Minúsculas y sin acentos, para buscar «Olazábal» con «olazabal». */
-function normalizarBusqueda(s: string): string {
-  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-}
 import { situacionACargar } from "@/lib/vistas";
 import { SalonDelDia } from "@/components/reservas/salon-del-dia";
 import type { OrigenDto } from "@/lib/origenes";
@@ -38,6 +34,11 @@ import {
   useMoneda,
 } from "./ui";
 import { Select } from "@/components/ui/select";
+
+/** Minúsculas y sin acentos, para buscar «Olazábal» con «olazabal». */
+function normalizarBusqueda(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
 
 type Contacto = { id: string; name: string | null; phone: string | null };
 
