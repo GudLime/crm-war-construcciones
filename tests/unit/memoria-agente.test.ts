@@ -31,7 +31,7 @@ const edificio = (over: Partial<EdificioParaMemoria> = {}): EdificioParaMemoria 
   nombre: "Torre Ejemplo",
   direccion: "Calle Falsa 123, Almagro",
   estado: "en_construccion",
-  enVenta: "2 y 3 ambientes",
+  enVenta: true,
   notasAgente: "Visitas martes y jueves de 10 a 17.",
   unidades: [
     unidad({ unidad: "1A" }),

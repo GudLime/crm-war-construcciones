@@ -58,6 +58,9 @@ export async function convertirTareasDeVisita(organizationId: string): Promise<R
       oportunidadContacto: schema.oportunidad.contactId,
       responsable: t.responsableUserId,
       createdAt: t.createdAt,
+      tipo: t.tipo,
+      edificioId: t.edificioId,
+      ubicacion: t.ubicacion,
     })
     .from(t)
     .leftJoin(schema.oportunidad, eq(schema.oportunidad.id, t.oportunidadId))
@@ -83,6 +86,11 @@ export async function convertirTareasDeVisita(organizationId: string): Promise<R
           // La cargó una persona: cuenta como confirmada por quien la tenía.
           confirmadaAt: tarea.createdAt,
           confirmadaPorUserId: tarea.responsable,
+          // 0064 — La cita guarda si era visita o reunión, dónde y quién la atiende.
+          modo: tarea.tipo === "reunion" ? "reunion" : "visita",
+          edificioId: tarea.edificioId,
+          ubicacion: tarea.ubicacion,
+          responsableUserId: tarea.responsable,
         });
         await tx.delete(t).where(and(eq(t.organizationId, organizationId), eq(t.id, tarea.id)));
       });
@@ -97,4 +105,27 @@ export async function convertirTareasDeVisita(organizationId: string): Promise<R
     .from(t)
     .where(scoped(t.organizationId, organizationId, inArray(t.tipo, [...TIPOS]), isNull(t.fecha)));
   return { convertidas, chocan, sinFecha: Number(sin?.n ?? 0) };
+}
+
+/**
+ * v3 — Al arrancar: las tareas de Visita o Reunión con fecha que quedaban se
+ * pasan solas a citas, en cada organización (antes era un botón de Ajustes).
+ * Nunca tumba el arranque.
+ */
+export async function convertirTareasDeVisitaAlArrancar(): Promise<void> {
+  try {
+    const t = schema.tareaVenta;
+    const orgs = await getDb()
+      .selectDistinct({ id: t.organizationId })
+      .from(t)
+      .where(and(inArray(t.tipo, [...TIPOS]), isNotNull(t.fecha)));
+    for (const o of orgs) {
+      const r = await convertirTareasDeVisita(o.id);
+      if (r.convertidas || r.chocan) {
+        console.log(`[agenda] ${r.convertidas} tarea(s) de visita/reunión pasadas a citas (${r.chocan} chocan con otra cita)`);
+      }
+    }
+  } catch (err) {
+    console.error("[agenda] no se pudieron pasar las tareas de visita a citas:", err instanceof Error ? err.message : err);
+  }
 }

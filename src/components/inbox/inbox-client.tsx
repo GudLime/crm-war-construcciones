@@ -57,10 +57,13 @@ const DERIVADAS = "derivadas";
 export function InboxClient({
   channels,
   canDelete = false,
+  agenda = false,
 }: {
   channels: readonly Channel[];
   /** 026 — Eliminar es irreversible: solo quien administra ve la opción. */
   canDelete?: boolean;
+  /** v3 — Con la Agenda, «Reunión» en la tira de tareas crea una cita. */
+  agenda?: boolean;
 }) {
   const multiChannel = channels.length > 1;
   const [conversations, setConversations] = useState<ConversationDto[] | null>(
@@ -645,6 +648,7 @@ export function InboxClient({
               onPatchConversation={patchConversation}
               onDeleteConversation={canDelete ? deleteConversation : undefined}
               onClose={() => togglePanel(false)}
+              agenda={agenda}
             />
           </div>
         )}

@@ -921,6 +921,12 @@ export const booking = pgTable(
     confirmadaPorUserId: text("confirmada_por_user_id").references(() => user.id, { onDelete: "set null" }),
     /** 0058 — Dónde es (el edificio de la visita o la oficina); va al calendario. */
     ubicacion: text("ubicacion"),
+    /** 0064 — Visita (en un edificio) o reunión (en la oficina). Null en un bloqueo. */
+    modo: text("modo", { enum: ["visita", "reunion"] }),
+    /** 0064 — El edificio de la visita (FK en la migración: la tabla vive en ventas-tables). */
+    edificioId: text("edificio_id"),
+    /** 0064 — Quién del equipo la atiende. */
+    responsableUserId: text("responsable_user_id").references(() => user.id, { onDelete: "set null" }),
     notes: text("notes"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),

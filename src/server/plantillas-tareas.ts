@@ -18,7 +18,7 @@ export const plantillaSchema = z.object({
   tipo: z.enum(VALORES_TIPO_TAREA as [TipoTarea, ...TipoTarea[]]),
   situacion: z.enum(VALORES_SITUACION as unknown as [string, ...string[]]),
   diasSinRespuesta: z.number().int().min(1).max(60).nullable().optional(),
-  vence: z.string().regex(/^(hoy|manana|antes_visita|\+\d{1,3})$/, "Ese vencimiento no existe"),
+  vence: z.string().regex(/^(hoy|manana|antes_visita|\+\d{1,3}|cierre-\d{1,2}h)$/, "Ese vencimiento no existe"),
   mensaje: z.string().trim().max(1000).nullable().optional(),
   activa: z.boolean().optional(),
   orden: z.number().int().min(0).max(100_000).optional(),

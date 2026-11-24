@@ -703,3 +703,29 @@ marca de chispas; en el widget suma «Responder en Bandeja».
 - **WAR — tipología en «¿Qué buscaba?»** (punto 1): pastillas con las unidades
   tipo de los edificios elegidos (`departamento.tipologia_unidad`), opcional y
   de selección múltiple; se guarda al tocarla en `tipologiasUnidad`.
+
+
+## v3 (24/11) — tareas por tipo, cita única, sidebar del chat
+
+- **Estados por tipo** (`estadosDeTipo` / `etiquetaDeEstado` en `lib/ventas.ts`):
+  los valores guardados son los de siempre (`realizar`, `listo`, `no_responde`)
+  más `programado` (0063); cambia el nombre según el tipo (una llamada cerrada
+  es «Atendió», un WhatsApp o un mail, «Enviado»). Tareas no tiene Pipeline.
+- **WhatsApp y Mail** (0063: `mensaje`, `asunto`, `enviada_at`, `aviso`):
+  «Enviar ahora» (`POST /api/tareas/[id]/enviar`, `server/tareas-envio.ts`),
+  «Programar» y «Dejar pendiente». El barrido de programadas corre cada minuto
+  en el proceso; con la ventana de 24 h cerrada no sale y queda Pendiente con
+  el aviso. El mail todavía no se envía.
+- **Fechas de tareas:** una fecha sin zona del formulario es hora del negocio
+  (`fechaDeTarea` en `server/ventas.ts`).
+- **Cita única** (0064: `booking.modo`, `edificio_id`, `responsable_user_id`):
+  `VentanaCita` con la pestaña Visita | Reunión, `GET /api/bookings/[id]` y la
+  acción `datos`. Extensión `components/extensiones/cita-visita.tsx`
+  (`ExtraCitaVisita`). Las tareas de visita/reunión con fecha pasan solas a
+  citas al arrancar.
+- **Sugerencias:** vencimiento `cierre-Nh` (N h antes de que cierre la ventana
+  de WhatsApp); un WhatsApp con mensaje queda Programado a esa hora.
+- **Sidebar del chat:** sin el bloque del contacto ni el tipo de contacto; la
+  tira `BotonesNuevaTarea` (con `modal`) entre la IA y la etapa.
+- **Asignaciones:** orden por llegada (más nuevas / más viejas).
+- **Edificios:** `en_venta` booleano (0065), desplegable Sí/No.

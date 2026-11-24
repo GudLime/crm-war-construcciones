@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { apiError, parseBody, withAuth } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
+import { replyWindow } from "@/server/inbox/window";
 import { esAdmin } from "@/lib/auth/roles";
 import { borrarTarea, editarTarea, listarTareas, tareaSchema, VentasError } from "@/server/ventas";
 import { accesoATarea, alcanceDe, noEncontrado, prohibido, tareaVisible } from "@/server/acceso";
@@ -33,9 +34,24 @@ export const GET = withAuth(async (session, _req: Request, ctx: Params) => {
         .where(and(eq(schema.contact.organizationId, session.organizationId), eq(schema.contact.id, tarea.contactId)))
         .limit(1)
     : [];
+  // v3 — La ventana de 24 h de su conversación (para un WhatsApp).
+  const c = schema.conversation;
+  const [conv] = tarea.contactId || tarea.conversationId
+    ? await getDb()
+        .select({ channel: c.channel, lastInboundAt: c.lastInboundAt })
+        .from(c)
+        .where(
+          tarea.conversationId
+            ? and(eq(c.organizationId, session.organizationId), eq(c.id, tarea.conversationId))
+            : and(eq(c.organizationId, session.organizationId), eq(c.contactId, tarea.contactId!), eq(c.isTest, false))
+        )
+        .limit(1)
+    : [];
+  const v = conv ? replyWindow(conv.channel, conv.lastInboundAt) : null;
   return Response.json({
     tarea: { ...tarea, editable: a.admin || tarea.responsableId === session.userId },
     contacto: contacto ?? null,
+    ventana: v ? { abierta: v.operatorOpen, restanteMs: v.operatorOpen ? v.operatorRemainingMs : 0 } : null,
   });
 });
 

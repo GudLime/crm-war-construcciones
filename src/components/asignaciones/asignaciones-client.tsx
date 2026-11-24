@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { GripVertical, Zap } from "lucide-react";
+import { ArrowUpDown, GripVertical, Zap } from "lucide-react";
 import {
   accionDeTecla,
   agruparPorSugerencia,
@@ -295,9 +295,24 @@ export function AsignacionesClient() {
     return () => window.clearTimeout(t);
   }, [pulso]);
 
+  /** v3 — Ordenar por llegada: de más nueva a más vieja, o al revés. */
+  const [orden, setOrden] = useState<"nuevas" | "viejas">("nuevas");
+  useEffect(() => {
+    try {
+      const o = window.localStorage.getItem("vocero:asignaciones:orden");
+      if (o === "nuevas" || o === "viejas") setOrden(o);
+    } catch {
+      // sin almacenamiento
+    }
+  }, []);
+  const ordenar = useCallback(
+    (ts: TarjetaAsignacion[]) =>
+      [...ts].sort((a, b) => (orden === "nuevas" ? b.creadaAt.localeCompare(a.creadaAt) : a.creadaAt.localeCompare(b.creadaAt))),
+    [orden]
+  );
   const lista: TarjetaAsignacion[] = useMemo(
-    () => (pestana === "sin" ? (data?.sinAsignar ?? []) : (data?.automaticas ?? [])),
-    [data, pestana]
+    () => ordenar(pestana === "sin" ? (data?.sinAsignar ?? []) : (data?.automaticas ?? [])),
+    [data, pestana, ordenar]
   );
   const nombreDe = useMemo(() => new Map(lista.map((t) => [t.id, t.nombre])), [lista]);
 
@@ -517,14 +532,33 @@ export function AsignacionesClient() {
             </button>
           ))}
         </div>
-        <p className="text-[11.5px] text-text-3">Sugerencia: regla por edificio y, si no hay, el que tiene menos carga.</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              const o = orden === "nuevas" ? "viejas" : "nuevas";
+              setOrden(o);
+              try {
+                window.localStorage.setItem("vocero:asignaciones:orden", o);
+              } catch {
+                // sin almacenamiento
+              }
+            }}
+            title="Cambiar el orden por llegada"
+            className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[12.5px] font-medium hover:bg-subtle"
+          >
+            <ArrowUpDown className="size-3.5" />
+            {orden === "nuevas" ? "Más nuevas primero" : "Más viejas primero"}
+          </button>
+          <p className="text-[11.5px] text-text-3">Sugerencia: regla por edificio y, si no hay, el que tiene menos carga.</p>
+        </div>
       </div>
 
       {error && <p className="mx-4 mt-3 rounded-md bg-danger-tint px-3 py-2 text-sm text-danger-text sm:mx-6">{error}</p>}
 
       {modo === "foco" && data ? (
         <ModoFoco
-          tarjetas={data.sinAsignar}
+          tarjetas={ordenar(data.sinAsignar)}
           vendedores={data.vendedores}
           onAsignar={(t, v) => void asignar([{ userId: v.userId, nombre: v.nombre, ids: [t.id] }], [t.nombre])}
           onDeshacer={() => void deshacer()}

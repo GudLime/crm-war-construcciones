@@ -145,7 +145,7 @@ export function TareasWidget({
   }, [secciones]);
 
   const fila = (it: ItemWidget, i: number, lista: ItemWidget[], clave: string) => {
-    const hecha = (it.clase === "tarea" && it.estado !== "realizar") || (it.clase === "cita" && it.estado !== "agendada");
+    const hecha = (it.clase === "tarea" && (it.estado === "listo" || it.estado === "no_responde")) || (it.clase === "cita" && it.estado !== "agendada");
     const pasada = it.at ? Date.parse(it.at) < ahora : false;
     const marcaAhora = clave === "hoy" && it.at && pasada && (!lista[i + 1]?.at || Date.parse(lista[i + 1]!.at!) >= ahora);
     const punto =
@@ -259,11 +259,9 @@ export function TareasWidget({
           timezone={zona}
           today={hoy}
           nowMs={ahora}
+          oportunidadId={abierto.oportunidadId}
           onCerrar={() => setAbierto(null)}
-          onCambio={() => {
-            setAbierto(null);
-            onCambio();
-          }}
+          onCambio={onCambio}
         />
       )}
     </section>

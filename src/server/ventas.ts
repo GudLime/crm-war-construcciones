@@ -48,6 +48,8 @@ import { renderMemoriaAgente } from "@/lib/memoria-agente";
 import { NOMBRE_ORIGEN_MAX } from "@/lib/origenes";
 import { HEX_COLOR, siguienteColor, VALORES_COLOR_EDIFICIO, type ColorEdificio } from "@/lib/colores-edificio";
 import { existeOrigen } from "@/server/origenes";
+import { blockStartUtc } from "@/lib/time/calendar";
+import { getSettings as ajustesDeAgenda } from "@/server/agenda/settings";
 import { revisarCambio } from "@/server/vocabulario";
 
 /**
@@ -91,7 +93,8 @@ export const edificioSchema = z.object({
   nombre: z.string().trim().min(1, "El nombre es obligatorio").max(160),
   direccion: texto(400),
   estado: estadoEdificio.optional(),
-  enVenta: texto(400),
+  /** 0065 — Sí / No. Si no viene: al crear, Sí; al editar, no se cambia. */
+  enVenta: z.boolean().optional(),
   /** 0032 — Si no viene, no se cambia. */
   memoriaAgente: z.boolean().optional(),
   notasAgente: texto(4000),
@@ -160,6 +163,10 @@ export const tareaSchema = z.object({
   ubicacion: z.string().trim().max(300).nullable().optional(),
   /** 0058 — El edificio de una visita. Si no viene, al editar no se cambia. */
   edificioId: idOpcional,
+  /** 0063 — Lo que se le manda (WhatsApp o mail). Si no viene, no se cambia. */
+  mensaje: z.string().max(4096).nullable().optional(),
+  /** 0063 — El asunto del mail. Si no viene, no se cambia. */
+  asunto: z.string().trim().max(300).nullable().optional(),
 });
 
 export type EdificioDto = {
@@ -167,7 +174,7 @@ export type EdificioDto = {
   nombre: string;
   direccion: string | null;
   estado: EstadoEdificio;
-  enVenta: string | null;
+  enVenta: boolean;
   departamentos: number;
   memoriaAgente: boolean;
   notasAgente: string | null;
@@ -264,6 +271,12 @@ export type TareaDto = {
   creadaPor?: "persona" | "ia" | "plantilla";
   /** 0062 — La conversación derivada (tareas de la IA). */
   conversationId?: string | null;
+  /** 0063 — Lo que se le manda (WhatsApp o mail) y el asunto del mail. */
+  mensaje?: string | null;
+  asunto?: string | null;
+  /** 0063 — Cuándo salió, y por qué no pudo salir. */
+  enviadaAt?: string | null;
+  aviso?: string | null;
 };
 
 function oNulo(v: string | null | undefined): string | null {
@@ -458,7 +471,7 @@ export async function crearEdificio(
       nombre: datos.nombre.trim(),
       direccion: oNulo(datos.direccion),
       estado: datos.estado ?? "en_construccion",
-      enVenta: oNulo(datos.enVenta),
+      enVenta: datos.enVenta ?? true,
       memoriaAgente: datos.memoriaAgente ?? false,
       notasAgente: oNulo(datos.notasAgente),
       color: datos.color ?? siguienteColor(usados.map((u) => u.color)),
@@ -488,7 +501,7 @@ export async function editarEdificio(
       nombre: datos.nombre.trim(),
       direccion: oNulo(datos.direccion),
       estado: datos.estado ?? "en_construccion",
-      enVenta: oNulo(datos.enVenta),
+      ...(datos.enVenta !== undefined ? { enVenta: datos.enVenta } : {}),
       ...(datos.memoriaAgente !== undefined ? { memoriaAgente: datos.memoriaAgente } : {}),
       ...(datos.notasAgente !== undefined ? { notasAgente: oNulo(datos.notasAgente) } : {}),
       ...(datos.color !== undefined ? { color: datos.color } : {}),
@@ -1012,6 +1025,10 @@ function aTarea(
     ubicacion: fila.ubicacion ?? null,
     creadaPor: fila.creadaPor,
     conversationId: fila.conversationId ?? null,
+    mensaje: fila.mensaje ?? null,
+    asunto: fila.asunto ?? null,
+    enviadaAt: fila.enviadaAt?.toISOString() ?? null,
+    aviso: fila.aviso ?? null,
   };
 }
 
@@ -1050,6 +1067,19 @@ export async function listarTareas(
   );
 }
 
+/**
+ * v3 — Una fecha sin zona («2026-11-24T10:00», del formulario) es hora del
+ * NEGOCIO, no del servidor (que corre en UTC): antes quedaba 3 h corrida.
+ */
+async function fechaDeTarea(organizationId: string, v: string | null | undefined): Promise<Date | null> {
+  const m = v?.trim().match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(:\d{2})?$/);
+  if (!m) return fechaDe(v);
+  const { timezone } = await ajustesDeAgenda(organizationId);
+  const utc = blockStartUtc(m[1]!, m[2]!, timezone);
+  if (!utc) throw new VentasError(422, "invalid_body", "La fecha no es válida");
+  return new Date(utc);
+}
+
 async function valoresTarea(organizationId: string, datos: z.infer<typeof tareaSchema>) {
   await exigirEnOrganizacion(organizationId, "contact", datos.contactId, "Ese contacto no existe");
   await exigirEnOrganizacion(
@@ -1059,16 +1089,26 @@ async function valoresTarea(organizationId: string, datos: z.infer<typeof tareaS
     "Esa oportunidad no existe"
   );
   await exigirEnOrganizacion(organizationId, "edificio", datos.edificioId, "Ese edificio no existe");
+  // v3 — Solo un WhatsApp o un mail se programa, y con día y hora.
+  if (datos.estado === "programado") {
+    if (datos.tipo !== "mensaje" && datos.tipo !== "correo") {
+      throw new VentasError(422, "invalid_body", "Solo un WhatsApp o un mail se puede programar");
+    }
+    if (!fechaDe(datos.fecha)) throw new VentasError(422, "invalid_body", "Para programarlo elegí el día y la hora");
+  }
+  const fecha = await fechaDeTarea(organizationId, datos.fecha);
   return {
     titulo: datos.titulo.trim(),
     tipo: datos.tipo,
     estado: datos.estado ?? "realizar",
-    fecha: fechaDe(datos.fecha),
+    fecha,
     comentarios: oNulo(datos.comentarios),
     contactId: datos.contactId ?? null,
     oportunidadId: datos.oportunidadId ?? null,
     ...(datos.ubicacion !== undefined ? { ubicacion: oNulo(datos.ubicacion) } : {}),
     ...(datos.edificioId !== undefined ? { edificioId: datos.edificioId ?? null } : {}),
+    ...(datos.mensaje !== undefined ? { mensaje: oNulo(datos.mensaje) } : {}),
+    ...(datos.asunto !== undefined ? { asunto: oNulo(datos.asunto) } : {}),
   };
 }
 

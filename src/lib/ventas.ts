@@ -96,10 +96,54 @@ export const TIPOS_TAREA = [
 ] as const;
 
 export const ESTADOS_TAREA = [
-  { value: "realizar", label: "Realizar" },
+  { value: "realizar", label: "Pendiente" },
   { value: "no_responde", label: "No responde" },
-  { value: "listo", label: "Listo" },
+  /** 0063 — Un WhatsApp o un mail que sale solo a su hora. */
+  { value: "programado", label: "Programado" },
+  { value: "listo", label: "Hecha" },
 ] as const;
+
+/**
+ * v3 — Cada tipo tiene sus estados. Los valores guardados son los de siempre
+ * (`realizar` es «pendiente», `listo` es «cerrada»); cambia cómo se llaman:
+ * una llamada cerrada es «Atendió», un WhatsApp o un mail cerrado, «Enviado».
+ */
+export function estadosDeTipo(tipo: string): { value: EstadoTarea; label: string }[] {
+  switch (tipo) {
+    case "llamada":
+      return [
+        { value: "realizar", label: "Pendiente" },
+        { value: "listo", label: "Atendió" },
+        { value: "no_responde", label: "No atendió" },
+      ];
+    case "mensaje":
+    case "correo":
+      return [
+        { value: "realizar", label: "Pendiente" },
+        { value: "programado", label: "Programado" },
+        { value: "listo", label: "Enviado" },
+      ];
+    default:
+      return [
+        { value: "realizar", label: "Pendiente" },
+        { value: "listo", label: "Hecha" },
+      ];
+  }
+}
+
+/** El nombre del estado según el tipo («Atendió», «Enviado», «Hecha»…). */
+export function etiquetaDeEstado(tipo: string, estado: string): string {
+  return (
+    estadosDeTipo(tipo).find((e) => e.value === estado)?.label ??
+    ESTADOS_TAREA.find((e) => e.value === estado)?.label ??
+    estado
+  );
+}
+
+/** Si el estado vale para el tipo (una tarea no queda «Programada»). */
+export function estadoValidoParaTipo(tipo: string, estado: string): boolean {
+  return estadosDeTipo(tipo).some((e) => e.value === estado);
+}
 
 export type EstadoEdificio = (typeof ESTADOS_EDIFICIO)[number]["value"];
 export type EstadoUnidad = (typeof ESTADOS_UNIDAD)[number]["value"];
@@ -119,6 +163,7 @@ export const VALORES_ESTADO_OPORTUNIDAD = valores(ESTADOS_OPORTUNIDAD);
 export const VALORES_TIPO_OPORTUNIDAD = valores(TIPOS_OPORTUNIDAD);
 export const VALORES_TIPO_TAREA = valores(TIPOS_TAREA);
 export const VALORES_ESTADO_TAREA = valores(ESTADOS_TAREA);
+
 
 export function etiqueta(
   opciones: readonly { value: string; label: string }[],
