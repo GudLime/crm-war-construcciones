@@ -27,7 +27,7 @@ import { VentanaTarea } from "./ventana-tarea";
 import type { FormaDeVer } from "@/lib/oportunidades-lista";
 import { agruparTareas, fechaPropuesta, grupoConAlta, type GrupoTarea } from "@/lib/tareas-grupos";
 import { cn } from "@/lib/utils";
-import { ESTADOS_TAREA, TIPOS_TAREA, etiqueta } from "@/lib/ventas";
+import { TIPOS_TAREA, estadosDeTipo, etiqueta } from "@/lib/ventas";
 import { ResultadoLlamada } from "./resultado-llamada";
 import { BookingsClient } from "@/components/bookings/bookings-client";
 import { SelectorColumnasTabla, TablaConfigurable, usePrefTabla, type ColumnaTabla } from "@/components/ui/tabla-configurable";
@@ -36,14 +36,15 @@ import type { WeeklyHours } from "@/server/agenda/settings";
 import type { OportunidadDto, TareaDto } from "@/server/ventas";
 import { SelectorDeForma } from "./oportunidades-vistas";
 import { PildoraEdificio } from "./pildora-edificio";
-import { Acciones, Campo, EstadoPill, Ficha, Pagina, aLocal, fechaVisible, grilla, mensajeDe } from "./ui";
+import { Acciones, Campo, EstadoPill, Ficha, Pagina, fechaVisible, grilla, mensajeDe } from "./ui";
 
 /**
- * Tareas (rediseño, PR 6): Lista, Mosaico y Pipeline; filtros de estado
- * (Realizar por defecto · No responde · Todas · Listo), responsables con
+ * Tareas (rediseño, PR 6): Lista, Mosaico y Calendario (v3: sin Pipeline,
+ * cada tipo tiene sus estados); filtros de estado (Pendientes por defecto ·
+ * No atendió · Programadas · Hechas · Todas), responsables con
  * avatares, y agrupación por fecha (Sin fecha arriba, Vencidas, Hoy, Mañana,
  * Esta semana, Más adelante, Anteriores plegado) con «+» para crear una
- * tarea ya fechada. En el Pipeline se arrastra para cambiar el estado.
+ * tarea ya fechada.
  */
 
 type Contacto = { id: string; name: string | null; phone: string | null };
@@ -71,12 +72,14 @@ const vacio: Formulario = {
   responsableId: "",
 };
 
-type FiltroEstado = "realizar" | "no_responde" | "todas" | "listo";
+type FiltroEstado = "realizar" | "no_responde" | "programado" | "todas" | "listo";
+/** v3 — Cada tipo nombra sus estados; los filtros usan el nombre común. */
 const FILTROS: { value: FiltroEstado; label: string }[] = [
-  { value: "realizar", label: "Realizar" },
-  { value: "no_responde", label: "No responde" },
+  { value: "realizar", label: "Pendientes" },
+  { value: "no_responde", label: "No atendió" },
+  { value: "programado", label: "Programadas" },
+  { value: "listo", label: "Hechas" },
   { value: "todas", label: "Todas" },
-  { value: "listo", label: "Listo" },
 ];
 
 const SIN = "sin";
@@ -250,7 +253,6 @@ export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) 
   const [form, setForm] = useState<Formulario>(vacio);
   const [error, setError] = useState<string | null>(null);
   const [listo, setListo] = useState(false);
-  const [arrastrando, setArrastrando] = useState<string | null>(null);
 
   // La forma de ver y la agrupación se recuerdan en este navegador.
   useEffect(() => {
@@ -262,6 +264,8 @@ export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) 
       // `?vista=calendario` (lo que era Citas) manda sobre lo recordado.
       const pedida = new URLSearchParams(window.location.search).get("vista");
       if (pedida === "calendario" && calendario) setForma("calendario");
+      // v3 — El Pipeline de Tareas ya no existe: lo recordado vuelve a Lista.
+      else if (g?.forma === "pipeline") setForma("lista");
       else if (g?.forma && (g.forma !== "calendario" || calendario)) setForma(g.forma);
       if (typeof g?.agrupar === "boolean") setAgrupar(g.agrupar);
     } catch {
@@ -365,38 +369,13 @@ export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) 
     void cargar();
   }
 
-  /** Pipeline: soltar una tarjeta en otra columna cambia el estado. */
-  async function mover(t: Tarea, estado: string) {
-    if (t.estado === estado) return;
-    if (t.editable === false) {
-      avisar("Esa visita es de otra persona: la podés ver, no cambiar", "error");
-      return;
-    }
-    setFilas((fs) => fs.map((x) => (x.id === t.id ? { ...x, estado: estado as TareaDto["estado"] } : x)));
-    const res = await fetch(`/api/tareas/${t.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        titulo: t.titulo,
-        tipo: t.tipo,
-        estado,
-        fecha: t.fecha ? aLocal(t.fecha) : null,
-        comentarios: t.comentarios,
-        contactId: t.contactId,
-        oportunidadId: t.oportunidadId,
-      }),
-    }).catch(() => null);
-    if (!res?.ok) avisar(res ? await mensajeDe(res) : "No se pudo mover", "error");
-    void cargar();
-  }
-
   const ahora = useMemo(() => new Date(), [filas]); // eslint-disable-line react-hooks/exhaustive-deps
   const deResponsable = filas.filter(
     (t) =>
       (!responsables.length || responsables.includes(t.responsableId ?? SIN)) &&
       (!temporal || cumpleTemporal(t, temporal))
   );
-  const visibles = forma === "pipeline" || filtro === "todas" ? deResponsable : deResponsable.filter((t) => t.estado === filtro);
+  const visibles = filtro === "todas" ? deResponsable : deResponsable.filter((t) => t.estado === filtro);
   const grupos: Grupo[] = agrupar
     ? agruparTareas(visibles, ahora)
     : [{ clave: "todas", titulo: "", plegado: false, tareas: [...visibles].sort((a, b) => (a.fecha ?? "").localeCompare(b.fecha ?? "")) }];
@@ -446,7 +425,7 @@ export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) 
       titulo: "Estado",
       ancho: 130,
       valor: (f) => tareaDe(f)?.estado ?? null,
-      celda: (f) => tareaDe(f) && <EstadoPill opciones={ESTADOS_TAREA} value={tareaDe(f)!.estado} />,
+      celda: (f) => tareaDe(f) && <EstadoPill opciones={estadosDeTipo(tareaDe(f)!.tipo)} value={tareaDe(f)!.estado} />,
     },
     {
       clave: "fecha",
@@ -519,6 +498,7 @@ export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) 
           <SelectorDeForma
             forma={forma}
             conCalendario={Boolean(calendario)}
+            sinPipeline
             onCambio={(f) => {
               setForma(f);
               recordar({ forma: f });
@@ -536,8 +516,7 @@ export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) 
       }
     >
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        {forma !== "pipeline" &&
-          FILTROS.map((o) => (
+        {FILTROS.map((o) => (
             <Button
               key={o.value}
               type="button"
@@ -598,9 +577,7 @@ export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) 
         {forma === "lista" && (
           <SelectorColumnasTabla columnas={columnasTareas} pref={prefTabla} setPref={setPrefTabla} />
         )}
-        {forma === "pipeline" ? (
-          <span className="text-[12.5px] text-text-3">Una columna por estado · arrastrá para cambiarlo</span>
-        ) : (
+        {(
           <div role="tablist" aria-label="Agrupar" className="inline-flex gap-0.5 rounded-full bg-muted p-[3px] text-[13px]">
             {(
               [
@@ -680,7 +657,7 @@ export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) 
             </Campo>
             <Campo label="Estado">
               <Select value={form.estado} onValueChange={(estado) => setForm({ ...form, estado })}>
-                {ESTADOS_TAREA.map((o) => (
+                {estadosDeTipo(form.tipo).map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
@@ -805,46 +782,6 @@ export function TareasClient({ calendario }: { calendario?: CalendarioTareas }) 
             </Button>
           }
         />
-      ) : forma === "pipeline" ? (
-        <div className="flex gap-3 overflow-x-auto pb-2">
-          {ESTADOS_TAREA.map((col) => {
-            const items = [...visibles]
-              .filter((t) => t.estado === col.value)
-              .sort((a, b) => (a.fecha ?? "").localeCompare(b.fecha ?? ""));
-            return (
-              <section
-                key={col.value}
-                onDragOver={(e) => {
-                  if (arrastrando) e.preventDefault();
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const t = filas.find((x) => x.id === arrastrando);
-                  setArrastrando(null);
-                  if (t) void mover(t, col.value);
-                }}
-                className="flex w-72 shrink-0 flex-col gap-2 rounded-[10px] border border-border bg-subtle p-2.5"
-              >
-                <header className="flex items-center gap-2 px-1 pb-1">
-                  <span className="text-[13.5px] font-semibold">{col.label}</span>
-                  <span className="rounded-full bg-muted px-[7px] py-px text-[11.5px] font-semibold text-text-2">
-                    {items.length}
-                  </span>
-                </header>
-                {items.map((t) => (
-                  <TarjetaTarea
-                    key={t.id}
-                    t={t}
-                    onAbrir={abrir}
-                    arrastrable
-                    onArrastrar={(id) => setArrastrando(id)}
-                  />
-                ))}
-                {items.length === 0 && <p className="px-1 py-3 text-center text-[12px] text-text-3">Nada acá</p>}
-              </section>
-            );
-          })}
-        </div>
       ) : visibles.length === 0 ? (
         <p className="py-10 text-center text-sm text-text-3">Nada en este estado.</p>
       ) : forma === "mosaico" ? (
@@ -1005,7 +942,7 @@ function TarjetaTarea({
       )}
       {conEstado && (
         <div>
-          <EstadoPill opciones={ESTADOS_TAREA} value={t.estado} />
+          <EstadoPill opciones={estadosDeTipo(t.tipo)} value={t.estado} />
         </div>
       )}
     </div>

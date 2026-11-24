@@ -30,6 +30,10 @@ export type BookingListItem = {
   confirmadaAt?: string | null;
   /** v2, punto 2 — Dónde es (el edificio de la visita o la oficina). */
   ubicacion?: string | null;
+  /** 0064 — Visita o reunión, el edificio de la visita y quién la atiende. */
+  modo?: "visita" | "reunion" | null;
+  edificioId?: string | null;
+  responsableId?: string | null;
 };
 
 /** Tope del listado sin rango: el de siempre, que leen los guiones E2E. */
@@ -122,6 +126,15 @@ export async function listBookingsInRange(
   };
 }
 
+/** v3 — Una cita sola, para su ventana de detalle (el widget del Inicio). */
+export async function getBookingItem(organizationId: string, id: string): Promise<BookingListItem | null> {
+  const settings = await getSettings(organizationId);
+  const [row] = await baseQuery()
+    .where(scoped(schema.booking.organizationId, organizationId, eq(schema.booking.id, id)))
+    .limit(1);
+  return row ? toListItem(row, settings.timezone) : null;
+}
+
 function toListItem(r: Row, timezone: string): BookingListItem {
   const scheduledAtUtc = r.booking.scheduledAt.toISOString();
   const parts = partsInTz(scheduledAtUtc, timezone);
@@ -144,5 +157,8 @@ function toListItem(r: Row, timezone: string): BookingListItem {
     notes: r.booking.notes,
     confirmadaAt: r.booking.confirmadaAt?.toISOString() ?? null,
     ubicacion: r.booking.ubicacion ?? null,
+    modo: r.booking.modo ?? null,
+    edificioId: r.booking.edificioId ?? null,
+    responsableId: r.booking.responsableUserId ?? null,
   };
 }

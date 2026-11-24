@@ -120,7 +120,7 @@ export function EdificioDetalleClient() {
     nombre: "",
     direccion: "",
     estado: "en_construccion",
-    enVenta: "",
+    enVenta: "si",
     notasAgente: "",
     color: "",
   });
@@ -153,7 +153,7 @@ export function EdificioDetalleClient() {
       nombre: data.edificio.nombre,
       direccion: data.edificio.direccion ?? "",
       estado: data.edificio.estado,
-      enVenta: data.edificio.enVenta ?? "",
+      enVenta: data.edificio.enVenta ? "si" : "no",
       notasAgente: data.edificio.notasAgente ?? "",
       color: data.edificio.color ?? "",
     });
@@ -174,7 +174,7 @@ export function EdificioDetalleClient() {
         nombre: datos.nombre,
         direccion: datos.direccion || null,
         estado: datos.estado,
-        enVenta: datos.enVenta || null,
+        enVenta: datos.enVenta === "si",
         notasAgente: datos.notasAgente || null,
         ...(datos.color ? { color: datos.color } : {}),
       }),
@@ -194,7 +194,7 @@ export function EdificioDetalleClient() {
         nombre: edificio.nombre,
         direccion: edificio.direccion ?? "",
         estado: edificio.estado,
-        enVenta: edificio.enVenta ?? "",
+        enVenta: edificio.enVenta ? "si" : "no",
         notasAgente: edificio.notasAgente ?? "",
         color: edificio.color ?? "",
       });
@@ -637,7 +637,7 @@ export function EdificioDetalleClient() {
               { etiqueta: "Nombre", valor: edificio.nombre },
               { etiqueta: "Dirección", valor: edificio.direccion },
               { etiqueta: "Estado", valor: etiqueta(ESTADOS_EDIFICIO, edificio.estado) },
-              { etiqueta: "En venta", valor: edificio.enVenta },
+              { etiqueta: "En venta", valor: edificio.enVenta ? "Sí" : "No" },
               { etiqueta: "Color", valor: <PildoraEdificio nombre={edificio.nombre} color={edificio.color} /> },
               { etiqueta: "Notas para el agente", valor: edificio.notasAgente, ancho: true },
             ]}
@@ -676,12 +676,11 @@ export function EdificioDetalleClient() {
               nombre={datos.nombre || "Edificio"}
             />
           </Campo>
-          <Campo label="En venta" className="sm:col-span-2">
-            <Input
-              value={datos.enVenta}
-              onChange={(e) => setDatos({ ...datos, enVenta: e.target.value })}
-              maxLength={400}
-            />
+          <Campo label="En venta">
+            <Select value={datos.enVenta} onValueChange={(enVenta) => setDatos({ ...datos, enVenta })}>
+              <option value="si">Sí</option>
+              <option value="no">No</option>
+            </Select>
           </Campo>
           <Campo label="Notas para el agente" className="sm:col-span-2 lg:col-span-3">
             <Textarea

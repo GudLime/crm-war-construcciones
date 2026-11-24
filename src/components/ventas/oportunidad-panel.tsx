@@ -1,5 +1,6 @@
 "use client";
 
+import { BotonesNuevaTarea } from "@/components/ventas/nueva-tarea";
 import { useCallback, useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,14 +32,25 @@ const AVISO_EXCLUIDO: Record<Exclude<TipoContacto, "lead">, string> = {
 export function OportunidadPanel({
   contactId,
   refreshKey = 0,
+  enChat = false,
+  agenda = false,
+  contactoNombre = null,
 }: {
   contactId: string;
   refreshKey?: number;
+  /**
+   * v3 — En el sidebar del chat: sin el tipo de contacto y con la tira de
+   * botones de tareas (las mismas ventanas de todo el sistema) antes de la etapa.
+   */
+  enChat?: boolean;
+  agenda?: boolean;
+  contactoNombre?: string | null;
 }) {
   const [datos, setDatos] = useState<EstadoComercialDto | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [motivo, setMotivo] = useState("");
+  const [aviso, setAviso] = useState<string | null>(null);
   const voc = useVocabulario();
   const singular = enFrase(voc.singular);
 
@@ -109,7 +121,7 @@ export function OportunidadPanel({
 
   return (
     <section className="border-b p-4">
-      {voc.inmobiliario && (
+      {voc.inmobiliario && !enChat && (
       <>
       <p className="kicker mb-2">Tipo de contacto</p>
       <Select
@@ -139,7 +151,23 @@ export function OportunidadPanel({
       )}
 
       {conVenta && (
-        <div className={voc.inmobiliario ? "mt-4" : undefined}>
+        <div className={voc.inmobiliario && !enChat ? "mt-4" : undefined}>
+          {enChat && abierta && (
+            <div className="mb-4">
+              <BotonesNuevaTarea
+                modal
+                oportunidadId={abierta.id}
+                contacto={{ id: contactId, nombre: contactoNombre ?? abierta.nombre }}
+                edificioOportunidad={abierta.edificios[0] ?? null}
+                agenda={agenda}
+                onCreada={async (texto) => {
+                  setAviso(texto);
+                  await cargar();
+                }}
+              />
+              {aviso && <p className="mt-2 text-[11.5px] text-success-text">{aviso}</p>}
+            </div>
+          )}
           <div className="mb-3 flex items-baseline justify-between gap-2">
             <p className="kicker">{voc.singular}</p>
             {datos.anteriores > 0 && (
