@@ -4,7 +4,19 @@
  * filtrar la lista, reemplazarlo por el texto y rellenar `{nombre}`.
  */
 
-export type RespuestaRapida = { id: string; atajo: string; texto: string };
+/** 0067 — Una foto o un video que sale con la respuesta. */
+export type AdjuntoRespuesta = { id: string; nombre: string; mime: string; bytes: number };
+
+export type RespuestaRapida = {
+  id: string;
+  atajo: string;
+  texto: string;
+  /** 0067 — Fotos y videos (pueden faltar en datos viejos). */
+  adjuntos?: AdjuntoRespuesta[];
+};
+
+/** 0067 — Cuántos archivos caben en una respuesta. */
+export const TOPE_ADJUNTOS = 10;
 
 export const ATAJO_MAX = 32;
 export const TEXTO_MAX = 4096;

@@ -3,8 +3,8 @@ import { filtrosContactos, paginasVisibles, rangoMostrado } from "@/lib/contacto
 
 describe("lista de contactos paginada", () => {
   it("lee los filtros e ignora lo inválido", () => {
-    const f = filtrosContactos(new URLSearchParams("pagina=3&tipo=comprador&fuente=x&agente=sin&archivados=solo&orden=creado:desc"));
-    expect(f).toMatchObject({ pagina: 3, porPagina: 50, tipo: "comprador", fuente: null, agente: "sin", archivados: true, orden: "creado", dir: "desc" });
+    const f = filtrosContactos(new URLSearchParams("pagina=3&tipo=cliente&fuente=x&agente=sin&archivados=solo&orden=creado:desc"));
+    expect(f).toMatchObject({ pagina: 3, porPagina: 50, tipo: "cliente", fuente: null, agente: "sin", archivados: true, orden: "creado", dir: "desc" });
     expect(filtrosContactos(new URLSearchParams("pagina=-2"))).toMatchObject({ pagina: 1, orden: "nombre", dir: "asc", archivados: false });
   });
   it("el texto del pie y las páginas", () => {

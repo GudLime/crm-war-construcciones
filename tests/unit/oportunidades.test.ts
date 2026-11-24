@@ -6,7 +6,8 @@ import {
   resolverEdificiosPorNombre,
   resolverEstadoOportunidad,
   siguientesParaLaIA,
-  tipoExcluyeDeVenta,
+  iaAtiende,
+  tiposValidos,
 } from "@/lib/ventas";
 import { INSTRUCCIONES_OPORTUNIDADES, conInstruccionesOportunidades } from "@/lib/instrucciones-oportunidades";
 
@@ -57,30 +58,42 @@ describe("la IA mueve solo hacia adelante y hasta Conoce información", () => {
   });
 });
 
-describe("tipo de contacto", () => {
-  it("solo el lead entra a la venta", () => {
-    expect(tipoExcluyeDeVenta(null)).toBe(false);
-    expect(tipoExcluyeDeVenta("lead")).toBe(false);
-    for (const t of ["comprador", "inmobiliaria", "proveedor", "propio"] as const) {
-      expect(tipoExcluyeDeVenta(t)).toBe(true);
+describe("v4 — tipo de contacto y quién atiende la IA", () => {
+  it("con oportunidad abierta, la IA atiende solo Venta (o sin tipo)", () => {
+    expect(iaAtiende({ tipos: [], oportunidadAbierta: { tipo: "venta" } })).toBe(true);
+    expect(iaAtiende({ tipos: ["proveedor"], oportunidadAbierta: { tipo: null } })).toBe(true);
+    expect(iaAtiende({ tipos: [], oportunidadAbierta: { tipo: "alquiler" } })).toBe(false);
+    expect(iaAtiende({ tipos: [], oportunidadAbierta: { tipo: "inmobiliaria" } })).toBe(false);
+  });
+
+  it("sin oportunidad, no atiende Proveedor, Propio ni Inmobiliaria", () => {
+    expect(iaAtiende({ tipos: [], oportunidadAbierta: null })).toBe(true);
+    expect(iaAtiende({ tipos: ["cliente"], oportunidadAbierta: null })).toBe(true);
+    for (const t of ["proveedor", "propio", "inmobiliaria"]) {
+      expect(iaAtiende({ tipos: ["cliente", t], oportunidadAbierta: null })).toBe(false);
     }
   });
 
+  it("la lista se ordena y descarta lo inválido", () => {
+    expect(tiposValidos(["proveedor", "lead", "cliente", "proveedor"])).toEqual(["cliente", "proveedor"]);
+  });
+
   it.each([
-    ["lead", "lead"],
-    ["Lead", "lead"],
-    ["prospecto", "lead"],
-    ["Inmobiliaria", "inmobiliaria"],
-    ["inmobiliarias", "inmobiliaria"],
-    ["Proveedor", "proveedor"],
-    ["proveedores", "proveedor"],
-    ["comprador", "comprador"],
-    ["Propio de WAR", "propio"],
+    ["lead", { oportunidad: "venta", contacto: null }],
+    ["Lead", { oportunidad: "venta", contacto: null }],
+    ["prospecto", { oportunidad: "venta", contacto: null }],
+    ["alquiler", { oportunidad: "alquiler", contacto: null }],
+    ["Inquilino", { oportunidad: "alquiler", contacto: null }],
+    ["Inmobiliaria", { oportunidad: "inmobiliaria", contacto: "inmobiliaria" }],
+    ["proveedores", { oportunidad: null, contacto: "proveedor" }],
+    ["comprador", { oportunidad: null, contacto: "cliente" }],
+    ["cliente", { oportunidad: null, contacto: "cliente" }],
+    ["Propio de WAR", { oportunidad: null, contacto: "propio" }],
     ["", null],
     ["no sé todavía", null],
     [42, null],
   ] as const)("%j → %j", (raw, esperado) => {
-    expect(normalizarTipoContacto(raw)).toBe(esperado);
+    expect(normalizarTipoContacto(raw)).toEqual(esperado);
   });
 });
 

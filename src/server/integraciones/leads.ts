@@ -155,9 +155,8 @@ async function contactoDelLead(
     const cambios: Partial<typeof schema.contact.$inferInsert> = {};
     if (!existente.email && lead.email) cambios.email = lead.email.toLowerCase();
     if (!existente.source) cambios.source = fuenteDelContacto(lead.origen);
-    // Sin clasificar → Lead: llenó un formulario de venta. Si una persona ya
-    // lo clasificó como otra cosa, se respeta.
-    if (!existente.tipoContacto) cambios.tipoContacto = "lead";
+    // v4 — Llenó un formulario de venta: lo dice su oportunidad (de Venta),
+    // no un tipo de contacto.
     // Si el nombre es el teléfono (llegó por WhatsApp sin perfil), el del
     // formulario es mejor.
     if (lead.nombre && /^[+\d\s()-]*$/.test(existente.name)) {
@@ -183,7 +182,6 @@ async function contactoDelLead(
       waIdentity: telefono,
       email: lead.email?.toLowerCase() ?? null,
       source: fuenteDelContacto(lead.origen),
-      tipoContacto: "lead",
     })
     .onConflictDoNothing({
       target: [schema.contact.organizationId, schema.contact.channel, schema.contact.waIdentity],
@@ -288,6 +286,8 @@ export async function recibirLead(
         contactId: contacto?.id ?? null,
         edificioId,
         estado: "recibido",
+        // v4 — Un formulario de venta es una oportunidad de Venta.
+        tipo: "venta",
         ultimaInteraccion: ahora,
       })
       .returning();

@@ -13,7 +13,7 @@ import {
   type ReunionCorta,
   type TareaCorta,
 } from "@/lib/oportunidad-detalle";
-import { ESTADOS_ABIERTOS, type EstadoOportunidad, type TipoContacto } from "@/lib/ventas";
+import { ESTADOS_ABIERTOS, tiposValidos, type EstadoOportunidad, type TipoContacto } from "@/lib/ventas";
 import { isWindowOpen, WINDOW_MS } from "@/server/inbox/window";
 import { listarNotasDeOportunidad } from "@/server/notas";
 import { oportunidadConNombres, type OportunidadDto } from "@/server/ventas";
@@ -34,7 +34,8 @@ export type ContactoDeOportunidad = {
   nombre: string;
   telefono: string | null;
   email: string | null;
-  tipoContacto: TipoContacto | null;
+  /** v4 — Lo que la persona es (selección múltiple). */
+  tiposContacto: TipoContacto[];
   fuente: string | null;
   creadoAt: string;
   anuncio: { titulo: string | null; url: string | null } | null;
@@ -206,7 +207,7 @@ export async function obtenerDetalleOportunidad(
         nombre: c.name,
         telefono: c.phone,
         email: c.email,
-        tipoContacto: c.tipoContacto,
+        tiposContacto: tiposValidos(c.tiposContacto),
         fuente: c.source,
         creadoAt: c.createdAt.toISOString(),
         anuncio: anuncio ? { titulo: anuncio.headline, url: anuncio.sourceUrl } : null,

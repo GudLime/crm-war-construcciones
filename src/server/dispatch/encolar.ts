@@ -1,6 +1,7 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
-import { tipoExcluyeDeVenta } from "@/lib/ventas";
+import { ESTADOS_ABIERTOS, iaAtiende } from "@/lib/ventas";
+import { programarLector } from "@/server/lector";
 import { encolarDespacho } from "@/server/dispatch/outbox";
 import { iniciarWorker, programarTanda } from "@/server/dispatch/worker";
 
@@ -45,20 +46,30 @@ export async function despacharAlCerebro(
     // cualquier cerebro sin tener que acordarse. El Laboratorio no pasa por la
     // ingesta, pero una conversación de prueba no sale del CRM por ningún
     // camino.
-    if (!conv.aiEnabled || conv.handoffAt || conv.isTest) return;
+    if (conv.isTest) return;
+    // v4 — Cuando no lee el agente, lee el lector: arma la oportunidad sin
+    // contestar nada.
+    if (!conv.aiEnabled || conv.handoffAt) {
+      programarLector(organizationId, conversationId);
+      return;
+    }
 
     const [perfil] = await getDb()
       .select({ enabled: schema.agentProfile.enabled })
       .from(schema.agentProfile)
       .where(eq(schema.agentProfile.organizationId, organizationId))
       .limit(1);
-    if (!perfil?.enabled) return;
+    if (!perfil?.enabled) {
+      programarLector(organizationId, conversationId);
+      return;
+    }
 
-    // 068 (War) — Comprador, inmobiliaria, proveedor y propio no van a la IA.
-    // Cuando los clasifica la propia IA, el turno en curso termina (se
-    // despide y deriva) y el corte llega aquí, en el mensaje siguiente.
+    // v4 — Quién atiende la IA, según la oportunidad: con una abierta, solo si
+    // es de Venta; sin oportunidad, si no es Proveedor, Propio ni Inmobiliaria.
+    // Alquiler e Inmobiliaria los atiende una persona. Cuando clasifica la
+    // propia IA, el turno en curso termina y el corte llega en el siguiente.
     const [contacto] = await getDb()
-      .select({ tipoContacto: schema.contact.tipoContacto })
+      .select({ tiposContacto: schema.contact.tiposContacto })
       .from(schema.contact)
       .where(
         and(
@@ -67,7 +78,18 @@ export async function despacharAlCerebro(
         )
       )
       .limit(1);
-    if (tipoExcluyeDeVenta(contacto?.tipoContacto)) return;
+    const [abierta] = await getDb()
+      .select({ tipo: schema.oportunidad.tipo })
+      .from(schema.oportunidad)
+      .where(
+        and(
+          eq(schema.oportunidad.organizationId, organizationId),
+          eq(schema.oportunidad.contactId, conv.contactId),
+          inArray(schema.oportunidad.estado, [...ESTADOS_ABIERTOS])
+        )
+      )
+      .limit(1);
+    if (!iaAtiende({ tipos: contacto?.tiposContacto ?? [], oportunidadAbierta: abierta ?? null })) return;
 
     // 025 — El despacho anota qué entrante lo provoca: es lo que le debe al
     // cerebro, aunque después la conversación tenga una respuesta.

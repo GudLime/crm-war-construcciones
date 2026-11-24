@@ -742,3 +742,35 @@ marca de chispas; en el widget suma «Responder en Bandeja».
 - **Sidebar del chat:** salen el contacto y los Datos personales (siguen en la
   ficha del contacto).
 
+## v4 (24/11) — tipos de contacto, lector, llamadas, respuestas con fotos
+
+- **Tipos de contacto** (0066, `contact.tipos_contacto`, selección múltiple):
+  Cliente, Proveedor, Inquilino, Inmobiliaria, Propio. Lo que busca va en el
+  tipo de la oportunidad (Venta, Alquiler, Inmobiliaria). «Lead» ya no es un
+  tipo: los que lo eran pasan a Venta (`pasarLeadsAVentaAlArrancar`).
+- **Quién atiende la IA** (`iaAtiende` en `lib/ventas.ts`): con oportunidad
+  abierta, solo Venta; sin oportunidad, si no es Proveedor, Propio ni
+  Inmobiliaria.
+- **La ficha del agente** (`normalizarTipoContacto` → `aplicarClasificacionIa`):
+  «lead» abre Venta, «alquiler» abre Alquiler, el resto se suma al contacto.
+- **El lector** (`server/lector.ts`): con el agente apagado o la IA en pausa,
+  lee el chat por ráfaga (90 s) y arma la oportunidad por el mismo camino, sin
+  contestar. Solo si hace falta (sin nada clasificado o sin interés).
+- **Sidebar del chat:** el interés (edificio, tipología y la extensión
+  `components/extensiones/oportunidad-chat.tsx`) arriba de la etapa;
+  «Crear oportunidad» con su tipo.
+- **Llamadas** (`server/inbox/llamadas.ts`, webhook `calls`): quedan en el chat
+  como mensaje `type: "call"`; cada aviso queda en el log.
+- **Respuestas rápidas con fotos y videos** (0067, `quick_reply.adjuntos`).
+- El nombre del chat abre el contacto; buscador en Oportunidades.
+
+## v4 (24/11) — lo de WAR
+
+- **Sidebar del chat** (`components/extensiones/oportunidad-chat.tsx`): las
+  unidades de interés de la oportunidad (sin piso ni precio, con «+ elegir»),
+  debajo del edificio y la tipología.
+- **Instrucciones del agente:** «alquiler» es un valor más de `tipo_contacto`
+  y se deriva a una persona, como comprador, inmobiliaria y proveedor.
+- **Importación de Notion:** el tipo de Notion pasa a la lista del contacto
+  (Comprador → Cliente; Lead no es un tipo).
+

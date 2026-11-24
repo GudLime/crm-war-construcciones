@@ -220,29 +220,46 @@ export function metrosTexto(n: number | null): string {
  * 068 — Tipo de contacto y reglas de la oportunidad abierta
  * ============================================================ */
 
+/**
+ * v4 — Lo que la persona ES, con selección múltiple: un cliente puede ser
+ * también proveedor, un inquilino puede comprar más adelante. Lo que BUSCA
+ * (comprar, alquilar, una inmobiliaria que pregunta) va en el tipo de la
+ * oportunidad. «Lead» ya no es un tipo: ser lead es tener una oportunidad.
+ */
 export const TIPOS_CONTACTO = [
-  { value: "lead", label: "Lead" },
-  { value: "comprador", label: "Comprador" },
-  { value: "inmobiliaria", label: "Inmobiliaria" },
+  { value: "cliente", label: "Cliente" },
   { value: "proveedor", label: "Proveedor" },
+  { value: "inquilino", label: "Inquilino" },
+  { value: "inmobiliaria", label: "Inmobiliaria" },
   { value: "propio", label: "Propio de WAR" },
 ] as const;
 
 export type TipoContacto = (typeof TIPOS_CONTACTO)[number]["value"];
 export const VALORES_TIPO_CONTACTO = valores(TIPOS_CONTACTO) as TipoContacto[];
 
-/** Solo un lead entra a la venta (oportunidades) y lo atiende la IA. */
-export function tipoExcluyeDeVenta(tipo: TipoContacto | null | undefined): boolean {
-  return tipo != null && tipo !== "lead";
+/** Los tipos válidos de una lista, sin repetir y en el orden del catálogo. */
+export function tiposValidos(raw: readonly unknown[] | null | undefined): TipoContacto[] {
+  const set = new Set((raw ?? []).filter((t): t is TipoContacto => VALORES_TIPO_CONTACTO.includes(t as TipoContacto)));
+  return VALORES_TIPO_CONTACTO.filter((t) => set.has(t));
 }
 
-/** Lo que la IA puede clasificar sola. `propio` es siempre manual. */
-export const TIPOS_QUE_CLASIFICA_LA_IA: readonly TipoContacto[] = [
-  "lead",
-  "comprador",
-  "inmobiliaria",
-  "proveedor",
-];
+/**
+ * v4 — Quién atiende la IA (decidido 24/11), según la oportunidad:
+ * - con una oportunidad abierta, solo si es de Venta (o sin tipo);
+ * - sin oportunidad, si el contacto no es Proveedor, Propio ni Inmobiliaria
+ *   (pregunta el motivo y sigue con sus reglas).
+ * Alquiler e Inmobiliaria los atiende una persona.
+ */
+export function iaAtiende(input: {
+  tipos: readonly string[];
+  oportunidadAbierta: { tipo: string | null } | null;
+}): boolean {
+  if (input.oportunidadAbierta) {
+    const t = input.oportunidadAbierta.tipo;
+    return t == null || t === "venta";
+  }
+  return !input.tipos.some((t) => t === "proveedor" || t === "propio" || t === "inmobiliaria");
+}
 
 /** Abiertas = la oportunidad sigue viva (puede haber una por edificio). */
 export const ESTADOS_ABIERTOS: readonly EstadoOportunidad[] = [
@@ -320,20 +337,28 @@ export function resolverEstadoOportunidad(pedido: string): EstadoOportunidad | n
 }
 
 /**
- * Tipo de contacto a partir de lo que escribe la IA en la ficha. Tolera
- * mayúsculas, acentos, plurales y sinónimos comunes; lo que no reconoce es
- * `null` (no clasifica: mejor sin clasificar que mal clasificado).
+ * v4 — Lo que deja la IA en la ficha («tipo_contacto»), traducido al modelo
+ * nuevo: lo que busca va a la oportunidad (Venta, Alquiler, Inmobiliaria) y
+ * lo que es, al contacto. Tolera mayúsculas, acentos, plurales y sinónimos;
+ * Mateo sigue mandando un solo valor («lead», «comprador»…) y sigue andando.
+ * Lo que no reconoce es `null` (mejor sin clasificar que mal clasificado).
  */
-export function normalizarTipoContacto(raw: unknown): TipoContacto | null {
+export type ClasificacionIa = {
+  oportunidad: TipoOportunidad | null;
+  contacto: TipoContacto | null;
+};
+
+export function normalizarTipoContacto(raw: unknown): ClasificacionIa | null {
   if (typeof raw !== "string") return null;
   const v = sinAcentos(raw).replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
   if (!v) return null;
-  const sinonimos: [RegExp, TipoContacto][] = [
-    [/^(lead|prospecto|interesado|cliente potencial|potencial)s?$/, "lead"],
-    [/^(comprador|ya compro|cliente actual|propietario)(es|s)?$/, "comprador"],
-    [/^(inmobiliaria|corredor|broker|martillero)s?$/, "inmobiliaria"],
-    [/^(proveedor|contratista)(es|s)?$/, "proveedor"],
-    [/^(propio|propio de war|interno|empleado)s?$/, "propio"],
+  const sinonimos: [RegExp, ClasificacionIa][] = [
+    [/^(lead|prospecto|interesado|cliente potencial|potencial|venta|compra)s?$/, { oportunidad: "venta", contacto: null }],
+    [/^(alquiler|inquilino|alquila|busca alquiler)(es|s)?$/, { oportunidad: "alquiler", contacto: null }],
+    [/^(comprador|ya compro|cliente|cliente actual|propietario)(es|s)?$/, { oportunidad: null, contacto: "cliente" }],
+    [/^(inmobiliaria|corredor|broker|martillero)s?$/, { oportunidad: "inmobiliaria", contacto: "inmobiliaria" }],
+    [/^(proveedor|contratista)(es|s)?$/, { oportunidad: null, contacto: "proveedor" }],
+    [/^(propio|propio de war|interno|empleado)s?$/, { oportunidad: null, contacto: "propio" }],
   ];
   return sinonimos.find(([re]) => re.test(v))?.[1] ?? null;
 }

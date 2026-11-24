@@ -46,6 +46,7 @@ vi.mock("@/lib/db", async (importOriginal) => {
 const encolarDespacho = vi.hoisted(() => vi.fn(async () => ({ notBefore: new Date() })));
 vi.mock("@/server/dispatch/outbox", () => ({ encolarDespacho }));
 vi.mock("@/server/dispatch/worker", () => ({ iniciarWorker: () => {}, programarTanda: () => {} }));
+vi.mock("@/server/lector", () => ({ programarLector: () => {} }));
 
 const getBrainHealth = vi.hoisted(() => vi.fn());
 vi.mock("@/server/bot/status", () => ({ getBrainHealth }));
@@ -95,16 +96,24 @@ describe("el despacho respeta el interruptor", () => {
     expect(encolarDespacho).not.toHaveBeenCalled();
   });
 
-  it("068 — un contacto fuera de la venta (inmobiliaria…) no va a la IA", async () => {
-    cola.push([CONV_ABIERTA], [{ enabled: true }], [{ tipoContacto: "inmobiliaria" }]);
+  it("v4 — sin oportunidad, un proveedor o una inmobiliaria no van a la IA", async () => {
+    cola.push([CONV_ABIERTA], [{ enabled: true }], [{ tiposContacto: ["inmobiliaria"] }], []);
+    await despacharAlCerebro("cv_1", "org_1", "msg_1");
+    cola.push([CONV_ABIERTA], [{ enabled: true }], [{ tiposContacto: ["cliente", "proveedor"] }], []);
     await despacharAlCerebro("cv_1", "org_1", "msg_1");
     expect(encolarDespacho).not.toHaveBeenCalled();
   });
 
-  it("068 — un lead o un contacto sin clasificar sí va a la IA", async () => {
-    cola.push([CONV_ABIERTA], [{ enabled: true }], [{ tipoContacto: null }]);
+  it("v4 — una oportunidad de Alquiler la atiende una persona", async () => {
+    cola.push([CONV_ABIERTA], [{ enabled: true }], [{ tiposContacto: [] }], [{ tipo: "alquiler" }]);
     await despacharAlCerebro("cv_1", "org_1", "msg_1");
-    cola.push([CONV_ABIERTA], [{ enabled: true }], [{ tipoContacto: "lead" }]);
+    expect(encolarDespacho).not.toHaveBeenCalled();
+  });
+
+  it("v4 — con oportunidad de Venta, o sin oportunidad ni tipo, sí va a la IA", async () => {
+    cola.push([CONV_ABIERTA], [{ enabled: true }], [{ tiposContacto: [] }], []);
+    await despacharAlCerebro("cv_1", "org_1", "msg_1");
+    cola.push([CONV_ABIERTA], [{ enabled: true }], [{ tiposContacto: ["proveedor"] }], [{ tipo: "venta" }]);
     await despacharAlCerebro("cv_1", "org_1", "msg_1");
     expect(encolarDespacho).toHaveBeenCalledTimes(2);
   });
