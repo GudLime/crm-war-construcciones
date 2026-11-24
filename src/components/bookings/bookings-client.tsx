@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { AgendaList } from "./agenda-list";
 import { BlockDialog } from "./block-dialog";
 import { BookingDrawer, type ActResult } from "./booking-drawer";
+import { VentanaCita } from "@/components/ventas/ventana-tarea";
 import type { Booking } from "./booking-look";
 import { CalendarToolbar } from "./calendar-toolbar";
 import { MonthGrid } from "./month-grid";
@@ -437,6 +438,9 @@ export function BookingsClient({
               />
             ) : (
               <AgendaList
+                tareas={embebido?.tareas}
+                onSelectTarea={embebido?.onSelectTarea}
+                renderIconoTarea={embebido?.renderIconoTarea}
                 range={range}
                 bookings={visible}
                 timezone={timezone}
@@ -448,7 +452,20 @@ export function BookingsClient({
           </div>
         </div>
 
-        {selected && (
+        {/* v2, punto 2 — Dentro de Tareas, la cita se abre en la ventana de
+            detalle; los bloqueos siguen con su panel propio. */}
+        {selected && embebido && selected.kind === "session" && today && (
+          <VentanaCita
+            cita={selected}
+            timezone={timezone}
+            today={today}
+            nowMs={now ?? Date.now()}
+            onCerrar={closeDrawer}
+            onCambio={reload}
+            onReprogramada={(startUtc) => reveal(dayIsoInTz(new Date(startUtc), timezone))}
+          />
+        )}
+        {selected && !(embebido && selected.kind === "session") && (
           <BookingDrawer
             booking={selected}
             timezone={timezone}

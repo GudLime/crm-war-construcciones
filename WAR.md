@@ -672,9 +672,34 @@ marca de chispas; en el widget suma «Responder en Bandeja».
   (`components/extensiones/llamada-atendida.tsx`, archivo propio de WAR que el
   núcleo no toca): edificio y ambientes (se guardan al tocarlos, como en
   Interés) y una unidad en particular del interés encadenado (se vincula al
-  Guardar). La tipología «1A» no está: se elige en la oportunidad.
+  Guardar). La tipología («1A», «2B») se suma en la v2 (punto 1).
 - **Derivaciones → Gloria** (`war_0011`): si Gloria no tiene usuario todavía,
   queda vacío y se elige en Ajustes → Ventas.
 - **Primera llamada del cartel:** es configuración. En Ajustes → Plantillas de
   tareas, una plantilla «Primera llamada», tipo Llamada, «Al asignarle
   responsable», solo origen Cartel.
+
+## v2 (23/11) — chispas en Próximos pasos, tareas en Lista, widget lavado
+
+- Próximos pasos de la oportunidad: las tareas de la IA llevan las chispas y
+  «Responder en Bandeja» (`TareaCorta.creadaPor` / `conversationId`).
+- Calendario de Tareas, vista Lista: también las tareas (`AgendaList` recibe
+  `tareas` como la rejilla). En Mes, solo las citas.
+- Widget «Tareas» del Inicio: los filtros y los íconos con el estilo lavado de
+  `IconoTipo` (tinte del tipo).
+- **Tablas de trabajo diario** (punto 5): `components/ui/tabla-configurable.tsx`
+  (`TablaConfigurable`, `SelectorColumnasTabla`, `usePrefTabla`) y
+  `lib/tabla.ts`: ordenar desde el título, ocultar, cambiar el ancho, **mover
+  la columna arrastrando el título** y «Columnas → Restablecer». Preferencias
+  por tabla en el navegador (`vocero:tabla:<clave>`). Lo usan Tareas (Lista;
+  con un orden elegido no agrupa por fecha), Contactos (orden en el servidor),
+  Edificios, Unidades del edificio y los objetos del cliente. Oportunidades
+  suma mover columnas (`posiciones` en sus preferencias).
+- **Ventana de detalle** (punto 2): `components/ventas/ventana-tarea.tsx`
+  (`VentanaTarea`, `VentanaCita`) con `components/ui/campo-fecha.tsx`. Se abre
+  desde el widget del Inicio, la pantalla Tareas y el Calendario (las citas;
+  los bloqueos siguen con su panel). `GET /api/tareas/[id]` trae la tarea con
+  el teléfono y el correo del contacto.
+- **WAR — tipología en «¿Qué buscaba?»** (punto 1): pastillas con las unidades
+  tipo de los edificios elegidos (`departamento.tipologia_unidad`), opcional y
+  de selección múltiple; se guarda al tocarla en `tipologiasUnidad`.
