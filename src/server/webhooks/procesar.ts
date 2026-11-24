@@ -1,3 +1,4 @@
+import { processCallsValue, type ValorLlamadas } from "@/server/inbox/llamadas";
 import type { WebhookPayload } from "@/server/inbox/webhook";
 import { processEchoesValue, processMessagesValue } from "@/server/inbox/ingest";
 import { processTemplateStatusValue } from "@/server/whatsapp/template-events";
@@ -57,6 +58,9 @@ async function procesarWhatsapp(payload: WebhookPayload): Promise<void> {
       } else if (change.field === "smb_app_state_sync") {
         // 067: contactos de la app del teléfono (coexistencia)
         await processStateSyncValue(change.value);
+      } else if (change.field === "calls") {
+        // v4: las llamadas de WhatsApp quedan en la conversación
+        await processCallsValue(change.value as unknown as ValorLlamadas);
       } else if (change.field === "account_update") {
         // 067: el número se desconectó de esta app
         await processAccountUpdate(entry.id ?? null, change.value);

@@ -13,6 +13,8 @@ import {
   Lock,
   MapPin,
   Paperclip,
+  Phone,
+  PhoneMissed,
   Reply,
   Smartphone,
   Sparkles,
@@ -574,6 +576,21 @@ export function MessageThread({
                         <LinkedText text={m.media.caption} />
                       </span>
                     )}
+                  </span>
+                ) : m.type === "call" ? (
+                  // v4 — La llamada de WhatsApp: «Llamada hecha · Sin respuesta».
+                  <span className="inline-flex items-center gap-2">
+                    <span className="grid size-8 shrink-0 place-items-center rounded-full bg-background/70">
+                      {/sin respuesta/i.test(m.text ?? "") ? (
+                        <PhoneMissed className="h-4 w-4 text-danger-text" strokeWidth={1.8} />
+                      ) : (
+                        <Phone className="h-4 w-4" strokeWidth={1.8} />
+                      )}
+                    </span>
+                    <span className="leading-tight">
+                      <span className="block font-semibold">{(m.text ?? "Llamada").split(" · ")[0]}</span>
+                      <span className="block text-[12px] text-text-2">{(m.text ?? "").split(" · ").slice(1).join(" · ")}</span>
+                    </span>
                   </span>
                 ) : m.type === "text" || m.type === "template" ? (
                   <span className="whitespace-pre-wrap break-words">

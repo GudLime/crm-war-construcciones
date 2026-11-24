@@ -345,7 +345,11 @@ export async function processEchoesValue(value: WebhookValue): Promise<void> {
   // Meta documenta `message_echoes`; parser tolerante a `messages` (R1).
   const echoes = value.message_echoes ?? value.messages ?? [];
   for (const echo of echoes) {
-    if (!SUPPORTED_TYPES.has(echo.type)) continue;
+    if (!SUPPORTED_TYPES.has(echo.type)) {
+      // v4 — Para saber qué más manda el teléfono (por ejemplo, llamadas).
+      console.log(`[webhook] echo de tipo «${echo.type}» ignorado`);
+      continue;
+    }
     if (!echo.to) {
       console.warn(`[webhook] echo ${echo.id} sin destinatario: descartado`);
       continue;
