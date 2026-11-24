@@ -7,7 +7,7 @@ import {
   formatearTelefono,
   normalizarTelefono,
 } from "@/lib/telefono";
-import { TIPOS_CONTACTO, type TipoContacto } from "@/lib/ventas";
+import { TIPOS_CONTACTO, TIPOS_OPORTUNIDAD, type TipoContacto } from "@/lib/ventas";
 import type { SourceValue, StageDto } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,8 +42,10 @@ export function NewContactDialog({
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  // 068 — Alta manual: casi siempre es un prospecto, por eso arranca en Lead.
-  const [tipoContacto, setTipoContacto] = useState<TipoContacto | "">("lead");
+  // v4 — Alta manual: casi siempre es un prospecto, por eso arranca con una
+  // oportunidad de Venta. Lo que la persona es va aparte (varios).
+  const [tiposContacto, setTiposContacto] = useState<string[]>([]);
+  const [oportunidad, setOportunidad] = useState<string>("venta");
   const [source, setSource] = useState<SourceValue>("referido");
   const [notes, setNotes] = useState("");
   const [stages, setStages] = useState<StageDto[]>([]);
@@ -76,7 +78,12 @@ export function NewContactDialog({
         name: name.trim(),
         phone: telefono.ok ? telefono.telefono : phone.trim(),
         email: email.trim() || undefined,
-        tipoContacto: tipoContacto || undefined,
+        ...(voc.inmobiliario
+          ? {
+              tiposContacto: tiposContacto as TipoContacto[],
+              ...(oportunidad ? { oportunidad } : {}),
+            }
+          : {}),
         source,
         notes: notes.trim() || undefined,
         stageId: stageId || undefined,
@@ -209,16 +216,28 @@ export function NewContactDialog({
 
           {voc.inmobiliario && (
           <div className="space-y-1.5">
+            <label className="text-sm font-medium" htmlFor="nc-oportunidad">
+              ¿Qué busca?
+            </label>
+            <Select id="nc-oportunidad" value={oportunidad} onValueChange={setOportunidad} className="w-full">
+              <option value="">Nada por ahora (sin oportunidad)</option>
+              {TIPOS_OPORTUNIDAD.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </Select>
             <label className="text-sm font-medium" htmlFor="nc-tipo">
               Tipo de contacto
             </label>
             <Select
               id="nc-tipo"
-              value={tipoContacto}
-              onValueChange={(valor) => setTipoContacto(valor as TipoContacto | "")}
+              multiple
+              values={tiposContacto}
+              placeholder="Sin clasificar"
+              onValuesChange={setTiposContacto}
               className="w-full"
             >
-              <option value="">Sin clasificar</option>
               {TIPOS_CONTACTO.map((t) => (
                 <option key={t.value} value={t.value}>
                   {t.label}
@@ -226,8 +245,8 @@ export function NewContactDialog({
               ))}
             </Select>
             <p className="text-[11px] text-text-3">
-              Como Lead se le abre una oportunidad. Comprador, Inmobiliaria,
-              Proveedor y Propio quedan fuera de la venta y sin IA.
+              Lo que la persona es (puede ser varias cosas). Alquiler, Inmobiliaria,
+              Proveedor y Propio los atiende una persona, sin IA.
             </p>
           </div>
           )}

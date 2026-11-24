@@ -31,14 +31,19 @@ export const GET = withAuth(async (session, _req: Request, ctx: Params) => {
 });
 
 /** Abre una oportunidad nueva (solo para un Lead sin otra abierta). */
-export const POST = withAuth(async (session, _req: Request, ctx: Params) => {
+export const POST = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
   if (!(await puedeVerContacto(alcanceDe(session), id))) return noEncontrado("Ese contacto");
+  // v4 — Lo que busca: Venta, Alquiler o Inmobiliaria (opcional).
+  const cuerpo = (await req.json().catch(() => null)) as { tipo?: unknown } | null;
+  const tipo = cuerpo?.tipo === "venta" || cuerpo?.tipo === "alquiler" || cuerpo?.tipo === "inmobiliaria" ? cuerpo.tipo : null;
   try {
-    await abrirOportunidad(session.organizationId, id, {
-      fuente: "persona",
-      userId: session.userId,
-    });
+    await abrirOportunidad(
+      session.organizationId,
+      id,
+      { fuente: "persona", userId: session.userId },
+      tipo
+    );
     return Response.json(await estadoComercialDelContacto(session.organizationId, id), {
       status: 201,
     });

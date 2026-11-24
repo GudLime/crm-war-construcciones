@@ -121,8 +121,14 @@ export async function GET(req: Request) {
       channel: contact.channel,
       phone: contact.phone,
       ficha: serializeFicha(contact),
-      /** 068 — Lead, comprador, inmobiliaria, proveedor, propio; null = sin clasificar. */
-      tipoContacto: contact.tipoContacto,
+      /** v4 — Lo que la persona es (cliente, proveedor, inquilino, inmobiliaria, propio). */
+      tiposContacto: contact.tiposContacto ?? [],
+      /**
+       * 068 — Alias heredado (un solo valor) para los cerebros ya desplegados:
+       * el primero de la lista, con «cliente» como «comprador». Lo que busca
+       * (Venta, Alquiler) está en la oportunidad.
+       */
+      tipoContacto: ((t) => (t === "cliente" ? "comprador" : (t ?? null)))(contact.tiposContacto?.[0]),
     },
     conversation: {
       id: conversation.id,
