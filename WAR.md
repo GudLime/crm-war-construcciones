@@ -729,3 +729,16 @@ marca de chispas; en el widget suma «Responder en Bandeja».
   tira `BotonesNuevaTarea` (con `modal`) entre la IA y la etapa.
 - **Asignaciones:** orden por llegada (más nuevas / más viejas).
 - **Edificios:** `en_venta` booleano (0065), desplegable Sí/No.
+
+## v3 (24/11) — lo de WAR
+
+- **Visita** (`components/extensiones/cita-visita.tsx`): la tipología en
+  ambientes (1 · 2 · 3 AMB, varias) y las unidades sin piso ni precio (varias,
+  con «+ elegir»), guardadas en la oportunidad al tocarlas (se sincronizan en
+  los dos sentidos). El edificio de la visita se suma a los de interés.
+- **Reunión:** en la oficina de `war_0010` (Salguero 2731, Piso 3, Of. 36).
+- **En venta** (`war_0012`): Sí en Olazábal, Gallo, Lavalle y Urquiza 1872; No
+  en el resto. La importación de Notion lee «Si»/«No».
+- **Sidebar del chat:** salen el contacto y los Datos personales (siguen en la
+  ficha del contacto).
+
