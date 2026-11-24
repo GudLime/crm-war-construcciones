@@ -92,7 +92,8 @@ export const edificioSchema = z.object({
   nombre: z.string().trim().min(1, "El nombre es obligatorio").max(160),
   direccion: texto(400),
   estado: estadoEdificio.optional(),
-  enVenta: texto(400),
+  /** 0065 — Sí / No. Si no viene: al crear, Sí; al editar, no se cambia. */
+  enVenta: z.boolean().optional(),
   /** 0032 — Si no viene, no se cambia. */
   memoriaAgente: z.boolean().optional(),
   notasAgente: texto(4000),
@@ -172,7 +173,7 @@ export type EdificioDto = {
   nombre: string;
   direccion: string | null;
   estado: EstadoEdificio;
-  enVenta: string | null;
+  enVenta: boolean;
   departamentos: number;
   memoriaAgente: boolean;
   notasAgente: string | null;
@@ -469,7 +470,7 @@ export async function crearEdificio(
       nombre: datos.nombre.trim(),
       direccion: oNulo(datos.direccion),
       estado: datos.estado ?? "en_construccion",
-      enVenta: oNulo(datos.enVenta),
+      enVenta: datos.enVenta ?? true,
       memoriaAgente: datos.memoriaAgente ?? false,
       notasAgente: oNulo(datos.notasAgente),
       color: datos.color ?? siguienteColor(usados.map((u) => u.color)),
@@ -499,7 +500,7 @@ export async function editarEdificio(
       nombre: datos.nombre.trim(),
       direccion: oNulo(datos.direccion),
       estado: datos.estado ?? "en_construccion",
-      enVenta: oNulo(datos.enVenta),
+      ...(datos.enVenta !== undefined ? { enVenta: datos.enVenta } : {}),
       ...(datos.memoriaAgente !== undefined ? { memoriaAgente: datos.memoriaAgente } : {}),
       ...(datos.notasAgente !== undefined ? { notasAgente: oNulo(datos.notasAgente) } : {}),
       ...(datos.color !== undefined ? { color: datos.color } : {}),

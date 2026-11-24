@@ -33,8 +33,8 @@ export const edificio = pgTable(
     })
       .notNull()
       .default("en_construccion"),
-    /** Texto libre, como en Notion («unidades de 2 y 3 ambientes»). */
-    enVenta: text("en_venta"),
+    /** 0065 — Si está a la venta (Sí / No). Antes era un texto libre. */
+    enVenta: boolean("en_venta").notNull().default(true),
     /** 0032 — Si está prendido, el edificio y sus unidades van en la memoria del agente. */
     memoriaAgente: boolean("memoria_agente").notNull().default(false),
     /** 0032 — Lo que el agente tiene que saber de este edificio (visitas, entrega, amenities…). */

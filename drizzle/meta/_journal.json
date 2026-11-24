@@ -456,6 +456,13 @@
       "when": 1795475600000,
       "tag": "0064_cita_unica",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1795486400000,
+      "tag": "0065_edificio_en_venta",
+      "breakpoints": true
     }
   ]
 }

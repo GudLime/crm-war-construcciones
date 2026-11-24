@@ -67,6 +67,7 @@ export function BotonesNuevaTarea({
   edificioOportunidad,
   agenda,
   onCreada,
+  modal = false,
 }: {
   oportunidadId: string;
   contacto: { id: string; nombre: string } | null;
@@ -75,6 +76,8 @@ export function BotonesNuevaTarea({
   /** Con la Agenda, «Reunión» crea una cita; sin ella, una tarea. */
   agenda: boolean;
   onCreada: (aviso: string) => Promise<void>;
+  /** v3 — En un panel angosto (el sidebar del chat) la ventanita se abre centrada. */
+  modal?: boolean;
 }) {
   const [abierto, setAbierto] = useState<BotonTipo | null>(null);
   const [flecha, setFlecha] = useState(0);
@@ -108,7 +111,7 @@ export function BotonesNuevaTarea({
   }, [abierto]);
 
   return (
-    <div ref={caja} className="relative flex items-center gap-1">
+    <div ref={caja} className={cn("relative flex items-center gap-1", modal && "flex-wrap")}>
       <span className="mr-1 text-[12px] text-text-3">+ Agregar</span>
       {BOTONES.map((b) => {
         const activo = abierto === b.tipo;
@@ -149,6 +152,7 @@ export function BotonesNuevaTarea({
           key={abierto}
           tipo={abierto}
           flecha={flecha}
+          modal={modal}
           oportunidadId={oportunidadId}
           contacto={contacto}
           edificioOportunidad={edificioOportunidad}
@@ -167,6 +171,7 @@ export function BotonesNuevaTarea({
 function VentanaNuevaTarea({
   tipo,
   flecha,
+  modal = false,
   oportunidadId,
   contacto,
   edificioOportunidad,
@@ -176,6 +181,7 @@ function VentanaNuevaTarea({
 }: {
   tipo: BotonTipo;
   flecha: number;
+  modal?: boolean;
   oportunidadId: string;
   contacto: { id: string; nombre: string } | null;
   edificioOportunidad: { id: string; nombre: string } | null;
@@ -317,7 +323,10 @@ function VentanaNuevaTarea({
     <div
       role="dialog"
       aria-label={ENCABEZADO[tipo]}
-      className="absolute right-0 top-[calc(100%+10px)] z-30 w-[380px] max-w-[calc(100vw-32px)] rounded-[14px] border border-border bg-card shadow-[0_18px_50px_-12px_rgba(15,23,42,0.35)]"
+      className={cn(
+        "z-30 w-[380px] max-w-[calc(100vw-32px)] rounded-[14px] border border-border bg-card shadow-[0_18px_50px_-12px_rgba(15,23,42,0.35)]",
+        modal ? "fixed left-1/2 top-20 z-50 max-h-[calc(100vh-6rem)] -translate-x-1/2 overflow-y-auto" : "absolute right-0 top-[calc(100%+10px)]"
+      )}
       onKeyDown={(e) => {
         if (e.key === "Enter" && !(e.target instanceof HTMLTextAreaElement)) {
           e.preventDefault();
@@ -325,11 +334,13 @@ function VentanaNuevaTarea({
         }
       }}
     >
-      <span
-        aria-hidden
-        className="absolute -top-[6px] size-3 rotate-45 border-l border-t border-border bg-card"
-        style={{ right: Math.max(10, flecha - 6) }}
-      />
+      {!modal && (
+        <span
+          aria-hidden
+          className="absolute -top-[6px] size-3 rotate-45 border-l border-t border-border bg-card"
+          style={{ right: Math.max(10, flecha - 6) }}
+        />
+      )}
       <form onSubmit={(e) => void crear(e)} className="space-y-3 p-4">
         <div className="flex items-start gap-3">
           <span className="grid size-[34px] shrink-0 place-items-center rounded-lg" style={{ background: boton.fondo, color: boton.tinta }}>
