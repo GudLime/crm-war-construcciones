@@ -153,9 +153,14 @@ export const contact = pgTable(
      * clasificar. Solo `lead` entra al proceso de venta (oportunidades) y a
      * la IA; los demás los atiende una persona. Ver specs/068.
      */
-    tipoContacto: text("tipo_contacto", {
-      enum: ["lead", "comprador", "inmobiliaria", "proveedor", "propio"],
-    }),
+    tipoContactoAnterior: text("tipo_contacto"),
+    /**
+     * v4 (0066) — Lo que la persona es, con selección múltiple: cliente,
+     * proveedor, inquilino, inmobiliaria, propio. Lo que busca va en el tipo
+     * de la oportunidad. `tipo_contacto` (uno solo, con «lead») queda solo
+     * para pasar los Lead a oportunidades de Venta al arrancar.
+     */
+    tiposContacto: text("tipos_contacto").array().notNull().default(sql`'{}'::text[]`),
     /** Business-Scoped User ID si se conoce (003). */
     waUserId: text("wa_user_id"),
     name: text("name").notNull(),
@@ -1421,6 +1426,8 @@ export const quickReply = pgTable(
     atajo: text("atajo").notNull(),
     /** Hasta 4 096 caracteres (el tope de WhatsApp). Admite `{nombre}`. */
     texto: text("texto").notNull(),
+    /** 0067 — Fotos y videos que salen con la respuesta (el archivo vive en medios). */
+    adjuntos: jsonb("adjuntos").$type<{ id: string; nombre: string; mime: string; bytes: number }[]>().notNull().default([]),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

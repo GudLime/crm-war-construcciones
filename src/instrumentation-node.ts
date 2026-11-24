@@ -1,3 +1,4 @@
+import { pasarLeadsAVentaAlArrancar } from "@/server/oportunidades";
 import { convertirTareasDeVisitaAlArrancar } from "@/server/agenda/convertir-tareas";
 import { agendaEnabled } from "@/server/agenda/flag";
 import { iniciarTareasProgramadas } from "@/server/tareas-envio";
@@ -138,6 +139,8 @@ export function resumeVentas(): void {
   iniciarBarridoSilencios();
   // v3 — Los WhatsApp programados de las tareas.
   iniciarTareasProgramadas();
+  // v4 — Los contactos que eran «Lead» pasan a tener su oportunidad de Venta.
+  setTimeout(() => void pasarLeadsAVentaAlArrancar(), 20_000).unref?.();
   // v3 — Visita y Reunión son citas: las tareas viejas con fecha pasan solas.
   if (agendaEnabled()) setTimeout(() => void convertirTareasDeVisitaAlArrancar(), 30_000).unref?.();
 }

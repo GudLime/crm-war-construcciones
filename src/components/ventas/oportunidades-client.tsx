@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Tag } from "lucide-react";
+import { Plus, Search, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -19,6 +19,7 @@ import { enFrase } from "@/lib/vocabulario";
 import { OrigenIcono } from "./origen-icono";
 import { SelectorDeColumnas, SelectorDeForma, VistaOportunidades, usePreferenciasDeLista } from "./oportunidades-vistas";
 import { BarraDeFiltros, PestanasDeVistas, useVistas, type Miembro } from "./filtros-oportunidades";
+
 import { situacionACargar } from "@/lib/vistas";
 import { SalonDelDia } from "@/components/reservas/salon-del-dia";
 import type { OrigenDto } from "@/lib/origenes";
@@ -33,6 +34,11 @@ import {
   useMoneda,
 } from "./ui";
 import { Select } from "@/components/ui/select";
+
+/** Minúsculas y sin acentos, para buscar «Olazábal» con «olazabal». */
+function normalizarBusqueda(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
 
 type Contacto = { id: string; name: string | null; phone: string | null };
 
@@ -130,6 +136,18 @@ export function OportunidadesClient({ reservas = false }: { reservas?: boolean }
   const [cargadas, setCargadas] = useState<"abiertas" | "cerradas" | "todas" | null>(null);
   const vistas = useVistas({ filas, cargadas, pref, setPref });
   const situacion = situacionACargar(vistas.filtros);
+  /** v4 — El buscador: se aplica arriba de los filtros, en el navegador. */
+  const [busqueda, setBusqueda] = useState("");
+  const buscadas = useMemo(() => {
+    const t = normalizarBusqueda(busqueda);
+    if (!t) return vistas.visibles;
+    const digitos = t.replace(/\D/g, "");
+    return vistas.visibles.filter((f) => {
+      const texto = normalizarBusqueda([f.nombre, f.contactoNombre, f.contactoEmail].filter(Boolean).join(" "));
+      if (texto.includes(t)) return true;
+      return digitos.length >= 3 && (f.contactoTelefono ?? "").replace(/\D/g, "").includes(digitos);
+    });
+  }, [busqueda, vistas.visibles]);
   /** El equipo, para filtrar por responsable (si la instancia tiene responsables). */
   const [equipo, setEquipo] = useState<Miembro[]>([]);
   useEffect(() => {
@@ -525,6 +543,17 @@ export function OportunidadesClient({ reservas = false }: { reservas?: boolean }
       ) : listo ? (
         <div className="space-y-3">
           <PestanasDeVistas v={vistas} />
+          {/* v4 — Buscar como en Contactos: nombre, contacto, teléfono o email. */}
+          <label className="relative block w-fit">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-3" />
+            <input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar por nombre, teléfono o email…"
+              aria-label="Buscar oportunidad"
+              className="h-8 w-72 rounded-full border border-border bg-card pl-9 pr-3 text-[13px]"
+            />
+          </label>
           <BarraDeFiltros
             v={vistas}
             equipo={equipo}
@@ -546,7 +575,7 @@ export function OportunidadesClient({ reservas = false }: { reservas?: boolean }
               if (!res?.ok) avisar(res ? await mensajeDe(res) : "No se pudo mover", "error");
               void cargar();
             }}
-            filas={vistas.visibles}
+            filas={buscadas}
             forma={pref.forma}
             pref={pref}
             setPref={setPref}

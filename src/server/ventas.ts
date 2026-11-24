@@ -214,6 +214,9 @@ export type OportunidadDto = {
   origen: string | null;
   contactId: string | null;
   contactoNombre: string | null;
+  /** v4 — Para el buscador de Oportunidades. */
+  contactoTelefono?: string | null;
+  contactoEmail?: string | null;
   edificioId: string | null;
   edificioNombre: string | null;
   departamentoId: string | null;
@@ -769,6 +772,8 @@ export async function listarOportunidades(
     .select({
       op: schema.oportunidad,
       contactoNombre: schema.contact.name,
+      contactoTelefono: schema.contact.phone,
+      contactoEmail: schema.contact.email,
       edificioNombre: schema.edificio.nombre,
       unidad: schema.departamento.unidad,
     })
@@ -785,8 +790,8 @@ export async function listarOportunidades(
     formulariosDeOportunidades(organizationId, ids),
     leerAjustesVentas(organizationId),
   ]);
-  return filas.map((f) =>
-    aOportunidad(
+  return filas.map((f) => ({
+    ...aOportunidad(
       f.op,
       {
         contactoNombre: f.contactoNombre,
@@ -796,8 +801,10 @@ export async function listarOportunidades(
       intereses.get(f.op.id),
       formularios.get(f.op.id) ?? 0,
       ajustes
-    )
-  );
+    ),
+    contactoTelefono: f.contactoTelefono,
+    contactoEmail: f.contactoEmail,
+  }));
 }
 
 async function valoresOportunidad(

@@ -9,7 +9,7 @@ export type OrdenContacto = (typeof ORDENES_CONTACTO)[number];
 
 const FUENTES = ["anuncio", "organico", "referido", "conocido", "otro", "desconocida"] as const;
 export type FuenteFiltro = (typeof FUENTES)[number];
-const TIPOS = ["lead", "comprador", "inmobiliaria", "proveedor", "propio", "sin"] as const;
+const TIPOS = ["cliente", "proveedor", "inquilino", "inmobiliaria", "propio", "sin"] as const;
 export type TipoFiltro = (typeof TIPOS)[number];
 
 export type FiltrosContactos = {

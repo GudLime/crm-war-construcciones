@@ -7,7 +7,6 @@ import {
   ESTADOS_ABIERTOS,
   ESTADOS_OPORTUNIDAD,
   MAX_AMBIENTES,
-  TIPOS_QUE_CLASIFICA_LA_IA,
   ambientesDeTipologia,
   etiqueta,
   normalizarTipoContacto,
@@ -16,11 +15,11 @@ import {
   resolverEdificiosPorNombre,
   resolverEstadoOportunidad,
   siguientesParaLaIA,
-  tipoExcluyeDeVenta,
+  tiposValidos,
   type EstadoOportunidad,
   type TipoContacto,
+  type TipoOportunidad,
 } from "@/lib/ventas";
-import { pauseConversations } from "@/server/contacts-import";
 import {
   cambiarEstadoOportunidad,
   leerAjustesVentas,
@@ -34,7 +33,6 @@ import { seReabre, textoSinRespuesta } from "@/lib/ventas-ajustes";
 import { publish } from "@/server/events/bus";
 import { ajustarInteres } from "@/server/motor/interes";
 import { asignarLeadDeMeta } from "@/server/asignacion";
-import { vocabulario } from "@/server/vocabulario";
 import { VentasError } from "@/server/ventas";
 
 /**
@@ -55,6 +53,8 @@ export type OportunidadDelChat = {
   id: string;
   nombre: string;
   estado: EstadoOportunidad;
+  /** v4 — Lo que busca: Venta, Alquiler o Inmobiliaria. */
+  tipo: TipoOportunidad | null;
   motivoCierre: string | null;
   edificios: { id: string; nombre: string }[];
   /** 0047 — Ambientes de interés (números). */
@@ -67,7 +67,8 @@ export type OportunidadDelChat = {
 };
 
 export type EstadoComercialDto = {
-  tipoContacto: TipoContacto | null;
+  /** v4 — Lo que la persona es (selección múltiple). */
+  tiposContacto: TipoContacto[];
   abierta: OportunidadDelChat | null;
   /** Cuántas oportunidades cerradas tuvo antes este contacto. */
   anteriores: number;
@@ -89,7 +90,7 @@ async function contactoDe(organizationId: string, contactId: string) {
     .select({
       id: schema.contact.id,
       name: schema.contact.name,
-      tipoContacto: schema.contact.tipoContacto,
+      tiposContacto: schema.contact.tiposContacto,
       aiPaused: schema.contact.aiPaused,
     })
     .from(schema.contact)
@@ -176,6 +177,7 @@ async function aDelChat(
     id: op.id,
     nombre: op.nombre,
     estado: op.estado,
+    tipo: op.tipo ?? null,
     motivoCierre: op.motivoCierre,
     edificios: interes.edificios,
     ambientes: interes.ambientes,
@@ -213,7 +215,7 @@ export async function estadoComercialDelContacto(
       .orderBy(asc(schema.edificio.nombre)),
   ]);
   return {
-    tipoContacto: contacto.tipoContacto,
+    tiposContacto: tiposValidos(contacto.tiposContacto),
     abierta: abierta ? await aDelChat(organizationId, abierta) : null,
     anteriores: Number(cerradas?.n ?? 0),
     edificios,
@@ -276,20 +278,21 @@ async function conRespuestaPrevia(
 export async function abrirOportunidad(
   organizationId: string,
   contactId: string,
-  actor: Actor = { fuente: "sistema" }
+  actor: Actor = { fuente: "sistema" },
+  /** v4 — Lo que busca: Venta, Alquiler o Inmobiliaria. */
+  tipo: TipoOportunidad | null = null
 ): Promise<FilaOportunidad> {
   const existente = await oportunidadAbierta(organizationId, contactId);
-  if (existente) return existente;
+  if (existente) {
+    // La que ya estaba abierta sin tipo toma el que se detectó.
+    if (tipo && !existente.tipo) {
+      await getDb().update(schema.oportunidad).set({ tipo, updatedAt: new Date() }).where(eq(schema.oportunidad.id, existente.id));
+      return { ...existente, tipo };
+    }
+    return existente;
+  }
   const contacto = await contactoDe(organizationId, contactId);
   if (!contacto) throw new VentasError(404, "not_found", "Ese contacto no existe");
-  // 071 — Sin lo inmobiliario no hay tipo de contacto: cualquiera puede tener una.
-  if ((await vocabulario()).inmobiliario && contacto.tipoContacto !== "lead") {
-    throw new VentasError(
-      409,
-      "no_es_lead",
-      "Solo un contacto de tipo Lead tiene oportunidades de venta"
-    );
-  }
   try {
     const [nueva] = await getDb()
       .insert(schema.oportunidad)
@@ -299,6 +302,7 @@ export async function abrirOportunidad(
         nombre: contacto.name,
         contactId,
         estado: "recibido",
+        ...(tipo ? { tipo } : {}),
       })
       .returning();
     await registrarCreada(organizationId, nueva!, actor);
@@ -338,14 +342,15 @@ export async function registrarInteraccionDelContacto(input: {
     await registrarRespuesta({ organizationId, contactId, at });
     return;
   }
-  const contacto = await contactoDe(organizationId, contactId);
-  if (contacto?.tipoContacto !== "lead") return;
+  // v4 — Sin «Lead»: vuelve a la venta quien ya tuvo una oportunidad. Quien
+  // nunca tuvo la arma el agente o el lector al leer el chat.
+  const ajustes = await leerAjustesVentas(organizationId);
+  const previa = await ultimaCerrada(organizationId, contactId);
+  if (!previa) return;
 
   // Se había perdido hace poco (por ejemplo, cerrada por no responder): se
   // reabre LA MISMA, con su formulario y su campaña, en el estado que tenía.
-  const ajustes = await leerAjustesVentas(organizationId);
-  const previa = await ultimaCerrada(organizationId, contactId);
-  if (previa && seReabre(previa.op, ajustes, at)) {
+  if (seReabre(previa.op, ajustes, at)) {
     await cambiarEstadoOportunidad({
       organizationId,
       oportunidadId: previa.op.id,
@@ -359,8 +364,8 @@ export async function registrarInteraccionDelContacto(input: {
       .set({ ultimaInteraccion: at })
       .where(eq(schema.oportunidad.id, previa.op.id));
   } else {
-    // Volvió a consultar después de la ventana (o nunca tuvo): una nueva.
-    const nueva = await abrirOportunidad(organizationId, contactId);
+    // Volvió a consultar después de la ventana: una nueva, del mismo tipo.
+    const nueva = await abrirOportunidad(organizationId, contactId, { fuente: "sistema" }, previa.op.tipo ?? null);
     await getDb()
       .update(schema.oportunidad)
       .set({
@@ -390,66 +395,87 @@ export async function avisarConversaciones(organizationId: string, contactId: st
 }
 
 /**
- * Clasifica un contacto.
- *
- * - `ia`: solo si está sin clasificar, y nunca como `propio`. Una persona
- *   manda: la IA no pisa lo que alguien decidió.
- * - `persona`: cualquier tipo, o `null` para volver a "sin clasificar".
- *
- * Efectos: `lead` abre la oportunidad; los tipos fuera de la venta apagan el
- * agente para ese contacto (lo atiende una persona). Si una persona lo pasa de
- * un tipo excluido a `lead`, el agente vuelve a estar disponible.
+ * v4 — Lo que la persona ES (selección múltiple). Una persona cambia la lista
+ * entera; la IA solo SUMA (nunca quita, nunca pone «propio»): no pisa lo que
+ * alguien decidió.
  */
-export async function clasificarContacto(input: {
+export async function cambiarTiposContacto(input: {
   organizationId: string;
   contactId: string;
-  tipo: TipoContacto | null;
+  tipos: readonly TipoContacto[];
   fuente: "ia" | "persona";
-  /** War — quién (si fue una persona), para el historial. */
   userId?: string | null;
-}): Promise<{ changed: boolean; tipo: TipoContacto | null }> {
-  const { organizationId, contactId, tipo, fuente } = input;
-  const actor: Actor =
-    fuente === "ia" ? { fuente: "ia" } : { fuente: "persona", userId: input.userId ?? null };
+}): Promise<{ changed: boolean; tipos: TipoContacto[] }> {
+  const { organizationId, contactId, fuente } = input;
   const contacto = await contactoDe(organizationId, contactId);
   if (!contacto) throw new VentasError(404, "not_found", "Ese contacto no existe");
-
-  if (fuente === "ia") {
-    if (contacto.tipoContacto != null) return { changed: false, tipo: contacto.tipoContacto };
-    if (!tipo || !TIPOS_QUE_CLASIFICA_LA_IA.includes(tipo)) {
-      return { changed: false, tipo: contacto.tipoContacto };
-    }
-  }
-  if (contacto.tipoContacto === tipo) {
-    if (tipo === "lead") await abrirOportunidad(organizationId, contactId, actor);
-    return { changed: false, tipo };
-  }
-
-  const antes = contacto.tipoContacto;
-  const excluyeAhora = tipoExcluyeDeVenta(tipo);
-  const excluiaAntes = tipoExcluyeDeVenta(antes);
-
+  const antes = tiposValidos(contacto.tiposContacto);
+  const pedidos = tiposValidos(input.tipos).filter((t) => fuente === "persona" || t !== "propio");
+  const despues = fuente === "ia" ? tiposValidos([...antes, ...pedidos]) : pedidos;
+  if (despues.join() === antes.join()) return { changed: false, tipos: antes };
   await getDb()
     .update(schema.contact)
-    .set({
-      tipoContacto: tipo,
-      updatedAt: new Date(),
-      ...(excluyeAhora ? { aiPaused: true } : excluiaAntes ? { aiPaused: false } : {}),
-    })
+    .set({ tiposContacto: despues, updatedAt: new Date() })
     .where(scoped(schema.contact.organizationId, organizationId, eq(schema.contact.id, contactId)));
-
-  // Una persona corta la IA en el acto. Si clasifica la IA, la conversación
-  // NO se pausa aquí: el agente todavía tiene que despedirse y derivar en
-  // este mismo turno; el despacho deja de mandarle mensajes desde el próximo.
-  if (excluyeAhora && fuente === "persona") {
-    await pauseConversations(organizationId, [contactId], true);
-  } else if (excluiaAntes) {
-    await pauseConversations(organizationId, [contactId], false);
-  }
-  if (tipo === "lead") await abrirOportunidad(organizationId, contactId, actor);
-
   await avisarConversaciones(organizationId, contactId);
-  return { changed: true, tipo };
+  return { changed: true, tipos: despues };
+}
+
+/**
+ * v4 — Lo que la IA detectó (lo que dejó el agente o el lector): abre o
+ * completa la oportunidad con lo que busca y suma lo que la persona es.
+ */
+export async function aplicarClasificacionIa(input: {
+  organizationId: string;
+  contactId: string;
+  oportunidad: TipoOportunidad | null;
+  contacto: TipoContacto | null;
+}): Promise<void> {
+  if (input.contacto) {
+    await cambiarTiposContacto({
+      organizationId: input.organizationId,
+      contactId: input.contactId,
+      tipos: [input.contacto],
+      fuente: "ia",
+    });
+  }
+  if (input.oportunidad) {
+    await abrirOportunidad(input.organizationId, input.contactId, { fuente: "ia" }, input.oportunidad);
+    await avisarConversaciones(input.organizationId, input.contactId);
+  }
+}
+
+/**
+ * v4 — Al arrancar: los contactos que eran «Lead» (el tipo viejo) pasan a
+ * tener su oportunidad de Venta. Si ya tuvieron alguna, no se crea otra (la
+ * abierta sin tipo ya quedó en Venta con la migración 0066). Re-ejecutable:
+ * marca cada uno al terminar. Nunca tumba el arranque.
+ */
+export async function pasarLeadsAVentaAlArrancar(): Promise<void> {
+  try {
+    const db = getDb();
+    const leads = await db
+      .select({ id: schema.contact.id, organizationId: schema.contact.organizationId })
+      .from(schema.contact)
+      .where(eq(schema.contact.tipoContactoAnterior, "lead"))
+      .limit(5000);
+    let creadas = 0;
+    for (const c of leads) {
+      const [alguna] = await db
+        .select({ id: schema.oportunidad.id })
+        .from(schema.oportunidad)
+        .where(scoped(schema.oportunidad.organizationId, c.organizationId, eq(schema.oportunidad.contactId, c.id)))
+        .limit(1);
+      if (!alguna) {
+        await abrirOportunidad(c.organizationId, c.id, { fuente: "sistema" }, "venta").catch(() => null);
+        creadas++;
+      }
+      await db.update(schema.contact).set({ tipoContactoAnterior: null }).where(eq(schema.contact.id, c.id));
+    }
+    if (leads.length) console.log(`[v4] ${leads.length} contacto(s) Lead pasados a Venta (${creadas} oportunidad(es) nueva(s))`);
+  } catch (err) {
+    console.error("[v4] no se pudieron pasar los Lead a Venta:", err instanceof Error ? err.message : err);
+  }
 }
 
 async function edificiosValidos(organizationId: string, ids: readonly string[]): Promise<string[]> {
@@ -662,8 +688,8 @@ export async function aplicarFichaDelCerebro(input: {
   if (input.esPrueba) return;
   const { organizationId, contactId, ficha } = input;
   try {
-    const tipo = normalizarTipoContacto(ficha[CLAVES_FICHA_WAR.tipo]);
-    if (tipo) await clasificarContacto({ organizationId, contactId, tipo, fuente: "ia" });
+    const clasificacion = normalizarTipoContacto(ficha[CLAVES_FICHA_WAR.tipo]);
+    if (clasificacion) await aplicarClasificacionIa({ organizationId, contactId, ...clasificacion });
 
     const rawEdificios = ficha[CLAVES_FICHA_WAR.edificios];
     const tipologias = normalizarTipologias(ficha[CLAVES_FICHA_WAR.tipologias]);
@@ -709,10 +735,9 @@ export async function leadParaElCerebro(
   organizationId: string,
   contactId: string
 ): Promise<LeadParaElCerebro | null> {
-  const contacto = await contactoDe(organizationId, contactId);
-  if (!contacto || contacto.tipoContacto !== "lead") return null;
+  // v4 — El cerebro mueve la oportunidad abierta de Venta (o sin tipo).
   const abierta = await oportunidadAbierta(organizationId, contactId);
-  if (!abierta) return null;
+  if (!abierta || (abierta.tipo && abierta.tipo !== "venta")) return null;
   return {
     id: abierta.id,
     stageName: etiqueta(ESTADOS_OPORTUNIDAD, abierta.estado),

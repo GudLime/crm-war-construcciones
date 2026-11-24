@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import {
   AMBIENTES,
   TIPOS_CONTACTO,
+  TIPOS_OPORTUNIDAD,
   etiquetaAmbientes,
   type EstadoOportunidad,
   type TipoContacto,
@@ -16,13 +17,20 @@ import { useVocabulario } from "@/components/vocabulario";
 import { enFrase, nombreEstado } from "@/lib/vocabulario";
 import type { EstadoComercialDto } from "@/server/oportunidades";
 import { Select } from "@/components/ui/select";
+import { ExtraOportunidadChat } from "@/components/extensiones/oportunidad-chat";
 
-const AVISO_EXCLUIDO: Record<Exclude<TipoContacto, "lead">, string> = {
-  comprador: "Ya compró: fuera del proceso de venta. Lo atiende una persona, sin IA.",
-  inmobiliaria: "Inmobiliaria: fuera del proceso de venta. La atiende una persona, sin IA.",
-  proveedor: "Proveedor: fuera del proceso de venta. Lo atiende una persona.",
-  propio: "Propio de WAR: fuera del proceso de venta. Sin IA.",
-};
+/** v4 — Con quién NO habla la IA (lo atiende una persona). */
+function avisoSinIa(tipos: readonly TipoContacto[], tipoOportunidad: string | null | undefined, conAbierta: boolean): string | null {
+  if (conAbierta) {
+    if (tipoOportunidad === "alquiler") return "Alquiler: lo atiende una persona, sin IA.";
+    if (tipoOportunidad === "inmobiliaria") return "Inmobiliaria: la atiende una persona, sin IA.";
+    return null;
+  }
+  if (tipos.includes("propio")) return "Propio de WAR: sin IA.";
+  if (tipos.includes("proveedor")) return "Proveedor: lo atiende una persona, sin IA.";
+  if (tipos.includes("inmobiliaria")) return "Inmobiliaria: la atiende una persona, sin IA.";
+  return null;
+}
 
 /**
  * 068 — Lo comercial del contacto en el panel del chat: qué tipo de contacto
@@ -50,7 +58,8 @@ export function OportunidadPanel({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [motivo, setMotivo] = useState("");
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [avisoTarea, setAvisoTarea] = useState<string | null>(null);
+  const [tipoNueva, setTipoNueva] = useState("venta");
   const voc = useVocabulario();
   const singular = enFrase(voc.singular);
 
@@ -88,14 +97,14 @@ export function OportunidadPanel({
       setError(data?.error?.message ?? "No se pudo guardar");
       return;
     }
-    if (data && "tipoContacto" in data) setDatos(data);
+    if (data && "tiposContacto" in data) setDatos(data);
     else void cargar();
   }
 
-  async function cambiarTipo(valor: string) {
+  async function cambiarTipos(tiposContacto: string[]) {
     await pedir(`/api/contacts/${contactId}`, {
       method: "PATCH",
-      body: JSON.stringify({ tipoContacto: valor || null }),
+      body: JSON.stringify({ tiposContacto }),
     });
     void cargar();
   }
@@ -114,43 +123,66 @@ export function OportunidadPanel({
   }
 
   if (!datos) return null;
-  const { tipoContacto, abierta } = datos;
+  const { tiposContacto, abierta } = datos;
   const pasoActual = abierta ? voc.camino.indexOf(abierta.estado) : -1;
-  // 071 — Sin lo inmobiliario no hay tipo de contacto: todos tienen su sección.
-  const conVenta = !voc.inmobiliario || tipoContacto === "lead";
+  const aviso = avisoSinIa(tiposContacto, abierta?.tipo, Boolean(abierta));
+  const Extra = enChat && abierta ? ExtraOportunidadChat : null;
+
+  /** El interés de la oportunidad: edificio, tipología (ambientes) y, con la extensión, unidades. */
+  const interes =
+    abierta && voc.inmobiliario ? (
+      <>
+        <p className="mb-1.5 text-[11px] font-medium text-text-2">{enChat ? "Edificio" : "Edificios de interés"}</p>
+        <Chips
+          opciones={datos.edificios.map((e) => ({ value: e.id, label: e.nombre }))}
+          elegidos={abierta.edificios.map((e) => e.id)}
+          vacio="Todavía no hay edificios cargados."
+          disabled={guardando}
+          onCambio={(edificioIds) => cambiarOportunidad({ edificioIds })}
+        />
+        <p className="mb-1.5 mt-3 text-[11px] font-medium text-text-2">{enChat ? "Tipología" : "Ambientes de interés"}</p>
+        <Chips
+          opciones={AMBIENTES.map((n) => ({ value: String(n), label: etiquetaAmbientes(n) }))}
+          elegidos={abierta.ambientes.map(String)}
+          disabled={guardando}
+          onCambio={(valores) => cambiarOportunidad({ ambientes: valores.map(Number) })}
+        />
+        {Extra && (
+          <div className="mt-3">
+            <Extra oportunidadId={abierta.id} refreshKey={refreshKey} />
+          </div>
+        )}
+      </>
+    ) : null;
 
   return (
     <section className="border-b p-4">
       {voc.inmobiliario && !enChat && (
-      <>
-      <p className="kicker mb-2">Tipo de contacto</p>
-      <Select
-        aria-label="Tipo de contacto"
-        value={tipoContacto ?? ""}
-        disabled={guardando}
-        onValueChange={(valor) => void cambiarTipo(valor)}
-        className="w-full"
-      >
-        <option value="">Sin clasificar</option>
-        {TIPOS_CONTACTO.map((t) => (
-          <option key={t.value} value={t.value}>
-            {t.label}
-          </option>
-        ))}
-      </Select>
-      {tipoContacto == null && (
-        <p className="mt-1.5 text-[11px] text-text-3">
-          La IA lo clasifica cuando la conversación lo deja claro. Recién como Lead
-          se abre la oportunidad.
-        </p>
+        <>
+          <p className="kicker mb-2">Tipo de contacto</p>
+          <Select
+            multiple
+            aria-label="Tipo de contacto"
+            values={tiposContacto}
+            placeholder="Sin clasificar"
+            disabled={guardando}
+            onValuesChange={(valores) => void cambiarTipos(valores)}
+            className="w-full"
+          >
+            {TIPOS_CONTACTO.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </Select>
+          <p className="mt-1.5 text-[11px] text-text-3">
+            Lo que la persona es: puede ser varias cosas. Lo que busca (comprar, alquilar) va en la {singular}.
+          </p>
+        </>
       )}
-      {tipoContacto && tipoContacto !== "lead" && (
-        <p className="mt-1.5 text-[11px] text-text-3">{AVISO_EXCLUIDO[tipoContacto]}</p>
-      )}
-      </>
-      )}
+      {aviso && <p className="mt-1.5 text-[11px] text-text-3">{aviso}</p>}
 
-      {conVenta && (
+      {(
         <div className={voc.inmobiliario && !enChat ? "mt-4" : undefined}>
           {enChat && abierta && (
             <div className="mb-4">
@@ -161,13 +193,14 @@ export function OportunidadPanel({
                 edificioOportunidad={abierta.edificios[0] ?? null}
                 agenda={agenda}
                 onCreada={async (texto) => {
-                  setAviso(texto);
+                  setAvisoTarea(texto);
                   await cargar();
                 }}
               />
-              {aviso && <p className="mt-2 text-[11.5px] text-success-text">{aviso}</p>}
+              {avisoTarea && <p className="mt-2 text-[11.5px] text-success-text">{avisoTarea}</p>}
             </div>
           )}
+          {enChat && interes && <div className="mb-4">{interes}</div>}
           <div className="mb-3 flex items-baseline justify-between gap-2">
             <p className="kicker">{voc.singular}</p>
             {datos.anteriores > 0 && (
@@ -180,15 +213,32 @@ export function OportunidadPanel({
           {!abierta ? (
             <div className="rounded-md border bg-subtle p-3">
               <p className="text-[12px] text-text-2">No tiene una {singular} abierta.</p>
+              {voc.inmobiliario && (
+                <Select
+                  aria-label="Qué busca"
+                  value={tipoNueva}
+                  onValueChange={setTipoNueva}
+                  className="mt-2 h-8 w-full text-[12px]"
+                >
+                  {TIPOS_OPORTUNIDAD.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </Select>
+              )}
               <Button
                 size="sm"
                 className="mt-2 w-full"
                 disabled={guardando}
                 onClick={() =>
-                  void pedir(`/api/contacts/${contactId}/oportunidad`, { method: "POST" })
+                  void pedir(`/api/contacts/${contactId}/oportunidad`, {
+                    method: "POST",
+                    body: JSON.stringify(voc.inmobiliario ? { tipo: tipoNueva } : {}),
+                  })
                 }
               >
-                Abrir {singular} nueva
+                Crear {singular}
               </Button>
             </div>
           ) : (
@@ -281,26 +331,7 @@ export function OportunidadPanel({
                 </div>
               </div>
 
-              {voc.inmobiliario && (
-              <>
-              <p className="mb-1.5 mt-4 text-[11px] font-medium text-text-2">Edificios de interés</p>
-              <Chips
-                opciones={datos.edificios.map((e) => ({ value: e.id, label: e.nombre }))}
-                elegidos={abierta.edificios.map((e) => e.id)}
-                vacio="Todavía no hay edificios cargados."
-                disabled={guardando}
-                onCambio={(edificioIds) => cambiarOportunidad({ edificioIds })}
-              />
-
-              <p className="mb-1.5 mt-3 text-[11px] font-medium text-text-2">Ambientes de interés</p>
-              <Chips
-                opciones={AMBIENTES.map((n) => ({ value: String(n), label: etiquetaAmbientes(n) }))}
-                elegidos={abierta.ambientes.map(String)}
-                disabled={guardando}
-                onCambio={(valores) => cambiarOportunidad({ ambientes: valores.map(Number) })}
-              />
-              </>
-              )}
+              {!enChat && interes && <div className="mt-4">{interes}</div>}
             </>
           )}
         </div>

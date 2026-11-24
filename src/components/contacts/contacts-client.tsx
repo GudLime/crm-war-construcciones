@@ -288,11 +288,11 @@ export function ContactsClient({ reservas = false }: { reservas?: boolean }) {
                         deducción como dato la volvería un número inventado en
                         cuanto se cuente por fuente. */}
                     {/* 068 */}
-                    {c.tipoContacto && (
-                      <Badge variant={c.tipoContacto === "lead" ? "default" : "secondary"}>
-                        {etiqueta(TIPOS_CONTACTO, c.tipoContacto)}
+                    {(c.tiposContacto ?? []).map((t) => (
+                      <Badge key={t} variant="secondary">
+                        {etiqueta(TIPOS_CONTACTO, t)}
                       </Badge>
-                    )}
+                    ))}
                     {/* 071 — En un restaurante «Otro» es quien entró por una reserva: no dice nada. */}
                     {c.source?.source === "capturada" && !(personas && c.source.value === "otro") && (
                       <Badge variant="secondary">
@@ -429,16 +429,14 @@ function EditDialog({
     name: string;
     notes: string;
     email?: string | null;
-    tipoContacto?: TipoContacto | null;
+    tiposContacto?: TipoContacto[];
     aiPaused?: boolean;
   }) => Promise<void>;
 }) {
   const voc = useVocabulario();
   const [name, setName] = useState(contact.name);
   const [email, setEmail] = useState(contact.email ?? "");
-  const [tipoContacto, setTipoContacto] = useState<TipoContacto | "">(
-    contact.tipoContacto ?? ""
-  );
+  const [tiposContacto, setTiposContacto] = useState<string[]>(contact.tiposContacto ?? []);
   const [notes, setNotes] = useState(contact.notes ?? "");
   const emailValido = emailOpcionalValido(email);
   const [aiPaused, setAiPaused] = useState(contact.aiPaused ?? false);
@@ -471,11 +469,12 @@ function EditDialog({
             </label>
             <Select
               id="edit-tipo"
-              value={tipoContacto}
-              onValueChange={(valor) => setTipoContacto(valor as TipoContacto | "")}
+              multiple
+              values={tiposContacto}
+              placeholder="Sin clasificar"
+              onValuesChange={setTiposContacto}
               className="w-full"
             >
-              <option value="">Sin clasificar</option>
               {TIPOS_CONTACTO.map((t) => (
                 <option key={t.value} value={t.value}>
                   {t.label}
@@ -542,8 +541,8 @@ function EditDialog({
                 name: name.trim(),
                 notes,
                 // Solo si cambió; vacío lo borra.
-                ...(tipoContacto !== (contact.tipoContacto ?? "")
-                  ? { tipoContacto: tipoContacto || null }
+                ...(tiposContacto.join() !== (contact.tiposContacto ?? []).join()
+                  ? { tiposContacto: tiposContacto as TipoContacto[] }
                   : {}),
                 ...(email.trim() !== (contact.email ?? "")
                   ? { email: email.trim() || null }

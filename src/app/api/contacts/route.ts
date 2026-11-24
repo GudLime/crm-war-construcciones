@@ -1,7 +1,7 @@
 import { asc, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { VALORES_TIPO_CONTACTO, type TipoContacto } from "@/lib/ventas";
-import { clasificarContacto } from "@/server/oportunidades";
+import { abrirOportunidad, cambiarTiposContacto } from "@/server/oportunidades";
 import { apiError, parseBody, withAuth } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
@@ -81,7 +81,11 @@ export const GET = withAuth(async (session, req: Request) => {
     const condiciones = [
       search,
       f.archivados ? isNotNull(c.archivedAt) : isNull(c.archivedAt),
-      f.tipo ? (f.tipo === "sin" ? isNull(c.tipoContacto) : eq(c.tipoContacto, f.tipo as TipoContacto)) : undefined,
+      f.tipo
+        ? f.tipo === "sin"
+          ? sql`cardinality(${c.tiposContacto}) = 0`
+          : sql`${f.tipo} = ANY(${c.tiposContacto})`
+        : undefined,
       f.fuente ? (f.fuente === "desconocida" ? isNull(c.source) : eq(c.source, f.fuente)) : undefined,
       f.agente === "con" ? eq(c.aiPaused, false) : f.agente === "sin" ? eq(c.aiPaused, true) : undefined,
       contactoVisible(alcanceDe(session), c.id),
@@ -150,7 +154,10 @@ const createSchema = z.object({
    */
   phone: z.string().trim().min(1, "Falta el teléfono").max(40),
   /** 068 — Tipo de contacto elegido al darlo de alta; sin él queda sin clasificar. */
-  tipoContacto: z.enum(VALORES_TIPO_CONTACTO as [TipoContacto, ...TipoContacto[]]).optional(),
+  /** v4 — Lo que la persona es (selección múltiple). */
+  tiposContacto: z.array(z.enum(VALORES_TIPO_CONTACTO as [TipoContacto, ...TipoContacto[]])).max(10).optional(),
+  /** v4 — Abrirle ya una oportunidad de este tipo (Venta, Alquiler, Inmobiliaria). */
+  oportunidad: z.enum(["venta", "alquiler", "inmobiliaria"]).optional(),
   /** War: correo opcional. Informativo; la identidad sigue siendo el teléfono. */
   email: z.string().trim().max(254).email("Correo no válido").optional(),
   notes: z.string().max(4000).optional(),
@@ -216,16 +223,26 @@ export const POST = withAuth(async (session, req: Request) => {
     );
   }
 
-  // 068 — Clasificarlo abre su oportunidad (si es Lead) o le apaga el agente.
+  // v4 — Lo que es va al contacto; lo que busca abre su oportunidad.
   let creado = inserted[0];
-  if (body.data.tipoContacto) {
-    await clasificarContacto({
-      organizationId: session.organizationId,
-      contactId: creado.id,
-      tipo: body.data.tipoContacto,
-      fuente: "persona",
-      userId: session.userId,
-    });
+  if (body.data.tiposContacto?.length || body.data.oportunidad) {
+    if (body.data.tiposContacto?.length) {
+      await cambiarTiposContacto({
+        organizationId: session.organizationId,
+        contactId: creado.id,
+        tipos: body.data.tiposContacto,
+        fuente: "persona",
+        userId: session.userId,
+      });
+    }
+    if (body.data.oportunidad) {
+      await abrirOportunidad(
+        session.organizationId,
+        creado.id,
+        { fuente: "persona", userId: session.userId },
+        body.data.oportunidad
+      );
+    }
     const [fresco] = await db
       .select()
       .from(schema.contact)

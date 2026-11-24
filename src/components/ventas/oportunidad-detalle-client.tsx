@@ -1393,7 +1393,7 @@ function TarjetaContacto({ contacto }: { contacto: OportunidadDetalleDto["contac
             <span className="block truncate font-semibold">{contacto.nombre}</span>
             <span className="block text-[12px] font-normal text-text-3">
               {voc.inmobiliario &&
-                `${contacto.tipoContacto ? etiqueta(TIPOS_CONTACTO, contacto.tipoContacto) : "Sin clasificar"} · `}
+                `${contacto.tiposContacto.length ? contacto.tiposContacto.map((t) => etiqueta(TIPOS_CONTACTO, t)).join(" · ") : "Sin clasificar"} · `}
               {`desde ${fecha(contacto.creadoAt, false)}`}
             </span>
           </span>

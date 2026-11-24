@@ -107,7 +107,9 @@ export function ContactoClient({ reservas = false }: { reservas?: boolean }) {
               <h1 className="truncate text-[22px] font-bold tracking-tight">{contacto.name}</h1>
               {voc.inmobiliario && (
                 <p className="text-[13px] text-text-3">
-                  {contacto.tipoContacto ? etiqueta(TIPOS_CONTACTO, contacto.tipoContacto) : "Sin clasificar"}
+                  {contacto.tiposContacto?.length
+                    ? contacto.tiposContacto.map((t) => etiqueta(TIPOS_CONTACTO, t)).join(" · ")
+                    : "Sin clasificar"}
                 </p>
               )}
               <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-[13.5px]">
