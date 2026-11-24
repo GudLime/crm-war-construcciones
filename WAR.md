@@ -672,7 +672,7 @@ marca de chispas; en el widget suma «Responder en Bandeja».
   (`components/extensiones/llamada-atendida.tsx`, archivo propio de WAR que el
   núcleo no toca): edificio y ambientes (se guardan al tocarlos, como en
   Interés) y una unidad en particular del interés encadenado (se vincula al
-  Guardar). La tipología «1A» no está: se elige en la oportunidad.
+  Guardar). La tipología («1A», «2B») se suma en la v2 (punto 1).
 - **Derivaciones → Gloria** (`war_0011`): si Gloria no tiene usuario todavía,
   queda vacío y se elige en Ajustes → Ventas.
 - **Primera llamada del cartel:** es configuración. En Ajustes → Plantillas de
@@ -695,3 +695,11 @@ marca de chispas; en el widget suma «Responder en Bandeja».
   con un orden elegido no agrupa por fecha), Contactos (orden en el servidor),
   Edificios, Unidades del edificio y los objetos del cliente. Oportunidades
   suma mover columnas (`posiciones` en sus preferencias).
+- **Ventana de detalle** (punto 2): `components/ventas/ventana-tarea.tsx`
+  (`VentanaTarea`, `VentanaCita`) con `components/ui/campo-fecha.tsx`. Se abre
+  desde el widget del Inicio, la pantalla Tareas y el Calendario (las citas;
+  los bloqueos siguen con su panel). `GET /api/tareas/[id]` trae la tarea con
+  el teléfono y el correo del contacto.
+- **WAR — tipología en «¿Qué buscaba?»** (punto 1): pastillas con las unidades
+  tipo de los edificios elegidos (`departamento.tipologia_unidad`), opcional y
+  de selección múltiple; se guarda al tocarla en `tipologiasUnidad`.
