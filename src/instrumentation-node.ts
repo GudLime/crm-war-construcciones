@@ -1,3 +1,4 @@
+import { iniciarTareasProgramadas } from "@/server/tareas-envio";
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { mediaDirStatus } from "@/server/media-dir";
@@ -133,6 +134,8 @@ export function resumeWebhooks(): void {
  */
 export function resumeVentas(): void {
   iniciarBarridoSilencios();
+  // v3 — Los WhatsApp programados de las tareas.
+  iniciarTareasProgramadas();
 }
 
 /**

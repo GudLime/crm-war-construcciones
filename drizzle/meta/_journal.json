@@ -442,6 +442,13 @@
       "when": 1795454000000,
       "tag": "0062_derivacion_tarea",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1795464800000,
+      "tag": "0063_tareas_por_tipo",
+      "breakpoints": true
     }
   ]
 }

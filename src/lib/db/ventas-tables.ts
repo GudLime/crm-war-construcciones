@@ -234,7 +234,7 @@ export const tareaVenta = pgTable(
       enum: ["llamada", "visita", "mensaje", "reunion", "correo", "tarea"],
     }).notNull(),
     estado: text("estado", {
-      enum: ["realizar", "no_responde", "listo"],
+      enum: ["realizar", "no_responde", "listo", "programado"],
     })
       .notNull()
       .default("realizar"),
@@ -256,6 +256,14 @@ export const tareaVenta = pgTable(
     creadaPor: text("creada_por", { enum: ["persona", "ia", "plantilla"] }).notNull().default("persona"),
     /** 0062 — La conversación derivada (tareas de la IA): se cierra sola cuando una persona responde. */
     conversationId: text("conversation_id"),
+    /** 0063 — Lo que se le manda (WhatsApp o mail). */
+    mensaje: text("mensaje"),
+    /** 0063 — El asunto del mail. */
+    asunto: text("asunto"),
+    /** 0063 — Cuándo salió el WhatsApp programado o enviado ahora. */
+    enviadaAt: timestamp("enviada_at"),
+    /** 0063 — Por qué no salió (la ventana de 24 h estaba cerrada…). */
+    aviso: text("aviso"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

@@ -89,7 +89,7 @@ export function AgendaList({
                     <span className="w-[6.5rem] shrink-0 font-mono text-[12px] text-text-2">{hhmm(startMin)}</span>
                     {renderIconoTarea ? <span className="shrink-0">{renderIconoTarea(t.tipo)}</span> : null}
                     <span className="min-w-0 flex-1">
-                      <span className={cn("block truncate text-sm font-semibold", t.estado !== "realizar" && "text-text-3 line-through")}>
+                      <span className={cn("block truncate text-sm font-semibold", (t.estado === "listo" || t.estado === "no_responde") && "text-text-3 line-through")}>
                         {t.titulo}
                       </span>
                       <span className="block truncate text-xs text-text-3">{[t.contacto, t.edificio].filter(Boolean).join(" · ") || "Tarea"}</span>

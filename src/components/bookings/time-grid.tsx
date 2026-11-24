@@ -302,7 +302,7 @@ function TareaBlock({
   const { startMin, endMin, col, cols } = placed;
   const top = (startMin / 60) * HOUR_PX;
   const height = Math.max(MIN_EVENT_PX, ((endMin - startMin) / 60) * HOUR_PX - 2);
-  const hecha = t.estado !== "realizar";
+  const hecha = t.estado === "listo" || t.estado === "no_responde";
   const sub = [t.contacto, t.edificio].filter(Boolean).join(" · ");
   return (
     <button

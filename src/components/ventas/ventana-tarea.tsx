@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Mail, MessageSquareText, Phone } from "lucide-react";
+import { Clock, Mail, MessageSquareText, Phone, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CampoFecha, textoDeFecha } from "@/components/ui/campo-fecha";
 import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useAvisoGuardado } from "@/components/ui/aviso-guardado";
 import { Ventana } from "@/components/ui/ventana";
@@ -13,7 +14,7 @@ import { Reschedule } from "@/components/bookings/booking-drawer";
 import { hhmm, wallClock } from "@/lib/time/calendar";
 import { dayIsoInTz } from "@/lib/time/slots";
 import type { Booking } from "@/components/bookings/booking-look";
-import { ESTADOS_TAREA, TIPOS_TAREA } from "@/lib/ventas";
+import { TIPOS_TAREA, estadosDeTipo, etiquetaDeEstado } from "@/lib/ventas";
 import { cn } from "@/lib/utils";
 import type { TareaDto } from "@/server/ventas";
 import { IconoTipo, MarcaIa } from "./tareas-client";
@@ -64,6 +65,16 @@ function Encabezado({ tipo, etiqueta, titulo, ia }: { tipo: string; etiqueta: st
   );
 }
 
+/** «cierra en 5 h 10 min». */
+function textoRestante(ms: number): string {
+  const min = Math.max(1, Math.round(ms / 60_000));
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h ? `${h} h${m ? ` ${m} min` : ""}` : `${m} min`;
+}
+
+type Ventana24 = { abierta: boolean; restanteMs: number } | null;
+
 export function VentanaTarea({
   tareaId,
   onCerrar,
@@ -77,10 +88,14 @@ export function VentanaTarea({
   const avisar = useAvisoGuardado();
   const [tarea, setTarea] = useState<Tarea | null>(null);
   const [contacto, setContacto] = useState<Contacto>(null);
+  const [ventana24, setVentana24] = useState<Ventana24>(null);
   const [equipo, setEquipo] = useState<Miembro[]>([]);
   const [admin, setAdmin] = useState(false);
   const [comentarios, setComentarios] = useState("");
+  const [mensaje, setMensaje] = useState("");
+  const [asunto, setAsunto] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [nota, setNota] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
   const cargar = useCallback(async () => {
@@ -89,10 +104,13 @@ export function VentanaTarea({
       setError(res ? await mensajeDe(res) : "No se pudo abrir la tarea");
       return;
     }
-    const d = (await res.json()) as { tarea: Tarea; contacto: Contacto };
+    const d = (await res.json()) as { tarea: Tarea; contacto: Contacto; ventana?: Ventana24 };
     setTarea(d.tarea);
     setContacto(d.contacto);
+    setVentana24(d.ventana ?? null);
     setComentarios(d.tarea.comentarios ?? "");
+    setMensaje(d.tarea.mensaje ?? "");
+    setAsunto(d.tarea.asunto ?? "");
   }, [tareaId]);
 
   useEffect(() => {
@@ -106,8 +124,17 @@ export function VentanaTarea({
     })();
   }, [cargar]);
 
+  type Cambios = Partial<{
+    estado: string;
+    fecha: string | null;
+    comentarios: string | null;
+    responsableId: string | null;
+    mensaje: string | null;
+    asunto: string | null;
+  }>;
+
   /** PATCH con el cuerpo entero (lo pide la API) y los cambios encima. */
-  async function guardar(cambios: Partial<{ estado: string; fecha: string | null; comentarios: string | null; responsableId: string | null }>) {
+  async function guardar(cambios: Cambios) {
     if (!tarea) return false;
     setOcupado(true);
     setError(null);
@@ -118,7 +145,8 @@ export function VentanaTarea({
         titulo: tarea.titulo,
         tipo: tarea.tipo,
         estado: tarea.estado,
-        fecha: tarea.fecha ? aLocal(tarea.fecha) : null,
+        // La fecha guardada va en ISO; la que se elige en el campo, en hora del negocio.
+        fecha: tarea.fecha,
         comentarios: tarea.comentarios,
         contactId: tarea.contactId,
         oportunidadId: tarea.oportunidadId,
@@ -136,18 +164,14 @@ export function VentanaTarea({
     return true;
   }
 
-  async function hecha() {
-    if (!tarea) return;
-    setOcupado(true);
-    const res = await fetch(`/api/tareas/${tarea.id}/hecha`, { method: "POST" }).catch(() => null);
-    setOcupado(false);
-    if (!res?.ok) {
-      setError(res ? await mensajeDe(res) : "No se pudo marcar");
-      return;
-    }
-    avisar("Tarea hecha");
-    void onCambio();
-    onCerrar();
+  /** Lo que se escribió y todavía no se guardó (mensaje, asunto, comentarios). */
+  function pendientesDeTexto(): Cambios {
+    if (!tarea) return {};
+    const c: Cambios = {};
+    if ((tarea.comentarios ?? "") !== comentarios) c.comentarios = comentarios || null;
+    if ((tarea.mensaje ?? "") !== mensaje) c.mensaje = mensaje || null;
+    if ((tarea.asunto ?? "") !== asunto) c.asunto = asunto || null;
+    return c;
   }
 
   async function eliminar() {
@@ -163,8 +187,62 @@ export function VentanaTarea({
   }
 
   async function guardarYCerrar() {
-    if ((tarea?.comentarios ?? "") !== comentarios && !(await guardar({ comentarios: comentarios || null }))) return;
+    const c = pendientesDeTexto();
+    if (Object.keys(c).length && !(await guardar(c))) return;
     onCerrar();
+  }
+
+  /** WhatsApp o mail: «Dejar pendiente». */
+  async function dejarPendiente() {
+    if (await guardar({ ...pendientesDeTexto(), estado: "realizar" })) {
+      avisar("Quedó pendiente");
+      onCerrar();
+    }
+  }
+
+  /** WhatsApp o mail: «Programar» a la fecha y hora del campo Fecha. */
+  async function programar() {
+    if (!tarea) return;
+    const sinHora = !tarea.fecha || aLocal(tarea.fecha).endsWith("T00:00");
+    if (sinHora || Date.parse(tarea.fecha!) <= Date.now()) {
+      setError("Para programarlo elegí en «Fecha» un día y una hora que todavía no pasaron");
+      return;
+    }
+    if (tarea.tipo === "mensaje" && !mensaje.trim()) {
+      setError("Escribí el mensaje antes de programarlo");
+      return;
+    }
+    if (await guardar({ ...pendientesDeTexto(), estado: "programado" })) {
+      avisar(`Programado para ${textoDeFecha(aLocal(tarea.fecha!))}`);
+      onCerrar();
+    }
+  }
+
+  /** WhatsApp: «Enviar ahora». */
+  async function enviarAhora() {
+    if (!tarea) return;
+    if (!mensaje.trim()) {
+      setError("Escribí el mensaje antes de mandarlo");
+      return;
+    }
+    const c = pendientesDeTexto();
+    if (Object.keys(c).length && !(await guardar(c))) return;
+    setOcupado(true);
+    const res = await fetch(`/api/tareas/${tarea.id}/enviar`, { method: "POST" }).catch(() => null);
+    setOcupado(false);
+    const d = (await res?.json().catch(() => null)) as { enviado?: boolean; aviso?: string } | null;
+    if (!res?.ok || !d) {
+      setError(res ? await mensajeDe(res) : "No se pudo mandar el mensaje");
+      return;
+    }
+    void onCambio();
+    if (d.enviado) {
+      avisar("Mensaje enviado");
+      onCerrar();
+    } else {
+      setError(d.aviso ?? "No se pudo mandar el mensaje");
+      await cargar();
+    }
   }
 
   if (!tarea) {
@@ -178,24 +256,48 @@ export function VentanaTarea({
   const soloLectura = tarea.editable === false;
   const etiqueta = TIPOS_TAREA.find((t) => t.value === tarea.tipo)?.label ?? "Tarea";
   const ia = tarea.creadaPor === "ia";
-  const pendiente = tarea.estado !== "listo";
+  const cerrada = tarea.estado === "listo";
   const fecha = tarea.fecha ? aLocal(tarea.fecha) : null;
+  const esEnvio = tarea.tipo === "mensaje" || tarea.tipo === "correo";
+  const estados = estadosDeTipo(tarea.tipo);
+  const opcionesEstado = estados.some((e) => e.value === tarea.estado)
+    ? estados
+    : [...estados, { value: tarea.estado, label: etiquetaDeEstado(tarea.tipo, tarea.estado) }];
+  const boton = "inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[13px] font-semibold";
 
   return (
     <Ventana
       titulo={<Encabezado tipo={tarea.tipo} etiqueta={etiqueta} titulo={tarea.titulo} ia={ia} />}
       onCerrar={onCerrar}
-      className="sm:max-w-[420px]"
+      className="sm:max-w-[440px]"
     >
-      <div className="divide-y divide-border/0">
+      {tarea.tipo === "llamada" && tarea.estado === "realizar" && !soloLectura && (
+        <div className="mb-3">
+          <p className="mb-2 text-[12.5px] font-semibold">¿Cómo salió la llamada?</p>
+          <ResultadoLlamada
+            enLinea
+            tareaId={tarea.id}
+            oportunidadId={tarea.oportunidadId}
+            onListo={async () => {
+              await cargar();
+              void onCambio();
+            }}
+          />
+        </div>
+      )}
+
+      <div>
         <Fila etiqueta="Estado">
           <Select
             value={tarea.estado}
             disabled={soloLectura || ocupado}
-            onValueChange={(estado) => void guardar({ estado })}
+            onValueChange={(estado) => {
+              if (estado === "programado") void programar();
+              else void guardar({ estado });
+            }}
             className="h-8 w-auto rounded-full"
           >
-            {ESTADOS_TAREA.map((e) => (
+            {opcionesEstado.map((e) => (
               <option key={e.value} value={e.value}>
                 {e.label}
               </option>
@@ -256,6 +358,13 @@ export function VentanaTarea({
             </span>
           </Fila>
         )}
+        {tarea.tipo === "mensaje" && (
+          <Fila etiqueta="Para">
+            <span className="text-text-2">
+              {[tarea.contactoNombre, contacto?.telefono].filter(Boolean).join(" · ") || "El contacto de la oportunidad"}
+            </span>
+          </Fila>
+        )}
         {tarea.tipo === "correo" && (
           <Fila etiqueta="Para">
             <span className="text-text-2">{contacto?.email ?? `${tarea.contactoNombre ?? "El contacto"} no tiene correo cargado`}</span>
@@ -270,21 +379,55 @@ export function VentanaTarea({
         </div>
       )}
 
-      {tarea.tipo === "llamada" && pendiente && !soloLectura && (
-        <div className="mt-3 rounded-lg border p-3">
-          <p className="mb-2 text-[12.5px] font-semibold">¿Cómo salió la llamada?</p>
-          <ResultadoLlamada
-            tareaId={tarea.id}
-            oportunidadId={tarea.oportunidadId}
-            onListo={async () => {
-              await cargar();
-              void onCambio();
-            }}
+      {tarea.tipo === "correo" && (
+        <label className="mt-3 block">
+          <span className="mb-1 block text-[12px] text-text-3">Asunto</span>
+          <Input
+            value={asunto}
+            disabled={soloLectura || cerrada}
+            onChange={(e) => setAsunto(e.target.value)}
+            maxLength={300}
+            placeholder="Plan de pagos de la unidad"
           />
-        </div>
+        </label>
       )}
 
-      {!(ia && tarea.tipo === "mensaje") && (
+      {esEnvio && (
+        <label className="mt-3 block">
+          <span className="mb-1 block text-[12px] text-text-3">Mensaje</span>
+          <Textarea
+            value={mensaje}
+            disabled={soloLectura || cerrada}
+            onChange={(e) => setMensaje(e.target.value)}
+            rows={4}
+            maxLength={4096}
+            placeholder={tarea.tipo === "mensaje" ? "Lo que le va a llegar por WhatsApp" : "El cuerpo del mail"}
+          />
+        </label>
+      )}
+
+      {tarea.tipo === "mensaje" && ventana24 && !cerrada && (
+        <p className={cn("mt-2 text-[12px]", ventana24.abierta ? "text-text-3" : "text-warning-text")}>
+          Ventana de 24 h:{" "}
+          {ventana24.abierta ? `abierta · cierra en ${textoRestante(ventana24.restanteMs)}` : "cerrada (hace falta una plantilla)"}
+        </p>
+      )}
+      {tarea.estado === "programado" && fecha && (
+        <p className="mt-2 text-[12px] text-text-2">
+          Sale solo: {textoDeFecha(fecha)}
+          {tarea.tipo === "correo" ? " (el envío de mails todavía no está conectado)" : ""}.
+        </p>
+      )}
+      {tarea.enviadaAt && (
+        <p className="mt-2 text-[12px] text-text-3">
+          Enviado el {new Date(tarea.enviadaAt).toLocaleString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+        </p>
+      )}
+      {tarea.aviso && !cerrada && (
+        <p className="mt-2 rounded-sm bg-warning-tint px-3 py-2 text-[12.5px] text-warning-text">{tarea.aviso}</p>
+      )}
+
+      {!esEnvio && !ia && (
         <label className="mt-3 block">
           <span className="mb-1 block text-[12px] text-text-3">Comentarios</span>
           <Textarea
@@ -301,10 +444,11 @@ export function VentanaTarea({
         </label>
       )}
 
-      {tarea.estado === "listo" && (
-        <p className="mt-2 text-[12px] text-text-3">Está hecha. Para reabrirla, cambiá el estado a «Realizar».</p>
+      {cerrada && tarea.tipo === "tarea" && (
+        <p className="mt-2 text-[12px] text-text-3">Está hecha. Para reabrirla, cambiá el estado a «Pendiente».</p>
       )}
       {soloLectura && <p className="mt-2 text-[12px] text-text-3">Es de otra persona: la podés ver, no cambiar.</p>}
+      {nota && <p className="mt-2 rounded-sm bg-subtle px-3 py-2 text-[12.5px] text-text-2">{nota}</p>}
       {error && (
         <p role="alert" className="mt-3 rounded-sm bg-danger-tint px-3 py-2 text-sm text-danger-text">
           {error}
@@ -318,32 +462,37 @@ export function VentanaTarea({
           </Button>
         )}
         <span className="flex-1" />
-        {(tarea.tipo === "mensaje" || tarea.tipo === "correo") && pendiente && !soloLectura && (
-          <Button size="sm" variant="secondary" disabled={ocupado} onClick={() => void hecha()}>
-            Hecha
-          </Button>
-        )}
-        {tarea.tipo === "mensaje" && tarea.conversationId ? (
-          <Link
-            href={`/inbox?conversation=${tarea.conversationId}`}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-brand px-3 text-[13px] font-semibold text-brand-fg"
-          >
-            <MessageSquareText className="size-3.5" /> Responder en Bandeja
-          </Link>
-        ) : tarea.tipo === "correo" && contacto?.email ? (
-          <a
-            href={`mailto:${contacto.email}`}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-brand px-3 text-[13px] font-semibold text-brand-fg"
-          >
-            <Mail className="size-3.5" /> Abrir en el correo
-          </a>
+        {esEnvio && !cerrada && !soloLectura ? (
+          <>
+            {ia && tarea.conversationId && (
+              <Link href={`/inbox?conversation=${tarea.conversationId}`} className={cn(boton, "border font-medium hover:bg-accent")}>
+                <MessageSquareText className="size-3.5" /> Bandeja
+              </Link>
+            )}
+            <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => void dejarPendiente()}>
+              Dejar pendiente
+            </Button>
+            <Button size="sm" variant="secondary" disabled={ocupado} onClick={() => void programar()}>
+              <Clock className="size-3.5" /> Programar
+            </Button>
+            {tarea.tipo === "mensaje" ? (
+              <Button size="sm" disabled={ocupado} onClick={() => void enviarAhora()}>
+                <Send className="size-3.5" /> Enviar ahora
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                disabled={ocupado}
+                onClick={() => setNota("El envío de mails todavía no está conectado (se conecta con Gmail más adelante). Por ahora, programalo o mandalo desde tu correo.")}
+              >
+                <Mail className="size-3.5" /> Enviar
+              </Button>
+            )}
+          </>
         ) : (
           <>
             {tarea.oportunidadId && (
-              <Link
-                href={`/oportunidades/${tarea.oportunidadId}`}
-                className="inline-flex h-8 items-center rounded-md border px-3 text-[13px] font-medium hover:bg-accent"
-              >
+              <Link href={`/oportunidades/${tarea.oportunidadId}`} className={cn(boton, "border font-medium hover:bg-accent")}>
                 Abrir oportunidad
               </Link>
             )}
