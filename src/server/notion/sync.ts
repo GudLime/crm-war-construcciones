@@ -83,6 +83,8 @@ export type InformeSync = {
     nuevas: number;
     /** De las nuevas, cuántas son de un contacto que ya estaba en el CRM. */
     nuevasDeContactoExistente: number;
+    /** Viejas (antes del 15/10) que no están en el CRM: no se traen. */
+    viejasSinTraer: number;
     porClave: number;
     porCercania: number;
     estado: number;
@@ -103,6 +105,7 @@ export type InformeSync = {
     igual: number;
     pendientesDeCerradas: number;
     pendientesSinComentario: number;
+    deViejasSinTraer: number;
   };
   ejemplos: string[];
   problemas: string[];
@@ -118,6 +121,7 @@ function informeVacio(modo: "prueba" | "aplicar", desde: Date): InformeSync {
     oportunidades: {
       nuevas: 0,
       nuevasDeContactoExistente: 0,
+      viejasSinTraer: 0,
       porClave: 0,
       porCercania: 0,
       estado: 0,
@@ -128,7 +132,7 @@ function informeVacio(modo: "prueba" | "aplicar", desde: Date): InformeSync {
       noResponde: 0,
       ganaCrm: 0,
     },
-    tareas: { nuevas: 0, citasNuevas: 0, actualizadas: 0, eliminadas: 0, ganaCrm: 0, sinOportunidad: 0, igual: 0, pendientesDeCerradas: 0, pendientesSinComentario: 0 },
+    tareas: { nuevas: 0, citasNuevas: 0, actualizadas: 0, eliminadas: 0, ganaCrm: 0, sinOportunidad: 0, igual: 0, pendientesDeCerradas: 0, pendientesSinComentario: 0, deViejasSinTraer: 0 },
     ejemplos: [],
     problemas: [],
     segundos: 0,
@@ -158,10 +162,14 @@ class Sync {
   private estadoFinal = new Map<string, EstadoOportunidad>();
   private minutosCita = 60;
 
+  /** Las oportunidades viejas que no se traen (y sus tareas tampoco). */
+  private saltadas = new Set<string>();
+
   constructor(
     private org: string,
     private aplicar: boolean,
-    private informe: InformeSync
+    private informe: InformeSync,
+    private desde: Date
   ) {}
 
   /* ---------------- preparar ---------------- */
@@ -221,7 +229,8 @@ class Sync {
 
   /* ---------------- contactos ---------------- */
 
-  private async contacto(paginaId: string | undefined): Promise<string | null> {
+  /** `crear: false` solo busca: no crea el contacto si no está. */
+  private async contacto(paginaId: string | undefined, crear = true): Promise<string | null> {
     if (!paginaId) return null;
     if (this.contactoDePagina.has(paginaId)) return this.contactoDePagina.get(paginaId) ?? null;
     const db = getDb();
@@ -249,6 +258,7 @@ class Sync {
         id = f?.id ?? null;
       }
     }
+    if (!id && !crear) return null;
     if (id) {
       this.informe.contactos.encontrados++;
     } else {
@@ -292,7 +302,8 @@ class Sync {
     const pid = idPlano(p.id);
     const props = p.properties;
     const nombre = texto(props.Name) ?? "Sin nombre";
-    const contactId = await this.contacto(relacion(props.Contactos)[0]);
+    const paginaContacto = relacion(props.Contactos)[0];
+    let contactId = await this.contacto(paginaContacto, false);
     const creada = instante(fecha(props["Fecha Creación"])) ?? instante(p.created_time) ?? new Date();
     const notionAt = instante(fecha(props["Last Edited"])) ?? instante(p.last_edited_time);
     const tipo = tipoOportunidadDeNotion(texto(props.Tipo));
@@ -318,6 +329,15 @@ class Sync {
       if (op) this.informe.oportunidades.porCercania++;
     }
     if (!op && fase === 1) return false;
+
+    // Solo se crean las que nacieron desde el 15/10 (Sebastián, 25/11); las
+    // viejas que no están en el CRM quedan en Notion, con sus tareas.
+    if (!op && creada < this.desde) {
+      this.saltadas.add(pid);
+      this.informe.oportunidades.viejasSinTraer++;
+      return true;
+    }
+    if (!op) contactId = await this.contacto(paginaContacto, true);
 
     if (!op) {
       const id = await this.crear(p, { nombre, contactId, creada, notionAt, tipo, estado, motivo, responsable, edificioIds });
@@ -601,8 +621,13 @@ class Sync {
     const notionAt = instante(p.last_edited_time);
     const creada = instante(p.created_time) ?? new Date();
 
-    const op = await this.opDeTarea(relacion(props.Oportunidades)[0]);
-    const contactId = op?.contactId ?? (await this.contacto(relacion(props.Contacto)[0]));
+    const paginaOp = relacion(props.Oportunidades)[0];
+    const op = await this.opDeTarea(paginaOp);
+    if (!op && paginaOp && this.saltadas.has(paginaOp)) {
+      this.informe.tareas.deViejasSinTraer++;
+      return;
+    }
+    const contactId = op?.contactId ?? (await this.contacto(relacion(props.Contacto)[0], false));
     if (!op && !contactId) {
       this.informe.tareas.sinOportunidad++;
       return;
@@ -844,7 +869,7 @@ export async function sincronizarNotion(opciones: { aplicar: boolean; desde: Dat
     informe.problemas.push("La instancia todavía no tiene organización");
     return informe;
   }
-  const s = new Sync(org, opciones.aplicar, informe);
+  const s = new Sync(org, opciones.aplicar, informe, opciones.desde);
   await s.preparar();
   const ops = await editadasDesde(BASES.oportunidades, opciones.desde);
   informe.leidas.oportunidades = ops.length;
