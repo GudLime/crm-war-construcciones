@@ -7,6 +7,8 @@ import {
   rescheduleForConversation,
 } from "@/server/agenda/service";
 import { bookingErrorResponse, bookingPayload } from "@/server/agenda/http";
+import { reservasEnabled } from "@/server/reservas/flag";
+import { reservarDesdeElBot, respuestaDeError } from "@/server/reservas/bot";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +23,10 @@ export const dynamic = "force-dynamic";
  * Y el sobre del error va ANIDADO (`{"error":{"code":…}}`) con `slots` como
  * hermano: un mock con la forma plana escondió el camino de re-oferta durante
  * semanas en ese mismo sistema.
+ *
+ * 071 — Con `RESERVAS` encendida (aunque también esté `AGENDA`) reserva en el
+ * módulo de Reservas con el mismo contrato (`src/server/reservas/bot.ts`).
+ * Mover una reserva no va por acá: 409 `derivar` y la cambia alguien del equipo.
  */
 
 const createSchema = z.object({
@@ -40,6 +46,19 @@ export async function POST(req: Request) {
 
   const body = await parseBody(req, createSchema);
   if (!body.ok) return body.response;
+
+  if (reservasEnabled()) {
+    try {
+      const reserva = await reservarDesdeElBot(gate.organizationId, {
+        conversationId: body.data.conversationId,
+        startUtc: body.data.startUtc,
+        notes: body.data.notes ?? null,
+      });
+      return Response.json(reserva, { status: 201 });
+    } catch (err) {
+      return respuestaDeError(err);
+    }
+  }
 
   try {
     const result = await createSessionBooking({
@@ -64,6 +83,13 @@ export async function PATCH(req: Request) {
   const body = await parseBody(req, rescheduleSchema);
   if (!body.ok) return body.response;
 
+  if (reservasEnabled()) {
+    return Response.json(
+      { error: { code: "derivar", message: "Cambiar una reserva lo hace alguien del equipo" }, slots: [] },
+      { status: 409 }
+    );
+  }
+
   try {
     const result = await rescheduleForConversation({
       organizationId: gate.organizationId,
@@ -83,7 +109,7 @@ export async function PATCH(req: Request) {
 type Gate = { organizationId: string } | { response: Response };
 
 async function guard(req: Request): Promise<Gate> {
-  if (!agendaEnabled()) return { response: agendaDisabledResponse() };
+  if (!agendaEnabled() && !reservasEnabled()) return { response: agendaDisabledResponse() };
   const denied = requireBotKey(req);
   if (denied) return { response: denied };
   const organizationId = await resolveInstanceOrg();

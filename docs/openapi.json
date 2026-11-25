@@ -148,8 +148,8 @@
     },
     "/api/bot/availability": {
       "get": {
-        "summary": "Horarios para ofrecer (con la agenda encendida)",
-        "description": "Los horarios libres, que quedan REGISTRADOS como ofrecidos a esa conversación: después solo se puede reservar uno de ellos. Con la bandera `AGENDA` apagada responde 404 vacío (sin cuerpo).",
+        "summary": "Horarios para ofrecer (con la agenda o las reservas encendidas)",
+        "description": "Los horarios libres, que quedan REGISTRADOS como ofrecidos a esa conversación: después solo se puede reservar uno de ellos. Con las banderas `AGENDA` y `RESERVAS` apagadas responde 404 vacío (sin cuerpo).\n\nCon `RESERVAS` encendida (gana aunque también esté `AGENDA`) los horarios salen del módulo de Reservas, con la misma forma: se calculan para la cantidad de personas de la ficha (clave `personas`), o para 2 si todavía no está.",
         "parameters": [
           { "name": "conversationId", "in": "query", "required": true, "schema": { "type": "string" } },
           { "name": "limit", "in": "query", "schema": { "type": "integer" } },
@@ -160,15 +160,15 @@
         "responses": {
           "200": { "description": "Horarios", "content": { "application/json": { "schema": { "type": "object", "properties": { "slots": { "type": "array", "items": { "$ref": "#/components/schemas/Hueco" } }, "diasConAgenda": { "type": "array", "items": { "type": "string" } }, "query": { "type": "object", "additionalProperties": true } } } } } },
           "404": { "description": "Vacío: la instancia no tiene agenda. Con cuerpo de error: no existe la conversación." },
-          "409": { "$ref": "#/components/responses/SinOrganizacion" },
+          "409": { "description": "`no_org`: la instancia aún no tiene organización. Con Reservas, `derivar`: son más personas que el tope; pasá la conversación a alguien del equipo.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
           "422": { "$ref": "#/components/responses/Invalido" }
         }
       }
     },
     "/api/bot/bookings": {
       "post": {
-        "summary": "Reservar una cita (con la agenda encendida)",
-        "description": "Solo un horario que se le ofreció a esa conversación.",
+        "summary": "Reservar (con la agenda o las reservas encendidas)",
+        "description": "Solo un horario que se le ofreció a esa conversación.\n\nCon `RESERVAS` encendida reserva una mesa en el módulo de Reservas: la cantidad de personas sale de la ficha (`personas`) y el nombre de `nombre` o, si no está, del contacto; `notes` queda como observación de la reserva. Sin `personas` en la ficha responde 409 `derivar`. En una conversación del Laboratorio responde igual pero no ocupa lugar (`bookingId` empieza con `prueba_`).",
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["conversationId", "startUtc"], "properties": { "conversationId": { "type": "string" }, "startUtc": { "type": "string", "format": "date-time" }, "notes": { "type": ["string", "null"] } } } } } },
         "responses": {
           "201": { "description": "Reservada", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Cita" } } } },
@@ -179,6 +179,7 @@
       },
       "patch": {
         "summary": "Mover la próxima cita (con la agenda encendida)",
+        "description": "Con `RESERVAS` encendida no se mueve por acá: 409 `derivar` y la cambia alguien del equipo.",
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["conversationId", "startUtc"], "properties": { "conversationId": { "type": "string" }, "startUtc": { "type": "string", "format": "date-time" } } } } } },
         "responses": {
           "200": { "description": "Movida", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Cita" } } } },
@@ -237,7 +238,7 @@
       "NoEncontrada": { "description": "No existe la conversación.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
       "SinOrganizacion": { "description": "`no_org`: la instancia aún no tiene organización.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
       "Invalido": { "description": "Cuerpo o parámetros inválidos.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-      "ConflictoDeAgenda": { "description": "`slot_taken` (se ocupó) o `slot_not_offered` (no se le ofreció a esta conversación); trae `slots` frescos para volver a ofrecer.", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/Error" }, { "type": "object", "properties": { "slots": { "type": "array", "items": { "$ref": "#/components/schemas/Hueco" } } } }] } } } }
+      "ConflictoDeAgenda": { "description": "`slot_taken` (se ocupó) o `slot_not_offered` (no se le ofreció a esta conversación); trae `slots` frescos para volver a ofrecer. Con el módulo de Reservas también `derivar`: son más personas que el tope, la ficha no dice cuántas son (clave `personas`) o se pidió mover una reserva. Viene con `slots` vacío: pasá la conversación a alguien del equipo.", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/Error" }, { "type": "object", "properties": { "slots": { "type": "array", "items": { "$ref": "#/components/schemas/Hueco" } } } }] } } } }
     },
     "schemas": {
       "Error": { "type": "object", "required": ["error"], "properties": { "error": { "type": "object", "required": ["code", "message"], "properties": { "code": { "type": "string" }, "message": { "type": "string" } } } } },

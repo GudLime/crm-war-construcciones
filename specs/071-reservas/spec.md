@@ -187,6 +187,43 @@ cualquier otro, redirige a la plantilla de evento de Google Calendar
    `/reservas` redirige a Reservas.
 4. WhatsApp: mensajes interactivos, id del botón en el despacho, API del
    cerebro, cerebro de reservas, calendario.
+   **Parte del agente, hecha (25 de noviembre).** Cambió la decisión «sin
+   agente»: el que conversa es Nea, sin tocar su código, y reserva en este
+   módulo.
+   - Conocimiento: con la bandera, `conocimientoDelAgente` suma el bloque del
+     restaurante armado desde Ajustes → Reservas (`src/lib/reservas-agente.ts`):
+     nombre del negocio, dirección, horarios agrupados por días iguales, días
+     cerrados dentro de la anticipación, tope por reserva, anticipación,
+     tolerancia de llegada y carta. Cada línea se entiende sola y un campo
+     vacío no escribe la suya. La tolerancia es un campo nuevo de Ajustes →
+     Reservas (migración `0068_reserva_tolerancia`, vacía = no se informa).
+   - Instrucciones: el perfil suma las reglas de Reservas
+     (`INSTRUCCIONES_RESERVAS` en `src/lib/reservas-bot.ts`): guardar
+     `personas` y `nombre` en la ficha antes de consultar. Las reglas
+     inmobiliarias (068) ya no van a una instancia con `inmobiliario: false`.
+   - `GET /api/bot/availability` y `POST /api/bot/bookings` usan el servicio
+     de reservas cuando `RESERVAS` está encendida, aunque también esté `AGENDA`
+     (`src/server/reservas/bot.ts`). El contrato con Nea no cambia: los mismos
+     huecos en UTC (fecha y hora en la zona del negocio, fin = inicio +
+     duración), `query` con `closed`, `full`, `past` y `beyond_horizon`, la
+     oferta registrada por conversación, 201 al crear y el sobre de error
+     anidado con `slots`.
+   - Personas: salen de la ficha (`personas`, número o texto, o «N personas»
+     en `notas`). Sin el dato, los horarios se calculan para 2; reservar sin
+     él responde 409 `derivar`. Más que el tope o sin mesa que alcance, 409
+     `derivar` al consultar y al reservar. Nea ya lo trata como «pasala a
+     alguien del equipo». Si el horario se llenó entre la oferta y la
+     reserva, 409 `slot_taken` con horarios frescos del mismo día (o del
+     reparto) registrados como la nueva oferta. Mover una reserva por
+     `PATCH`: 409 `derivar`.
+   - Laboratorio: una conversación `is_test` reserva simulado, con las mismas
+     reglas, sin crear nada ni ocupar cupo (`bookingId` `prueba_…`).
+   - Pruebas: `tests/unit/reservas-agente.test.ts`,
+     `tests/unit/reservas-bot.test.ts` y `scripts/e2e-reservas-agente.mjs`
+     (`pnpm test:e2e:reservas-agente`).
+   - Para que sea firme del lado de Nea, conviene sumar `personas` como campo
+     entero de `update_ficha` en `kevinrivm/nea-agent`. No hace falta para
+     que funcione.
 5. Plantilla de recordatorio (aprobación de Meta) y barrido.
 6. Pruebas de punta a punta con mocks y con el número de prueba; paso al
    número del restaurante; capacitación.

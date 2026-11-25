@@ -10,6 +10,7 @@ import {
   type ClaveHerramienta,
 } from "@/lib/agent-roles";
 import { agendaEnabled } from "@/server/agenda/flag";
+import { reservasEnabled } from "@/server/reservas/flag";
 import { leerConfigDespacho, urlSaludCerebro } from "@/server/brains/config";
 import { getBrainHealth } from "@/server/bot/status";
 import { guardarVersionAnterior } from "@/server/agente/instrucciones-versiones";
@@ -39,7 +40,8 @@ export const GET = withAdmin(async (session) => {
       tools: herramientasEfectivas(p.tools),
     },
     // 034 — Sin la bandera, la pantalla no ofrece agendar ni reprogramar.
-    agendaEnabled: agendaEnabled(),
+    // 071 — Con Reservas el agente también reserva (en el módulo de Reservas).
+    agendaEnabled: agendaEnabled() || reservasEnabled(),
     aiConfigured: estado.activa,
     // Por qué no (sin configurar, llave rechazada, sin saldo): la pantalla
     // Agente lo dice con el enlace a Ajustes → IA.

@@ -43,6 +43,12 @@ vi.mock("@/server/agenda/flag", () => ({
   agendaDisabledResponse: () => new Response(null, { status: 404 }),
 }));
 
+// 071 — Sin Reservas: la ruta sigue yendo a la agenda.
+vi.mock("@/server/reservas/flag", () => ({
+  reservasEnabled: () => false,
+  reservasDisabledResponse: () => new Response(null, { status: 404 }),
+}));
+
 vi.mock("@/server/bot/auth", () => ({
   requireBotKey: () => null,
   resolveInstanceOrg: async () => "org_1",
