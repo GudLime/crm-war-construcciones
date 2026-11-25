@@ -81,6 +81,8 @@ export type InformeSync = {
   contactos: { nuevos: number; encontrados: number };
   oportunidades: {
     nuevas: number;
+    /** De las nuevas, cuántas son de un contacto que ya estaba en el CRM. */
+    nuevasDeContactoExistente: number;
     porClave: number;
     porCercania: number;
     estado: number;
@@ -99,6 +101,7 @@ export type InformeSync = {
     ganaCrm: number;
     sinOportunidad: number;
     igual: number;
+    pendientesDeCerradas: number;
   };
   ejemplos: string[];
   problemas: string[];
@@ -113,6 +116,7 @@ function informeVacio(modo: "prueba" | "aplicar", desde: Date): InformeSync {
     contactos: { nuevos: 0, encontrados: 0 },
     oportunidades: {
       nuevas: 0,
+      nuevasDeContactoExistente: 0,
       porClave: 0,
       porCercania: 0,
       estado: 0,
@@ -123,7 +127,7 @@ function informeVacio(modo: "prueba" | "aplicar", desde: Date): InformeSync {
       noResponde: 0,
       ganaCrm: 0,
     },
-    tareas: { nuevas: 0, citasNuevas: 0, actualizadas: 0, eliminadas: 0, ganaCrm: 0, sinOportunidad: 0, igual: 0 },
+    tareas: { nuevas: 0, citasNuevas: 0, actualizadas: 0, eliminadas: 0, ganaCrm: 0, sinOportunidad: 0, igual: 0, pendientesDeCerradas: 0 },
     ejemplos: [],
     problemas: [],
     segundos: 0,
@@ -149,6 +153,8 @@ class Sync {
   private contactoDePagina = new Map<string, string | null>();
   /** oportunidades del CRM ya tomadas por otra página de Notion. */
   private tomadas = new Map<string, string>();
+  /** página → cómo queda la oportunidad (para no traer pendientes de una cerrada). */
+  private estadoFinal = new Map<string, EstadoOportunidad>();
   private minutosCita = 60;
 
   constructor(
@@ -275,7 +281,13 @@ class Sync {
 
   /* ---------------- oportunidades ---------------- */
 
-  async oportunidad(p: PaginaNotion) {
+  /**
+   * Fase 1: solo se toma la del CRM si es inequívoca (anotada, o del mismo
+   * contacto, a ±7 días y con el mismo nombre); si no, devuelve false y queda
+   * para la fase 2, que elige la más parecida entre las que sobran. Así dos
+   * oportunidades del mismo contacto no se cruzan.
+   */
+  async oportunidad(p: PaginaNotion, fase: 1 | 2 = 2): Promise<boolean> {
     const pid = idPlano(p.id);
     const props = p.properties;
     const nombre = texto(props.Name) ?? "Sin nombre";
@@ -301,15 +313,17 @@ class Sync {
     if (anotada) op = await this.fila(anotada);
     if (op) this.informe.oportunidades.porClave++;
     if (!op && contactId && !contactId.startsWith("nuevo:")) {
-      op = await this.cercana(contactId, creada, tipo, pid);
+      op = await this.cercana(contactId, creada, pid, fase === 1 ? { nombre } : { tipo, estado, motivo });
       if (op) this.informe.oportunidades.porCercania++;
     }
+    if (!op && fase === 1) return false;
 
     if (!op) {
       const id = await this.crear(p, { nombre, contactId, creada, notionAt, tipo, estado, motivo, responsable, edificioIds });
       this.opDePagina.set(pid, id);
-      await this.anotar(pid, "oportunidad", id);
-      return;
+      this.estadoFinal.set(pid, estado && estado !== "no_responde" ? estado : "recibido");
+      if (id) await this.anotar(pid, "oportunidad", id);
+      return true;
     }
     this.opDePagina.set(pid, op.id);
     this.tomadas.set(op.id, `pagina:${pid}`);
@@ -317,6 +331,7 @@ class Sync {
 
     const crmAt = await this.ultimoCambioCrm(op.id, ["creada", "estado", "cerrada", "reabierta"]);
     const gana = ganaNotion(notionAt, crmAt);
+    this.estadoFinal.set(pid, estado && estado !== "no_responde" && gana ? estado : op.estado);
 
     // Estado y motivo de cierre.
     if (estado && estado !== "no_responde" && estado !== op.estado) {
@@ -338,7 +353,7 @@ class Sync {
       } else {
         this.informe.oportunidades.ganaCrm++;
       }
-    } else if (estado && !estaAbierta(op.estado) && estado === op.estado && motivo && motivo !== op.motivoCierre && gana) {
+    } else if (estado && !estaAbierta(op.estado) && estado === op.estado && motivo && !mismoTitulo(motivo, op.motivoCierre) && gana) {
       this.informe.oportunidades.motivo++;
       anotar(this.informe.ejemplos, `«${nombre}»: motivo «${op.motivoCierre ?? "—"}» → «${motivo}»`);
       if (this.aplicar) {
@@ -399,6 +414,7 @@ class Sync {
         }
       }
     }
+    return true;
   }
 
   private async fila(id: string): Promise<FilaOp | null> {
@@ -411,8 +427,8 @@ class Sync {
   private async cercana(
     contactId: string,
     creada: Date,
-    tipo: string | null,
-    pid: string
+    pid: string,
+    criterio: { nombre: string } | { tipo: string | null; estado: string | null; motivo: string | null }
   ): Promise<FilaOp | null> {
     const o = schema.oportunidad;
     const filas = await getDb()
@@ -431,10 +447,16 @@ class Sync {
       const de = this.tomadas.get(f.id);
       return !de || de === `pagina:${pid}`;
     });
-    libres.sort((a, b) => {
-      const ta = (tipo && a.tipo === tipo ? 0 : 1) - (tipo && b.tipo === tipo ? 0 : 1);
-      return ta || Math.abs(a.createdAt.getTime() - creada.getTime()) - Math.abs(b.createdAt.getTime() - creada.getTime());
-    });
+    const cerca = (f: FilaOp) => Math.abs(f.createdAt.getTime() - creada.getTime());
+    if ("nombre" in criterio) {
+      const iguales = libres.filter((f) => mismoTitulo(f.nombre, criterio.nombre)).sort((a, b) => cerca(a) - cerca(b));
+      return iguales[0] ?? null;
+    }
+    const puntos = (f: FilaOp) =>
+      (criterio.estado && f.estado === criterio.estado ? 2 : 0) +
+      (criterio.motivo && mismoTitulo(f.motivoCierre, criterio.motivo) ? 1 : 0) +
+      (criterio.tipo && f.tipo === criterio.tipo ? 1 : 0);
+    libres.sort((a, b) => puntos(b) - puntos(a) || cerca(a) - cerca(b));
     return libres[0] ?? null;
   }
 
@@ -465,8 +487,9 @@ class Sync {
     }
   ): Promise<string> {
     this.informe.oportunidades.nuevas++;
+    if (d.contactId && !d.contactId.startsWith("nuevo:")) this.informe.oportunidades.nuevasDeContactoExistente++;
     const estado: EstadoOportunidad = d.estado && d.estado !== "no_responde" ? d.estado : "recibido";
-    anotar(this.informe.ejemplos, `nueva «${d.nombre}» (${estado})`);
+    anotar(this.informe.ejemplos, `nueva «${d.nombre}» (${estado}${d.contactId && !d.contactId.startsWith("nuevo:") ? ", contacto ya en el CRM" : ""}, creada ${d.creada.toISOString().slice(0, 10)})`);
     if (!this.aplicar) return `nuevo:${idPlano(p.id)}`;
     const id = newId("oportunidad");
     const editada = d.notionAt ?? d.creada;
@@ -544,24 +567,26 @@ class Sync {
 
   /* ---------------- tareas ---------------- */
 
-  private async opDeTarea(paginaOp: string | undefined): Promise<{ id: string; contactId: string | null } | null> {
+  private async opDeTarea(
+    paginaOp: string | undefined
+  ): Promise<{ id: string; contactId: string | null; estado: EstadoOportunidad | null } | null> {
     if (!paginaOp) return null;
     let id = this.opDePagina.get(paginaOp) ?? (await this.yaAnotado(paginaOp));
     if (!id) {
       // Una oportunidad que no se editó en el período: se lee y se pone al día.
       const p = await leerPagina(paginaOp);
       if (!p) return null;
-      await this.oportunidad(p);
+      await this.oportunidad(p, 2);
       id = this.opDePagina.get(paginaOp) ?? null;
     }
     if (!id) return null;
-    if (id.startsWith("nuevo:")) return { id, contactId: null };
+    if (id.startsWith("nuevo:")) return { id, contactId: null, estado: this.estadoFinal.get(paginaOp) ?? null };
     const [f] = await getDb()
-      .select({ id: schema.oportunidad.id, contactId: schema.oportunidad.contactId })
+      .select({ id: schema.oportunidad.id, contactId: schema.oportunidad.contactId, estado: schema.oportunidad.estado })
       .from(schema.oportunidad)
       .where(scoped(schema.oportunidad.organizationId, this.org, eq(schema.oportunidad.id, id)))
       .limit(1);
-    return f ?? null;
+    return f ? { ...f, estado: this.estadoFinal.get(paginaOp) ?? f.estado } : null;
   }
 
   async tarea(p: PaginaNotion) {
@@ -614,7 +639,11 @@ class Sync {
       return;
     }
 
-    // Nueva.
+    // Nueva. Una pendiente de una oportunidad que ya se cerró no se trae: quedaría colgada.
+    if ((estado ?? "realizar") === "realizar" && op?.estado && !estaAbierta(op.estado)) {
+      this.informe.tareas.pendientesDeCerradas++;
+      return;
+    }
     if (!this.aplicar || nuevoEnPrueba) {
       if (comoCita) this.informe.tareas.citasNuevas++;
       else this.informe.tareas.nuevas++;
@@ -685,11 +714,14 @@ class Sync {
         .select()
         .from(t)
         .where(scoped(t.organizationId, this.org, eq(t.oportunidadId, q.op), eq(t.tipo, q.tipo as typeof t.$inferSelect.tipo)));
-      const igual = filas.find((f) => mismoTitulo(f.titulo, q.titulo) && mismaFecha(f.fecha, q.cuando));
+      // La fecha pudo entrar en otra zona (un día solo, a medianoche UTC): la más cercana a 36 h.
+      const igual = filas
+        .filter((f) => mismoTitulo(f.titulo, q.titulo) && cercaDe(f.fecha, q.cuando))
+        .sort((a, b) => distancia(a.fecha, q.cuando) - distancia(b.fecha, q.cuando))[0];
       if (igual) return deTarea(igual);
     }
     if ((q.tipo === "visita" || q.tipo === "reunion") && q.contactId && q.cuando) {
-      const [bk] = await db
+      const citas = await db
         .select()
         .from(b)
         .where(
@@ -697,12 +729,12 @@ class Sync {
             b.organizationId,
             this.org,
             eq(b.contactId, q.contactId),
-            gte(b.scheduledAt, new Date(q.cuando.getTime() - 60_000)),
-            lte(b.scheduledAt, new Date(q.cuando.getTime() + 60_000)),
+            gte(b.scheduledAt, new Date(q.cuando.getTime() - CERCA_MS)),
+            lte(b.scheduledAt, new Date(q.cuando.getTime() + CERCA_MS)),
             sql`${b.kind} = 'session'`
           )
-        )
-        .limit(1);
+        );
+      const bk = citas.sort((x, y) => distancia(x.scheduledAt, q.cuando) - distancia(y.scheduledAt, q.cuando))[0];
       if (bk) return deCita(bk);
     }
     return null;
@@ -750,6 +782,10 @@ class Sync {
     }
   }
 }
+
+const CERCA_MS = 36 * 3_600_000;
+const distancia = (a: Date | null, b: Date | null) => (a && b ? Math.abs(a.getTime() - b.getTime()) : a || b ? Infinity : 0);
+const cercaDe = (a: Date | null, b: Date | null) => distancia(a, b) <= CERCA_MS;
 
 type Existente = {
   cual: "tarea" | "cita";
@@ -807,9 +843,18 @@ export async function sincronizarNotion(opciones: { aplicar: boolean; desde: Dat
   informe.leidas.oportunidades = ops.length;
   // De la más vieja a la más nueva: si dos apuntan al mismo contacto, se respeta el orden.
   ops.sort((a, b) => a.created_time.localeCompare(b.created_time));
+  // Primero las inequívocas; después, las que quedan, con las que sobran.
+  const pendientes: PaginaNotion[] = [];
   for (const p of ops) {
     try {
-      await s.oportunidad(p);
+      if (!(await s.oportunidad(p, 1))) pendientes.push(p);
+    } catch (err) {
+      anotar(informe.problemas, `Oportunidad ${idPlano(p.id)}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  for (const p of pendientes) {
+    try {
+      await s.oportunidad(p, 2);
     } catch (err) {
       anotar(informe.problemas, `Oportunidad ${idPlano(p.id)}: ${err instanceof Error ? err.message : String(err)}`);
     }
