@@ -102,6 +102,7 @@ export type InformeSync = {
     sinOportunidad: number;
     igual: number;
     pendientesDeCerradas: number;
+    pendientesSinComentario: number;
   };
   ejemplos: string[];
   problemas: string[];
@@ -127,7 +128,7 @@ function informeVacio(modo: "prueba" | "aplicar", desde: Date): InformeSync {
       noResponde: 0,
       ganaCrm: 0,
     },
-    tareas: { nuevas: 0, citasNuevas: 0, actualizadas: 0, eliminadas: 0, ganaCrm: 0, sinOportunidad: 0, igual: 0, pendientesDeCerradas: 0 },
+    tareas: { nuevas: 0, citasNuevas: 0, actualizadas: 0, eliminadas: 0, ganaCrm: 0, sinOportunidad: 0, igual: 0, pendientesDeCerradas: 0, pendientesSinComentario: 0 },
     ejemplos: [],
     problemas: [],
     segundos: 0,
@@ -639,7 +640,13 @@ class Sync {
       return;
     }
 
-    // Nueva. Una pendiente de una oportunidad que ya se cerró no se trae: quedaría colgada.
+    // Nueva. Una pendiente sin comentario no se trae (Sebastián, 25/11): son las
+    // que Notion crea solas por etapa y nadie tocó.
+    if ((estado ?? "realizar") === "realizar" && !comentarios) {
+      this.informe.tareas.pendientesSinComentario++;
+      return;
+    }
+    // Una pendiente de una oportunidad que ya se cerró tampoco: quedaría colgada.
     if ((estado ?? "realizar") === "realizar" && op?.estado && !estaAbierta(op.estado)) {
       this.informe.tareas.pendientesDeCerradas++;
       return;
