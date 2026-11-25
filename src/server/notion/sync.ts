@@ -56,6 +56,16 @@ const FUENTE = "notion";
 const DIA = 86_400_000;
 const ACTOR: Actor = { fuente: "migracion" };
 
+/**
+ * Quién es quién en Notion (Sebastián, 25/11). Los invitados no muestran su
+ * nombre por la API, así que va fijo; el nombre se busca en el equipo del CRM.
+ */
+const RESPONSABLES_NOTION: Record<string, string> = {
+  "7d3667f493bc485e95d56377fc7da1ab": "Sebastián",
+  "373d872b594c81bcba350002c89a21c4": "Gloria",
+  "c1c28dfbeb8e402c9b1aa238bec201c2": "Sebastián",
+};
+
 /** Las bases de Notion de WAR (data sources). */
 const BASES = {
   oportunidades: process.env.NOTION_DS_OPORTUNIDADES ?? "3114daa6-7f89-809f-b112-000b37a3e0c0",
@@ -196,7 +206,9 @@ class Sync {
 
   private nombresResponsable(p: PaginaNotion): string | null {
     const ps = personas(p.properties.Responsable);
-    const nombres = ps.map((x) => x.nombre ?? this.nombresNotion.get(x.id) ?? "").filter(Boolean);
+    const nombres = ps
+      .map((x) => RESPONSABLES_NOTION[idPlano(x.id)] ?? x.nombre ?? this.nombresNotion.get(x.id) ?? "")
+      .filter(Boolean);
     return nombres.length ? nombres.join(", ") : null;
   }
 
