@@ -313,7 +313,7 @@ class Sync {
     if (anotada) op = await this.fila(anotada);
     if (op) this.informe.oportunidades.porClave++;
     if (!op && contactId && !contactId.startsWith("nuevo:")) {
-      op = await this.cercana(contactId, creada, pid, fase === 1 ? { nombre } : { tipo, estado, motivo });
+      op = await this.cercana(contactId, creada, pid, { nombre: fase === 1 ? nombre : null, tipo, estado, motivo });
       if (op) this.informe.oportunidades.porCercania++;
     }
     if (!op && fase === 1) return false;
@@ -428,7 +428,7 @@ class Sync {
     contactId: string,
     creada: Date,
     pid: string,
-    criterio: { nombre: string } | { tipo: string | null; estado: string | null; motivo: string | null }
+    criterio: { nombre: string | null; tipo: string | null; estado: string | null; motivo: string | null }
   ): Promise<FilaOp | null> {
     const o = schema.oportunidad;
     const filas = await getDb()
@@ -448,16 +448,16 @@ class Sync {
       return !de || de === `pagina:${pid}`;
     });
     const cerca = (f: FilaOp) => Math.abs(f.createdAt.getTime() - creada.getTime());
-    if ("nombre" in criterio) {
-      const iguales = libres.filter((f) => mismoTitulo(f.nombre, criterio.nombre)).sort((a, b) => cerca(a) - cerca(b));
-      return iguales[0] ?? null;
-    }
+    // Fase 1: solo las del mismo nombre. Si hay varias (Notion tiene duplicadas,
+    // «RENATA YABER» y «Renata Yaber»), la que ya coincide en todo.
+    const candidatas = criterio.nombre ? libres.filter((f) => mismoTitulo(f.nombre, criterio.nombre)) : libres;
     const puntos = (f: FilaOp) =>
+      (criterio.nombre && f.nombre.trim() === criterio.nombre.trim() ? 4 : 0) +
       (criterio.estado && f.estado === criterio.estado ? 2 : 0) +
       (criterio.motivo && mismoTitulo(f.motivoCierre, criterio.motivo) ? 1 : 0) +
       (criterio.tipo && f.tipo === criterio.tipo ? 1 : 0);
-    libres.sort((a, b) => puntos(b) - puntos(a) || cerca(a) - cerca(b));
-    return libres[0] ?? null;
+    candidatas.sort((a, b) => puntos(b) - puntos(a) || cerca(a) - cerca(b));
+    return candidatas[0] ?? null;
   }
 
   /** El último cambio que hizo el CRM (no la sincronización) en esa oportunidad. */
