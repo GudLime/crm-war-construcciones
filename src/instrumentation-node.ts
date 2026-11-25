@@ -2,6 +2,7 @@ import { pasarLeadsAVentaAlArrancar } from "@/server/oportunidades";
 import { convertirTareasDeVisitaAlArrancar } from "@/server/agenda/convertir-tareas";
 import { agendaEnabled } from "@/server/agenda/flag";
 import { iniciarTareasProgramadas } from "@/server/tareas-envio";
+import { iniciarSyncNotion } from "@/server/notion/sync";
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { mediaDirStatus } from "@/server/media-dir";
@@ -143,6 +144,8 @@ export function resumeVentas(): void {
   setTimeout(() => void pasarLeadsAVentaAlArrancar(), 20_000).unref?.();
   // v3 — Visita y Reunión son citas: las tareas viejas con fecha pasan solas.
   if (agendaEnabled()) setTimeout(() => void convertirTareasDeVisitaAlArrancar(), 30_000).unref?.();
+  // War — Notion → CRM (NOTION_SYNC + NOTION_TOKEN); sin las variables, nada.
+  iniciarSyncNotion();
 }
 
 /**
