@@ -745,11 +745,16 @@ type Existente = {
   estado: string;
   comentarios: string | null;
   fecha: Date | null;
-  updatedAt: Date;
+  /** El último cambio del CRM; null si nadie la tocó desde que se creó (importación o paso a cita). */
+  updatedAt: Date | null;
 };
 
+/** Sin tocar desde que se creó: la importación o el paso a cita no cuentan como cambio. */
+const tocada = (creada: Date, editada: Date): Date | null =>
+  Math.abs(editada.getTime() - creada.getTime()) < 60_000 ? null : editada;
+
 function deTarea(t: typeof schema.tareaVenta.$inferSelect): Existente {
-  return { cual: "tarea", id: t.id, estado: t.estado, comentarios: t.comentarios, fecha: t.fecha, updatedAt: t.updatedAt };
+  return { cual: "tarea", id: t.id, estado: t.estado, comentarios: t.comentarios, fecha: t.fecha, updatedAt: tocada(t.createdAt, t.updatedAt) };
 }
 
 const ESTADO_DE_CITA: Record<string, string> = { agendada: "realizar", realizada: "listo", no_show: "no_responde", cancelada: "cancelada" };
@@ -763,7 +768,7 @@ function deCita(b: typeof schema.booking.$inferSelect): Existente {
     estado: ESTADO_DE_CITA[b.status] ?? b.status,
     comentarios: partes.length > 1 ? partes.slice(1).join("\n\n") : null,
     fecha: b.scheduledAt,
-    updatedAt: b.updatedAt,
+    updatedAt: tocada(b.createdAt, b.updatedAt),
   };
 }
 
