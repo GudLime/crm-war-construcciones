@@ -34,7 +34,7 @@ const api = (ruta, init = {}) =>
 
 try {
   // Registro (o login si ya existe la organización).
-  const credenciales = { email: "dueno@beba.test", password: "prueba-prueba-123", name: "Dueño" };
+  const credenciales = { email: "dueno@resto.test", password: "prueba-prueba-123", name: "Dueño" };
   let r = await api("/api/auth/sign-up/email", { method: "POST", body: credenciales });
   if (!r.ok()) r = await api("/api/auth/sign-in/email", { method: "POST", body: credenciales });
   ok("registro o login", r.ok(), await r.text());

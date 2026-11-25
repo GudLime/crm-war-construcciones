@@ -15,8 +15,8 @@ import {
   type Ocupacion,
 } from "@/lib/reservas";
 
-/** 071 — El cupo de Beba: semidescubierto 1×4 + 1×2; salón 2×4 + 2×2. */
-const BEBA: CupoSector[] = [
+/** 071 — Un cupo de ejemplo: semidescubierto 1×4 + 1×2; salón 2×4 + 2×2. */
+const CUPO: CupoSector[] = [
   { sector: "Salón", capacidad: 4, cantidad: 2, orden: 0 },
   { sector: "Salón", capacidad: 2, cantidad: 2, orden: 0 },
   { sector: "Semidescubierto", capacidad: 4, cantidad: 1, orden: 1 },
@@ -27,47 +27,47 @@ const ocupa = (sector: string, ...caps: number[]): Ocupacion => ({ sector, mesas
 
 describe("formaPara", () => {
   it("1 o 2 → una de 2; 3 o 4 → una de 4; 5 o 6 → una de 4 y una de 2; 7 → nada", () => {
-    expect(formaPara(BEBA, 1)).toEqual([2]);
-    expect(formaPara(BEBA, 2)).toEqual([2]);
-    expect(formaPara(BEBA, 3)).toEqual([4]);
-    expect(formaPara(BEBA, 4)).toEqual([4]);
-    expect(formaPara(BEBA, 5)).toEqual([4, 2]);
-    expect(formaPara(BEBA, 6)).toEqual([4, 2]);
-    expect(formaPara(BEBA, 9)).toBeNull();
-    expect(formaPara(BEBA, 0)).toBeNull();
+    expect(formaPara(CUPO, 1)).toEqual([2]);
+    expect(formaPara(CUPO, 2)).toEqual([2]);
+    expect(formaPara(CUPO, 3)).toEqual([4]);
+    expect(formaPara(CUPO, 4)).toEqual([4]);
+    expect(formaPara(CUPO, 5)).toEqual([4, 2]);
+    expect(formaPara(CUPO, 6)).toEqual([4, 2]);
+    expect(formaPara(CUPO, 9)).toBeNull();
+    expect(formaPara(CUPO, 0)).toBeNull();
   });
 });
 
 describe("asignar", () => {
   it("con todo libre, una de 2 va donde deja más lugar para un grupo grande", () => {
     // Si fuera al semidescubierto, ese sector se queda sin par 4+2.
-    expect(asignar(BEBA, [], 2)).toEqual({ sector: "Salón", mesas: [{ capacidad: 2 }] });
+    expect(asignar(CUPO, [], 2)).toEqual({ sector: "Salón", mesas: [{ capacidad: 2 }] });
   });
 
   it("sin mesas de 2 libres, una reserva de 2 no usa una de 4", () => {
     const llenas = [ocupa("Salón", 2), ocupa("Salón", 2), ocupa("Semidescubierto", 2)];
-    expect(asignar(BEBA, llenas, 2)).toBeNull();
-    expect(asignar(BEBA, llenas, 4)).not.toBeNull();
+    expect(asignar(CUPO, llenas, 2)).toBeNull();
+    expect(asignar(CUPO, llenas, 4)).not.toBeNull();
   });
 
   it("5 o 6 personas juntan una de 4 y una de 2 del MISMO sector", () => {
     // Quedan: Salón 4 libre pero sin 2; Semidescubierto 2 libre pero sin 4.
     const ocupadas = [ocupa("Salón", 4), ocupa("Salón", 2, 2), ocupa("Semidescubierto", 4)];
-    expect(asignar(BEBA, ocupadas, 6)).toBeNull();
-    expect(asignar(BEBA, [], 6)).toEqual({ sector: "Salón", mesas: [{ capacidad: 4 }, { capacidad: 2 }] });
+    expect(asignar(CUPO, ocupadas, 6)).toBeNull();
+    expect(asignar(CUPO, [], 6)).toEqual({ sector: "Salón", mesas: [{ capacidad: 4 }, { capacidad: 2 }] });
   });
 
   it("un horario se llena con exactamente las 6 mesas", () => {
     let ocupadas: Ocupacion[] = [];
     const pedidos = [2, 2, 2, 4, 4, 4];
     for (const p of pedidos) {
-      const a = asignar(BEBA, ocupadas, p);
+      const a = asignar(CUPO, ocupadas, p);
       expect(a).not.toBeNull();
       ocupadas = [...ocupadas, { sector: a!.sector, mesas: a!.mesas }];
     }
-    expect(asignar(BEBA, ocupadas, 1)).toBeNull();
-    expect(asignar(BEBA, ocupadas, 3)).toBeNull();
-    expect(resumenCupo(BEBA, ocupadas)).toEqual([
+    expect(asignar(CUPO, ocupadas, 1)).toBeNull();
+    expect(asignar(CUPO, ocupadas, 3)).toBeNull();
+    expect(resumenCupo(CUPO, ocupadas)).toEqual([
       { capacidad: 2, libres: 0, total: 3 },
       { capacidad: 4, libres: 0, total: 3 },
     ]);
@@ -76,12 +76,12 @@ describe("asignar", () => {
   it("caben tres grupos de 5 o 6 (dos en el salón y uno afuera) y no un cuarto", () => {
     let ocupadas: Ocupacion[] = [];
     for (let i = 0; i < 3; i++) {
-      const a = asignar(BEBA, ocupadas, 6)!;
+      const a = asignar(CUPO, ocupadas, 6)!;
       expect(a).not.toBeNull();
       ocupadas = [...ocupadas, { sector: a.sector, mesas: a.mesas }];
     }
     expect(ocupadas.filter((o) => o.sector === "Salón")).toHaveLength(2);
-    expect(asignar(BEBA, ocupadas, 5)).toBeNull();
+    expect(asignar(CUPO, ocupadas, 5)).toBeNull();
   });
 });
 

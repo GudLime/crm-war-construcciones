@@ -1,6 +1,6 @@
 # 071 — Reservas de restaurante por WhatsApp
 
-Estado: fases 2 y 3 hechas (vocabulario configurable; cupo, Ajustes → Reservas y vista del día) · Primer cliente: Beba (pastificio, Villa Urquiza) · Repo: GudLime/gudlime-crm-service (núcleo) + GudLime/crm-beba (configuración)
+Estado: fases 2 y 3 hechas (vocabulario configurable; cupo, Ajustes → Reservas y vista del día) · Repo: GudLime/gudlime-crm-service (núcleo) + GudLime/crm-resto (CRM de restaurantes, configuración)
 
 ## Qué
 
@@ -10,13 +10,13 @@ escribe queda como contacto y cada reserva queda asociada a ese contacto. La
 reserva ocupa la oportunidad: misma lógica, otro nombre y otros estados.
 
 Todo lo genérico va al núcleo detrás de la bandera `RESERVAS`, apagada por
-defecto, para que el próximo restaurante lo tenga con solo configurarlo. Lo
-único propio de Beba es su configuración.
+defecto, para que cada restaurante lo tenga con solo configurarlo. Lo único
+propio de cada uno es su configuración.
 
 ## Decisiones (acordadas el 13/11/2026)
 
 - **Sin agente.** El flujo es de botones y listas. El Flow de WhatsApp con
-  endpoint cifrado queda para cuando Beba tenga el negocio verificado en Meta
+  endpoint cifrado queda para cuando el restaurante tenga el negocio verificado en Meta
   (los Flows lo exigen); botones y listas no lo necesitan.
 - **La reserva es la oportunidad renombrada.** Se llama Reserva, tiene sus
   propios estados y puede tener menos funciones que una oportunidad.
@@ -27,7 +27,7 @@ defecto, para que el próximo restaurante lo tenga con solo configurarlo. Lo
   llegar. A futuro se puede pasar a cupo por personas y mesas combinables.
 - **Horarios:** 12:00 y 14:00 (mediodía) y 20:00 (noche). Cada mesa se usa una
   vez por horario. Los tres horarios arrancan con el mismo cupo.
-- **Cupo de Beba por horario:**
+- **Cupo de ejemplo por horario** (cada restaurante carga el suyo):
 
   | Sector | Mesas de 4 | Mesas de 2 |
   |---|---|---|
@@ -49,11 +49,12 @@ defecto, para que el próximo restaurante lo tenga con solo configurarlo. Lo
 - **Recordatorio el mismo día** con una plantilla de utilidad y los botones
   Confirmo y Cancelar.
 - **Número:** se arranca con el número de prueba de Meta. Cuando el sistema
-  esté listo, se pasa el número actual de Beba a la Cloud API; deja de
+  esté listo, se pasa el número actual del restaurante a la Cloud API; deja de
   funcionar en la app de WhatsApp Business (sin coexistencia por ahora).
-- **Conexión con Meta:** la cuenta de WhatsApp es de Beba, en su portafolio. La
-  app de GudLime accede con un usuario del sistema de Beba (el mismo camino que
-  ya funciona con WAR). Beba paga sus mensajes con su propia tarjeta.
+- **Conexión con Meta:** la cuenta de WhatsApp es del restaurante, en su portafolio.
+  La app de GudLime accede con un usuario del sistema del restaurante (el mismo
+  camino que ya funciona con WAR). El restaurante paga sus mensajes con su
+  propia tarjeta.
 
 ## Estados de la reserva
 
@@ -116,7 +117,7 @@ reserva a mano (las que entran por teléfono), con la misma regla de cupo.
 `GET /r/<token>`: público, sin sesión. El token es aleatorio y no lleva datos
 personales. Con un navegador de iPhone devuelve `text/calendar` (`.ics`); con
 cualquier otro, redirige a la plantilla de evento de Google Calendar
-(«Reserva en Beba», fecha, hora, dirección). El evento dura 2 horas.
+(«Reserva en <nombre del negocio>», fecha, hora, dirección). El evento dura 2 horas.
 
 ## Arquitectura
 
@@ -141,13 +142,13 @@ cualquier otro, redirige a la plantilla de evento de Google Calendar
 - **Cerebro de reservas:** el flujo vive en un cerebro aparte, conectado por
   el contrato del despacho como Nea. El CRM no gana un turno propio (regla de
   036) y pasar a un agente conversacional es cambiar de cerebro.
-- **Beba (crm-beba):** `clientes/beba.json` con el vocabulario y la bandera;
+- **CRM de restaurantes (crm-resto):** `clientes/resto.json` con el vocabulario, el menú y la bandera;
   los horarios y el cupo se cargan en Ajustes → Reservas.
 
 ## Fases
 
-1. Infraestructura: proyecto CRM Beba en Coolify, base, dominio
-   `crm.beba.gudlime.com.ar`, backups. Conexión con el número de prueba y
+1. Infraestructura: proyecto CRM Resto en Coolify, base, dominio
+   `crm.resto.gudlime.com.ar`, backups. Conexión con el número de prueba y
    prueba de envío y recepción con un número real cuanto antes.
 2. Vocabulario configurable y apagar lo inmobiliario (núcleo). **Hecho**:
    bloque `oportunidad` e `inmobiliario` en `clientes/<cliente>.json`
@@ -188,7 +189,7 @@ cualquier otro, redirige a la plantilla de evento de Google Calendar
    cerebro, cerebro de reservas, calendario.
 5. Plantilla de recordatorio (aprobación de Meta) y barrido.
 6. Pruebas de punta a punta con mocks y con el número de prueba; paso al
-   número de Beba; capacitación.
+   número del restaurante; capacitación.
 
 ## Tanda de cambios del 15 de noviembre (hecha)
 
@@ -238,7 +239,7 @@ Consulta (cuando el flujo registre las reservas que no se terminaron).
 
 ## Ajustes del diseño (Claude Design, 15 de noviembre)
 
-Del canvas «Beba · Reservas»:
+Del canvas de diseño de Reservas:
 
 - Contador «Por asistir» (las confirmadas del día que todavía no llegaron) en
   lugar de las mesas libres del horario.
@@ -256,7 +257,7 @@ Del canvas «Beba · Reservas»:
 ## Fuera de alcance por ahora
 
 Mesas específicas y plano del salón · cupo por personas y mesas combinables ·
-Flow de WhatsApp cifrado (cuando Beba esté verificado) · lista de espera ·
+Flow de WhatsApp cifrado (cuando el restaurante esté verificado) · lista de espera ·
 seña · coexistencia con la app.
 
 ## A definir (no bloquea)

@@ -65,7 +65,7 @@ El servidor lo lee una vez (`src/server/vocabulario.ts`) y lo baja a las
 pantallas con `useVocabulario()` (`src/components/vocabulario.tsx`); lo puro
 vive en `src/lib/vocabulario.ts`. Las API de estado y motivo lo revisan
 (`revisarCambio`). Sin `inmobiliario`, abrir una oportunidad no exige que el
-contacto sea Lead. Primer cliente: Beba (reservas de restaurante).
+contacto sea Lead. Primer caso: el CRM de restaurantes (reservas).
 
 ## Reservas de restaurante (spec 071)
 
@@ -74,7 +74,7 @@ Módulo opcional detrás de `RESERVAS=on`; apagado, sus pantallas y su API dan
 mesas de Ajustes → Reservas libres y cada reserva se lleva la más chica que
 alcanza (o dos del mismo sector). Cada reserva es una oportunidad con su fila
 en `reserva` (fecha, hora, personas, sector, mesas); las etapas que ocupan
-mesa son las abiertas y Compró (en Beba, Confirmada y Llegó). El día se
+mesa son las abiertas y Compró (en el CRM de restaurantes, Confirmada y Asistió). El día se
 maneja desde la vista Mosaico de Reservas (el salón por horario y sector,
 `src/components/reservas/salon-del-dia.tsx`). En Contactos, cada persona
 muestra sus reservas, visitas y faltas, su segmento (Nuevo, Cliente,
