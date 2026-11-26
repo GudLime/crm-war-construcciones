@@ -196,6 +196,7 @@ export function OportunidadDetalleClient({ agenda = false }: { agenda?: boolean 
       .catch(() => undefined);
   }, []);
   const [noExiste, setNoExiste] = useState(false);
+  const [sinPermiso, setSinPermiso] = useState<string | null>(null);
   const [pestana, setPestana] = useState<Pestana>("timeline");
   const [error, setError] = useState<string | null>(null);
   const [origenes, setOrigenes] = useState<IconoDeOrigen>(new Map());
@@ -204,6 +205,10 @@ export function OportunidadDetalleClient({ agenda = false }: { agenda?: boolean 
     const res = await fetch(`/api/oportunidades/${id}/detalle`).catch(() => null);
     if (res?.status === 404) {
       setNoExiste(true);
+      return;
+    }
+    if (res?.status === 403) {
+      setSinPermiso(await mensajeError(res));
       return;
     }
     if (!res?.ok) return;
@@ -260,10 +265,10 @@ export function OportunidadDetalleClient({ agenda = false }: { agenda?: boolean 
     await Promise.all([cargar(), objetos.recargar()]);
   }
 
-  if (noExiste) {
+  if (noExiste || sinPermiso) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-        <p className="text-sm text-text-2">Esa {singular} no existe (o se borró).</p>
+        <p className="max-w-md text-sm text-text-2">{sinPermiso ?? `Esa ${singular} no existe (o se borró).`}</p>
         <Link href="/oportunidades" className="text-sm font-medium text-brand-ink hover:underline">
           Volver a {voc.plural}
         </Link>

@@ -45,8 +45,30 @@ export type EdificioParaMemoria = {
   /** 0065 — Si está a la venta. */
   enVenta: boolean;
   notasAgente: string | null;
+  /** v6 — Su horario de visitas ({ mon: [{start,end}], … }); null = el de la agenda. */
+  horarioVisitas?: Partial<Record<string, { start: string; end: string }[]>> | null;
   unidades: UnidadParaMemoria[];
 };
+
+const DIAS_ES: [string, string][] = [
+  ["mon", "lunes"],
+  ["tue", "martes"],
+  ["wed", "miércoles"],
+  ["thu", "jueves"],
+  ["fri", "viernes"],
+  ["sat", "sábado"],
+  ["sun", "domingo"],
+];
+
+/** v6 — «lunes 10:00–13:00 y 15:00–19:00; martes …», o null sin horario propio. */
+export function textoHorarioVisitas(h: EdificioParaMemoria["horarioVisitas"]): string | null {
+  if (!h) return null;
+  const partes = DIAS_ES.flatMap(([k, nombre]) => {
+    const franjas = (h[k] ?? []).filter((f) => f.start && f.end);
+    return franjas.length ? [`${nombre} ${franjas.map((f) => `${f.start}–${f.end}`).join(" y ")}`] : [];
+  });
+  return partes.length ? partes.join("; ") : null;
+}
 
 const OFRECIBLES: readonly EstadoUnidad[] = ["disponible", "consultar"];
 
@@ -184,6 +206,9 @@ export function renderEdificioParaMemoria(e: EdificioParaMemoria): string {
   if (e.direccion) lineas.push(`Dirección: ${e.direccion}`);
   lineas.push(`Estado de obra: ${etiqueta(ESTADOS_EDIFICIO, e.estado)}`);
   lineas.push(`En venta: ${e.enVenta ? "sí" : "no (no se ofrece)"}`);
+  // v6 — El horario de visitas sale del edificio (no de las notas).
+  const horario = textoHorarioVisitas(e.horarioVisitas);
+  if (horario) lineas.push(`Horario de visitas: ${horario}. Solo se ofrecen visitas en ese horario.`);
   if (e.notasAgente?.trim()) lineas.push(`Notas: ${e.notasAgente.trim()}`);
 
   const ofrecibles = e.unidades.filter((u) => OFRECIBLES.includes(u.estado));

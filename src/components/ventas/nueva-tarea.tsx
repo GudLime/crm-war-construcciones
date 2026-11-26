@@ -9,6 +9,7 @@ import { WhatsAppLogo } from "@/components/whatsapp-logo";
 import { tonoDeEdificio } from "@/lib/colores-edificio";
 import { tituloPorDefecto, type BotonTipo } from "@/lib/tareas-por-tipo";
 import { cn } from "@/lib/utils";
+import { conConfirmacionDeHorario } from "@/components/ventas/fuera-de-horario";
 
 /**
  * Próximos pasos — una tarea nueva desde la oportunidad: un botón por tipo
@@ -264,21 +265,27 @@ function VentanaNuevaTarea({
     if (!titulo.trim() || creando) return;
     setCreando(true);
     setError(null);
-    const inicio = new Date(`${fecha}T${hora}`);
-    if (Number.isNaN(inicio.getTime())) {
+    // v6 — Se manda la hora tal cual («2026-11-26T17:00»): el servidor la toma
+    // en la zona del negocio. Con la del navegador quedaba corrida en Tareas.
+    const local = `${fecha}T${hora}`;
+    const inicio = new Date(local);
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(local) || Number.isNaN(inicio.getTime())) {
       setError("Revisá la fecha y la hora");
       setCreando(false);
       return;
     }
     const tipoGuardado = tipo === "reunion" ? modo : tipo;
     const res = esCita
-      ? await fetch("/api/bookings", {
+      ? // v6 — Fuera del horario de visitas, se pregunta y se puede agendar igual.
+        await conConfirmacionDeHorario((forzarHorario) =>
+          fetch("/api/bookings", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
+            ...(forzarHorario ? { forzarHorario } : {}),
             kind: "session",
             contactId: contacto!.id,
-            startUtc: inicio.toISOString(),
+            startUtc: local,
             notes: [titulo.trim(), nota.trim()].filter(Boolean).join("\n\n"),
             ubicacion: ubicacion || null,
             // 0064 — La cita guarda si es visita o reunión, el edificio y quién la atiende.
@@ -286,14 +293,15 @@ function VentanaNuevaTarea({
             edificioId: modo === "visita" ? edificioId : null,
             ...(responsable ? { responsableId: responsable } : {}),
           }),
-        }).catch(() => null)
+          }).catch(() => null)
+        )
       : await fetch("/api/tareas", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             titulo: titulo.trim(),
             tipo: tipoGuardado,
-            fecha: inicio.toISOString(),
+            fecha: local,
             comentarios: nota.trim() || null,
             oportunidadId,
             contactId: contacto?.id ?? null,
@@ -304,6 +312,7 @@ function VentanaNuevaTarea({
           }),
         }).catch(() => null);
     setCreando(false);
+    if (res === "cancelado") return;
     if (!res?.ok) {
       const d = (await res?.json().catch(() => null)) as { error?: { message?: string } } | null;
       setError(d?.error?.message ?? "No se pudo crear");

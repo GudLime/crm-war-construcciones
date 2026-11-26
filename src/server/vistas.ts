@@ -48,7 +48,7 @@ const visibles = (q: Quien, pagina: string) =>
 export async function listarVistas(
   q: Quien,
   pagina: PaginaConVistas
-): Promise<{ vistas: VistaDto[]; ultima: string | null }> {
+): Promise<{ vistas: VistaDto[]; ultima: string | null; orden: string[] }> {
   const db = getDb();
   const filas = await db
     .select()
@@ -66,7 +66,34 @@ export async function listarVistas(
       )
     )
     .limit(1);
-  return { vistas: filas.map(aDto), ultima: u?.vistaId ?? null };
+  const [o] = await db
+    .select({ ids: schema.vistaOrden.ids })
+    .from(schema.vistaOrden)
+    .where(
+      and(
+        eq(schema.vistaOrden.organizationId, q.organizationId),
+        eq(schema.vistaOrden.userId, q.userId),
+        eq(schema.vistaOrden.pagina, pagina)
+      )
+    )
+    .limit(1);
+  return {
+    vistas: filas.map(aDto),
+    ultima: u?.vistaId ?? null,
+    orden: Array.isArray(o?.ids) ? o.ids.filter((x): x is string => typeof x === "string") : [],
+  };
+}
+
+/** v6 — El orden de las pestañas de quien mira (las arrastró). */
+export async function guardarOrden(q: Quien, pagina: PaginaConVistas, ids: readonly string[]): Promise<void> {
+  const unicos = [...new Set(ids)].slice(0, 200);
+  await getDb()
+    .insert(schema.vistaOrden)
+    .values({ organizationId: q.organizationId, userId: q.userId, pagina, ids: unicos })
+    .onConflictDoUpdate({
+      target: [schema.vistaOrden.organizationId, schema.vistaOrden.userId, schema.vistaOrden.pagina],
+      set: { ids: unicos, updatedAt: new Date() },
+    });
 }
 
 export async function crearVista(

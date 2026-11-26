@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import {
@@ -12,7 +12,7 @@ import {
   zonedWallClockToUtc,
   type SlotUtc,
 } from "@/lib/time/slots";
-import { getSettings, type CalendarSettings } from "@/server/agenda/settings";
+import { getSettings, normalizeWeeklyHours, type CalendarSettings, type WeeklyHours } from "@/server/agenda/settings";
 
 /**
  * 015 — Motor de disponibilidad:
@@ -183,4 +183,64 @@ async function getBusyIntervals(
         r.scheduledAt.getTime() + r.durationMinutes * 60_000
       ).toISOString(),
     }));
+}
+
+/**
+ * v6 — El horario de visitas propio de un edificio (normalizado), o null si
+ * usa el de la agenda.
+ */
+export async function horarioDeEdificio(
+  organizationId: string,
+  edificioId: string
+): Promise<{ nombre: string; horario: WeeklyHours | null } | null> {
+  const [f] = await getDb()
+    .select({ nombre: schema.edificio.nombre, horario: schema.edificio.horarioVisitas })
+    .from(schema.edificio)
+    .where(and(eq(schema.edificio.organizationId, organizationId), eq(schema.edificio.id, edificioId)))
+    .limit(1);
+  if (!f) return null;
+  const horario = f.horario ? normalizeWeeklyHours(f.horario) : null;
+  return { nombre: f.nombre, horario: horario && Object.keys(horario).length ? horario : null };
+}
+
+/**
+ * v6 — ¿Ese instante está libre, aunque caiga fuera del horario? Lo que
+ * confirma una persona fuera de horario solo respeta los bloqueos (y las
+ * otras citas, si no hay citas en paralelo). Dura lo de un turno.
+ */
+export async function huecoLibre(
+  organizationId: string,
+  startUtc: string,
+  settings: CalendarSettings,
+  opts: { soloBloqueos?: boolean; excludeBookingId?: string } = {}
+): Promise<AvailableSlot | null> {
+  const inicio = Date.parse(startUtc);
+  if (Number.isNaN(inicio)) return null;
+  const fin = new Date(inicio + settings.slotMinutes * 60_000).toISOString();
+  const inicioIso = new Date(inicio).toISOString();
+  const ocupado = await getBusyIntervals(organizationId, {
+    fromUtc: new Date(inicio - 24 * 3_600_000),
+    toUtc: new Date(inicio + 24 * 3_600_000),
+    soloBloqueos: opts.soloBloqueos,
+    excludeBookingId: opts.excludeBookingId,
+  });
+  if (ocupado.some((b) => overlaps(inicioIso, fin, b.startUtc, b.endUtc))) return null;
+  return { startUtc: inicioIso, endUtc: fin, label: labelInTz(inicioIso, settings.timezone) };
+}
+
+/** v6 — El edificio que nombra el agente (su id o su nombre, sin distinguir mayúsculas). */
+export async function edificioPorNombreOId(organizationId: string, valor: string): Promise<string | null> {
+  const v = valor.trim();
+  if (!v) return null;
+  const [f] = await getDb()
+    .select({ id: schema.edificio.id })
+    .from(schema.edificio)
+    .where(
+      and(
+        eq(schema.edificio.organizationId, organizationId),
+        or(eq(schema.edificio.id, v), sql`lower(${schema.edificio.nombre}) = lower(${v})`)
+      )
+    )
+    .limit(1);
+  return f?.id ?? null;
 }

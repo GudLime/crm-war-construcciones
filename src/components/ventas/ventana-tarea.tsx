@@ -15,6 +15,7 @@ import { hhmm, wallClock } from "@/lib/time/calendar";
 import { dayIsoInTz } from "@/lib/time/slots";
 import type { Booking } from "@/components/bookings/booking-look";
 import { TIPOS_TAREA, estadosDeTipo, etiquetaDeEstado } from "@/lib/ventas";
+import { conConfirmacionDeHorario } from "@/components/ventas/fuera-de-horario";
 import { cn } from "@/lib/utils";
 import type { TareaDto } from "@/server/ventas";
 import { IconoTipo, MarcaIa } from "./tareas-client";
@@ -621,12 +622,16 @@ export function VentanaCita({
   async function accion(url: string, metodo: "PATCH" | "POST", cuerpo?: Record<string, unknown>) {
     setOcupado(true);
     setError(null);
-    const res = await fetch(url, {
-      method: metodo,
-      headers: { "content-type": "application/json" },
-      body: cuerpo ? JSON.stringify(cuerpo) : undefined,
-    }).catch(() => null);
+    // v6 — Fuera del horario (del edificio o de la agenda), se pregunta antes de mover.
+    const res = await conConfirmacionDeHorario((forzarHorario) =>
+      fetch(url, {
+        method: metodo,
+        headers: { "content-type": "application/json" },
+        body: cuerpo ? JSON.stringify(forzarHorario ? { ...cuerpo, forzarHorario } : cuerpo) : undefined,
+      }).catch(() => null)
+    );
     setOcupado(false);
+    if (res === "cancelado") return false;
     if (!res?.ok) {
       setError(res ? await mensajeDe(res) : "No se pudo completar la acción");
       return false;
