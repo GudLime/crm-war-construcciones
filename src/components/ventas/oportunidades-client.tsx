@@ -433,7 +433,10 @@ export function OportunidadesClient({ reservas = false }: { reservas?: boolean }
             <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2 lg:col-span-3">
               <span className="text-xs font-medium text-text-2">Interés · edificios</span>
               <Chips
-                opciones={edificios.map((ed) => ({ value: ed.id, label: ed.nombre }))}
+                // v5 — Solo los que están en venta (y los que ya tenía la que se edita).
+                opciones={edificios
+                  .filter((ed) => ed.enVenta || form.edificioIds.includes(ed.id))
+                  .map((ed) => ({ value: ed.id, label: ed.nombre }))}
                 elegidos={form.edificioIds}
                 vacio="Todavía no hay edificios cargados."
                 onCambio={(edificioIds) => {

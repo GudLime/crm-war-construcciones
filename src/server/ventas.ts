@@ -50,7 +50,7 @@ import { HEX_COLOR, siguienteColor, VALORES_COLOR_EDIFICIO, type ColorEdificio }
 import { existeOrigen } from "@/server/origenes";
 import { blockStartUtc } from "@/lib/time/calendar";
 import { getSettings as ajustesDeAgenda } from "@/server/agenda/settings";
-import { revisarCambio } from "@/server/vocabulario";
+import { revisarCambio, vocabulario } from "@/server/vocabulario";
 
 /**
  * Ventas de la constructora. Las rutas solo autentican y traducen el body;
@@ -702,7 +702,9 @@ function aOportunidad(
   extra: { contactoNombre: string | null; edificioNombre: string | null; unidad: string | null },
   interes: InteresOportunidad = { edificios: [], ambientes: [], tipologiasUnidad: [], unidades: [] },
   formularios = 0,
-  ajustes: AjustesVentas | null = null
+  ajustes: AjustesVentas | null = null,
+  /** Cambios 25/11 — El conteo de intentos es del cierre por falta de respuesta: sin él, no se muestra. */
+  mostrarSinRespuesta = true
 ): OportunidadDto {
   const abierta = estaAbierta(fila.estado);
   return {
@@ -728,7 +730,7 @@ function aOportunidad(
     unidades: interes.unidades,
     ultimaInteraccion: fila.ultimaInteraccion.toISOString(),
     formularios,
-    sinRespuesta: abierta ? textoSinRespuesta(fila) : null,
+    sinRespuesta: abierta && mostrarSinRespuesta ? textoSinRespuesta(fila) : null,
     paraCerrar:
       abierta && ajustes?.sinRespuestaModo === "sugerir" && cumpleSilencio(fila, ajustes, new Date()),
     primerContactoAt: fila.primerContactoAt?.toISOString() ?? null,
@@ -763,11 +765,14 @@ export async function listarOportunidades(
   /** Visibilidad por rol (`server/acceso.ts`): para el operador, solo las suyas. */
   visibles?: SQL
 ): Promise<OportunidadDto[]> {
+  // Cambios 25/11 — Las abiertas de esta instancia: en un restaurante,
+  // Confirmada todavía está abierta (se cierra en el paso de cierre).
+  const abiertas = situacion ? (await vocabulario()).abiertosLista : [...ESTADOS_ABIERTOS_LISTA];
   const deSituacion =
     situacion === "abiertas"
-      ? inArray(schema.oportunidad.estado, [...ESTADOS_ABIERTOS_LISTA])
+      ? inArray(schema.oportunidad.estado, abiertas)
       : situacion === "cerradas"
-        ? notInArray(schema.oportunidad.estado, [...ESTADOS_ABIERTOS_LISTA])
+        ? notInArray(schema.oportunidad.estado, abiertas)
         : undefined;
   const filas = await getDb()
     .select({
@@ -786,10 +791,11 @@ export async function listarOportunidades(
     // War: lo que tuvo movimiento del interesado (formulario o WhatsApp) arriba.
     .orderBy(desc(schema.oportunidad.ultimaInteraccion), desc(schema.oportunidad.updatedAt));
   const ids = filas.map((f) => f.op.id);
-  const [intereses, formularios, ajustes] = await Promise.all([
+  const [intereses, formularios, ajustes, voc] = await Promise.all([
     interesDeOportunidades(organizationId, ids),
     formulariosDeOportunidades(organizationId, ids),
     leerAjustesVentas(organizationId),
+    vocabulario(),
   ]);
   return filas.map((f) => ({
     ...aOportunidad(
@@ -801,7 +807,8 @@ export async function listarOportunidades(
       },
       intereses.get(f.op.id),
       formularios.get(f.op.id) ?? 0,
-      ajustes
+      ajustes,
+      voc.cierrePorSinRespuesta
     ),
     contactoTelefono: f.contactoTelefono,
     contactoEmail: f.contactoEmail,
@@ -875,10 +882,11 @@ export async function oportunidadConNombres(
     .where(scoped(schema.oportunidad.organizationId, organizationId, eq(schema.oportunidad.id, id)))
     .limit(1);
   if (!fila) throw new VentasError(404, "not_found", "Esa oportunidad no existe");
-  const [intereses, formularios, ajustes] = await Promise.all([
+  const [intereses, formularios, ajustes, voc] = await Promise.all([
     interesDeOportunidades(organizationId, [id]),
     formulariosDeOportunidades(organizationId, [id]),
     leerAjustesVentas(organizationId),
+    vocabulario(),
   ]);
   return aOportunidad(
     fila.op,
@@ -889,7 +897,8 @@ export async function oportunidadConNombres(
     },
     intereses.get(id),
     formularios.get(id) ?? 0,
-    ajustes
+    ajustes,
+    voc.cierrePorSinRespuesta
   );
 }
 

@@ -189,6 +189,15 @@ try {
   r = await huecos(real.conv, `&date=${fechaBA(30)}`);
   ok("más allá de la anticipación: beyond_horizon", r.json?.query?.status === "beyond_horizon", JSON.stringify(r.json?.query));
 
+  // ── Etapas: el lead nace en Recibido y la IA lo lleva a Conoce información ──
+  r = await api(`/api/contacts/${real.contacto}/oportunidad`, { method: "POST", body: {} });
+  const opPrevia = r.json?.abierta?.id;
+  ok("el lead tiene su reserva en Recibido", r.status < 300 && r.json?.abierta?.estado === "recibido", JSON.stringify(r.json?.abierta));
+  r = await bot("/api/bot/stage", { method: "POST", body: { conversationId: real.conv, stage: "En charlas" } });
+  ok("la IA no puede usar una etapa que el restaurante no muestra", r.status === 409 || r.status === 422, `${r.status} ${JSON.stringify(r.json)}`);
+  r = await bot("/api/bot/stage", { method: "POST", body: { conversationId: real.conv, stage: "Conoce información" } });
+  ok("la IA la mueve a Conoce información", r.status === 200 && r.json?.changed === true, `${r.status} ${JSON.stringify(r.json)}`);
+
   // ── Reservar ──────────────────────────────────────────────────────────
   r = await huecos(real.conv, `&date=${DIA}`);
   const oferta = r.json?.slots ?? [];
@@ -198,14 +207,15 @@ try {
   r = await reservar(real.conv, oferta.find((s) => s.time === "20:00").startUtc, "Cumpleaños");
   ok("reserva lo ofrecido: 201", r.status === 201 && r.json?.bookingId && r.json?.linkPending === false && r.json?.label, JSON.stringify(r.json));
   let [fila] = await sql`
-    select r.fecha::text as fecha, r.hora, r.personas, r.nombre, r.canal, r.observaciones, o.estado
+    select r.fecha::text as fecha, r.hora, r.personas, r.nombre, r.canal, r.observaciones, o.estado, o.id as op
     from reserva r join oportunidad o on o.id = r.oportunidad_id where r.id = ${r.json?.bookingId ?? ""}`;
   ok(
     "la reserva está en el salón con lo de la ficha",
     fila && fila.fecha === DIA && fila.hora === "20:00" && fila.personas === 4 && fila.nombre === `Bot ${sufijo}` &&
-      fila.canal === "whatsapp" && fila.observaciones === "Cumpleaños" && fila.estado === "recibido",
+      fila.canal === "whatsapp" && fila.observaciones === "Cumpleaños" && fila.estado === "reservo",
     JSON.stringify(fila)
   );
+  ok("se confirmó la reserva que ya tenía el lead, no otra", fila?.op === opPrevia, JSON.stringify({ fila: fila?.op, opPrevia }));
 
   // Ofrecido a las 14:00, y antes de reservar se llena desde el salón.
   r = await huecos(real.conv, `&date=${DIA}`);
@@ -231,6 +241,8 @@ try {
   const doce = frescos.find((s) => s.time === "12:00");
   r = await reservar(real.conv, doce?.startUtc ?? "");
   ok("reserva uno de los re-ofrecidos", r.status === 201, JSON.stringify(r.json));
+  [fila] = await sql`select o.estado from reserva r join oportunidad o on o.id = r.oportunidad_id where r.id = ${r.json?.bookingId ?? ""}`;
+  ok("una segunda reserva del mismo contacto nace Confirmada", fila?.estado === "reservo", JSON.stringify(fila));
 
   r = await bot("/api/bot/bookings", { method: "PATCH", body: { conversationId: real.conv, startUtc: veinte.startUtc } });
   ok("mover una reserva: 409 derivar", r.status === 409 && r.json?.error?.code === "derivar", JSON.stringify(r.json));
@@ -254,6 +266,7 @@ try {
   if (contactos.length) {
     const ops = await sql`delete from reserva where contact_id in ${sql(contactos)} returning oportunidad_id`;
     if (ops.length) await sql`delete from oportunidad where id in ${sql(ops.map((o) => o.oportunidad_id))}`;
+    await sql`delete from oportunidad where contact_id in ${sql(contactos)}`;
   }
   if (creados.conversaciones.length) await sql`delete from conversation where id in ${sql(creados.conversaciones)}`;
   if (contactos.length) await sql`delete from contact where id in ${sql(contactos)}`.catch(() => {});

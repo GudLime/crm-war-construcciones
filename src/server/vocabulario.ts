@@ -8,6 +8,7 @@ import {
   type Vocabulario,
 } from "@/lib/vocabulario";
 import { leerConfigCliente } from "@/server/motor/sincronizar";
+import { listarMotivos } from "@/server/motivos-cierre";
 
 /**
  * 071 — El vocabulario de esta instancia, leído de `CLIENTE_CONFIG` una sola
@@ -54,5 +55,7 @@ export async function revisarCambio(
       .where(scoped(schema.oportunidad.organizationId, organizationId, eq(schema.oportunidad.id, oportunidadId)))
       .limit(1);
   }
-  return problemaDeVocabulario(v, pedido, actual);
+  // War — Los motivos de cierre son los de Ajustes (los 27 de Notion), no los del núcleo.
+  const motivos = (await listarMotivos(organizationId)).map((m) => m.nombre);
+  return problemaDeVocabulario({ ...v, motivos: motivos.length ? motivos : v.motivos }, pedido, actual);
 }

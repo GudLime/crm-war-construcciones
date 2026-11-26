@@ -153,8 +153,17 @@ export type FilaFiltrable = {
 
 const vacio = (a: readonly unknown[] | undefined) => !a || a.length === 0;
 
-export function cumpleFiltros(f: FilaFiltrable, filtros: Filtros, yo: string | null): boolean {
-  if (filtros.situacion && situacionDe(f.estado) !== filtros.situacion) return false;
+export function cumpleFiltros(
+  f: FilaFiltrable,
+  filtros: Filtros,
+  yo: string | null,
+  /** Cambios 25/11 — Las que esta instancia cuenta como abiertas (`Vocabulario.abiertosLista`). */
+  abiertas?: readonly EstadoOportunidad[]
+): boolean {
+  if (filtros.situacion) {
+    const situacion = abiertas ? (abiertas.includes(f.estado) ? "abiertas" : "cerradas") : situacionDe(f.estado);
+    if (situacion !== filtros.situacion) return false;
+  }
   if (filtros.paraCerrar && !f.paraCerrar) return false;
   if (filtros.sinPrimerContacto && f.primerContactoAt) return false;
   if (!vacio(filtros.estados) && !filtros.estados!.includes(f.estado)) return false;

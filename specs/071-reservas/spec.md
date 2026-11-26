@@ -187,6 +187,17 @@ cualquier otro, redirige a la plantilla de evento de Google Calendar
    `/reservas` redirige a Reservas.
 4. WhatsApp: mensajes interactivos, id del botón en el despacho, API del
    cerebro, cerebro de reservas, calendario.
+   **Etapas del restaurante (25 de noviembre, tarde).** Recibido →
+   Conoce información → Confirmada → Cierre (Asistió, No vino, Canceló), con
+   las opciones `pasoDeCierre`, `abrirConCadaLead` y `chat.ficha` del archivo
+   del cliente: los demás CRM no cambian. Cada lead nuevo de WhatsApp nace en
+   Recibido; la IA lo pasa a Conoce información con `move_stage` (solo ve las
+   etapas que la instancia muestra); `tomarCupo` confirma esa misma
+   oportunidad (`reservo`) en vez de abrir otra, y una reserva sin lead previo
+   nace en `reservo`. La migración `0070` pasa a `reservo` las que se habían
+   creado en `recibido`. El panel del chat no muestra la ficha ni el conteo
+   «Sin respuesta» (es del cierre por silencio, apagado), y la ventana de la
+   reserva muestra el sector en el tercer cuadro.
    **Parte del agente, hecha (25 de noviembre).** Cambió la decisión «sin
    agente»: el que conversa es Nea, sin tocar su código, y reserva en este
    módulo.

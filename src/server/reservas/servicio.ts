@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
@@ -20,8 +20,8 @@ import {
   type Ocupacion,
 } from "@/lib/reservas";
 import { normalizarTelefono } from "@/lib/telefono";
-import { ESTADOS_ABIERTOS, type EstadoOportunidad } from "@/lib/ventas";
-import { registrarCreada, type Actor } from "@/server/oportunidad-historial";
+import { ESTADOS_ABIERTOS, ESTADOS_ABIERTOS_LISTA, type EstadoOportunidad } from "@/lib/ventas";
+import { cambiarEstadoOportunidad, registrarCreada, type Actor } from "@/server/oportunidad-historial";
 
 /**
  * 071 — Reservas de restaurante: ajustes, disponibilidad y toma de cupo.
@@ -498,16 +498,37 @@ export async function tomarCupo(
       );
     }
 
-    const [op] = await tx
-      .insert(schema.oportunidad)
-      .values({
-        id: newId("oportunidad"),
-        organizationId,
-        nombre: input.nombre,
-        contactId: input.contactId,
-        estado: "recibido",
-      })
-      .returning();
+    // Cambios 25/11 — Si el contacto ya tiene su reserva sin día (Recibido,
+    // Conoce información), es esa la que se confirma: no se abre otra.
+    const [previa] = await tx
+      .select({ op: schema.oportunidad })
+      .from(schema.oportunidad)
+      .leftJoin(schema.reserva, eq(schema.reserva.oportunidadId, schema.oportunidad.id))
+      .where(
+        scoped(
+          schema.oportunidad.organizationId,
+          organizationId,
+          and(
+            eq(schema.oportunidad.contactId, input.contactId),
+            inArray(schema.oportunidad.estado, [...ESTADOS_ABIERTOS_LISTA]),
+            isNull(schema.reserva.id)
+          )
+        )
+      )
+      .orderBy(desc(schema.oportunidad.updatedAt))
+      .limit(1);
+    const [op] = previa
+      ? [previa.op]
+      : await tx
+          .insert(schema.oportunidad)
+          .values({
+            id: newId("oportunidad"),
+            organizationId,
+            nombre: input.nombre,
+            contactId: input.contactId,
+            estado: "reservo",
+          })
+          .returning();
     const [res] = await tx
       .insert(schema.reserva)
       .values({
@@ -526,12 +547,21 @@ export async function tomarCupo(
         observaciones: input.observaciones ?? null,
       })
       .returning();
-    return { op: op!, res: res! };
+    return { op: op!, res: res!, previa: Boolean(previa) };
   });
 
-  await registrarCreada(organizationId, creada.op, input.actor, {
-    reserva: { fecha: input.fecha, hora: input.hora, personas: input.personas, canal: input.canal },
-  });
+  if (creada.previa) {
+    await cambiarEstadoOportunidad({
+      organizationId,
+      oportunidadId: creada.op.id,
+      destino: "reservo",
+      actor: input.actor,
+    });
+  } else {
+    await registrarCreada(organizationId, creada.op, input.actor, {
+      reserva: { fecha: input.fecha, hora: input.hora, personas: input.personas, canal: input.canal },
+    });
+  }
   const r = creada.res;
   return {
     id: r.id,

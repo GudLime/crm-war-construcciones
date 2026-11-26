@@ -32,7 +32,7 @@ function IconoBoton({ tipo, className }: { tipo: BotonTipo; className?: string }
   return <Icono className={className} strokeWidth={2} />;
 }
 
-type Edificio = { id: string; nombre: string; direccion: string | null; color: string | null };
+type Edificio = { id: string; nombre: string; direccion: string | null; color: string | null; enVenta?: boolean };
 type Miembro = { userId: string; nombre: string };
 
 const ENCABEZADO: Record<BotonTipo, string> = {
@@ -387,7 +387,8 @@ function VentanaNuevaTarea({
               <div className="space-y-1">
                 <p className="text-[11.5px] font-medium text-text-3">Ubicación</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {edificios.map((e) => (
+                  {/* v5 — Solo los que están en venta: la visita suma el edificio a la oportunidad. */}
+                  {edificios.filter((e) => e.enVenta !== false || e.id === edificioId).map((e) => (
                     <button key={e.id} type="button" onClick={() => setEdificioId(e.id)} className={cn(pastilla(e.id === edificioId), "inline-flex items-center gap-1.5")}>
                       <span className="size-2 rounded-full" style={{ background: tonoDeEdificio(e.color).punto }} />
                       {e.nombre}

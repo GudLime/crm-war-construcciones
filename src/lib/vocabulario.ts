@@ -39,6 +39,20 @@ export type Vocabulario = {
   motivos: string[];
   /** El botón que abre el cierre en la barra de avance. */
   etiquetaCerrar: string;
+  /**
+   * v5 — Una persona no puede cerrar como perdida o no calificada sin motivo.
+   * Sin «paso de cierre» (lo de siempre), sí; con paso de cierre, no.
+   */
+  motivoObligatorio: boolean;
+  /**
+   * Cambios 25/11 — El último paso tiene todos los cierres, la ganada también
+   * (`pasoDeCierre` del cliente): la ganada sale del camino y va a `cierres`.
+   */
+  ganadaEnElCierre: boolean;
+  /** Cambios 25/11 — Cada contacto nuevo nace con su oportunidad en `recibido`. */
+  abrirConCadaLead: boolean;
+  /** Cambios 25/11 — El panel del chat muestra la ficha. */
+  fichaEnElChat: boolean;
   inmobiliario: boolean;
   cierrePorSinRespuesta: boolean;
   /** El menú de este cliente: orden de Trabajo, nombres y pantallas apagadas. */
@@ -60,7 +74,11 @@ export const VOCABULARIO_POR_DEFECTO: Vocabulario = {
   abiertosLista: [...ESTADOS_ABIERTOS_LISTA],
   cierres: ESTADOS_OPORTUNIDAD.map((e) => e.value).filter((e) => !ESTADOS_ABIERTOS.includes(e)),
   motivos: [...MOTIVOS_CIERRE],
-  etiquetaCerrar: "Perdida",
+  etiquetaCerrar: "Cerrar",
+  motivoObligatorio: true,
+  ganadaEnElCierre: false,
+  abrirConCadaLead: false,
+  fichaEnElChat: true,
   inmobiliario: true,
   cierrePorSinRespuesta: true,
   menu: { trabajo: null, nombres: {}, ocultas: [] },
@@ -70,7 +88,7 @@ export const VOCABULARIO_POR_DEFECTO: Vocabulario = {
 /** Arma el vocabulario a partir del archivo del cliente. Sin archivo, el de siempre. */
 export function vocabularioDe(
   config:
-    | (Pick<ConfigCliente, "oportunidad" | "inmobiliario"> & Partial<Pick<ConfigCliente, "menu" | "inicio">>)
+    | (Pick<ConfigCliente, "oportunidad" | "inmobiliario"> & Partial<Pick<ConfigCliente, "menu" | "inicio" | "chat">>)
     | null
     | undefined
 ): Vocabulario {
@@ -82,19 +100,28 @@ export function vocabularioDe(
   };
   const inicio = { bloques: config?.inicio?.bloques ? [...new Set(config.inicio.bloques)] : null };
   const o = config?.oportunidad;
-  if (!o) return { ...VOCABULARIO_POR_DEFECTO, inmobiliario, menu, inicio };
+  const fichaEnElChat = config?.chat?.ficha ?? true;
+  if (!o) return { ...VOCABULARIO_POR_DEFECTO, inmobiliario, menu, inicio, fichaEnElChat };
   const estados = o.estados.map((e) => ({ value: e.estado, label: e.nombre }));
   const visibles = new Set(estados.map((e) => e.value));
+  const ganadaEnElCierre = Boolean(o.pasoDeCierre);
+  const cierres = estados.map((e) => e.value).filter((e) => !ESTADOS_ABIERTOS.includes(e));
   return {
     singular: o.nombre,
     plural: o.nombrePlural,
     grupoMenu: o.grupoMenu ?? VOCABULARIO_POR_DEFECTO.grupoMenu,
     estados,
-    camino: CAMINO_OPORTUNIDAD.filter((e) => visibles.has(e)),
-    abiertosLista: ESTADOS_ABIERTOS_LISTA.filter((e) => visibles.has(e)),
-    cierres: estados.map((e) => e.value).filter((e) => !ESTADOS_ABIERTOS.includes(e)),
+    camino: CAMINO_OPORTUNIDAD.filter((e) => visibles.has(e) && !(ganadaEnElCierre && e === "compro")),
+    // Con paso de cierre, todo lo que no se cerró sigue abierto (Confirmada también).
+    abiertosLista: (ganadaEnElCierre ? ESTADOS_ABIERTOS : ESTADOS_ABIERTOS_LISTA).filter((e) => visibles.has(e)),
+    // Con paso de cierre, la ganada va primera entre los cierres.
+    cierres: ganadaEnElCierre ? [...cierres.filter((e) => e === "compro"), ...cierres.filter((e) => e !== "compro")] : cierres,
     motivos: o.motivosCierre ?? [...MOTIVOS_CIERRE],
-    etiquetaCerrar: "Cerrar",
+    etiquetaCerrar: o.pasoDeCierre ?? "Cerrar",
+    motivoObligatorio: !ganadaEnElCierre,
+    ganadaEnElCierre,
+    abrirConCadaLead: o.abrirConCadaLead,
+    fichaEnElChat,
     inmobiliario,
     cierrePorSinRespuesta: o.cierrePorSinRespuesta,
     menu,
@@ -169,6 +196,15 @@ export function problemaDeVocabulario(
     !v.motivos.includes(pedido.motivoCierre)
   ) {
     return `«${pedido.motivoCierre}» no es un motivo de cierre de este CRM`;
+  }
+  // v5 — Cerrar como perdida o no calificada pide el motivo.
+  if (
+    v.motivoObligatorio &&
+    (pedido.estado === "perdido" || pedido.estado === "no_calificado") &&
+    pedido.estado !== actual?.estado &&
+    !pedido.motivoCierre?.trim()
+  ) {
+    return "Para cerrarla como perdida o no calificada, elegí el motivo de cierre";
   }
   return null;
 }

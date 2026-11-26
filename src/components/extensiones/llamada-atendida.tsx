@@ -25,7 +25,7 @@ export type PropsExtraLlamada = {
 
 export const TITULO_LLAMADA_ATENDIDA: string | null = "¿Qué buscaba?";
 
-type Edificio = { id: string; nombre: string; color: string | null };
+type Edificio = { id: string; nombre: string; color: string | null; enVenta?: boolean };
 
 function QueBuscaba({ oportunidadId, registrar }: PropsExtraLlamada) {
   const [catalogo, setCatalogo] = useState<Edificio[]>([]);
@@ -51,7 +51,9 @@ function QueBuscaba({ oportunidadId, registrar }: PropsExtraLlamada) {
   useEffect(() => {
     void fetch("/api/edificios")
       .then((r) => (r.ok ? r.json() : { edificios: [] }))
-      .then((d: { edificios: Edificio[] }) => setCatalogo(d.edificios.map((e) => ({ id: e.id, nombre: e.nombre, color: e.color ?? null }))))
+      .then((d: { edificios: Edificio[] }) =>
+        setCatalogo(d.edificios.map((e) => ({ id: e.id, nombre: e.nombre, color: e.color ?? null, enVenta: e.enVenta !== false })))
+      )
       .catch(() => undefined);
     void fetch(`/api/oportunidades/${oportunidadId}/detalle`)
       .then((r) => (r.ok ? r.json() : null))
@@ -138,7 +140,8 @@ function QueBuscaba({ oportunidadId, registrar }: PropsExtraLlamada) {
           )}
           className="w-full"
         >
-          {catalogo.map((e) => (
+          {/* v5 — Solo los que están en venta (y los que ya tenía). */}
+          {catalogo.filter((e) => e.enVenta !== false || edificios.includes(e.id)).map((e) => (
             <option key={e.id} value={e.id}>
               {e.nombre}
             </option>

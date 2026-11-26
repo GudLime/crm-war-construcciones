@@ -16,9 +16,10 @@ import {
 import { useVocabulario } from "@/components/vocabulario";
 import { enFrase, nombreEstado } from "@/lib/vocabulario";
 import type { EstadoComercialDto } from "@/server/oportunidades";
-import { useMotivosCierre } from "./use-motivos-cierre";
 import { Select } from "@/components/ui/select";
 import { ExtraOportunidadChat } from "@/components/extensiones/oportunidad-chat";
+import { SeccionPlegable } from "@/components/ui/seccion-plegable";
+import { useMotivosCierre } from "@/components/ventas/use-motivos-cierre";
 
 /** v4 — Con quién NO habla la IA (lo atiende una persona). */
 function avisoSinIa(tipos: readonly TipoContacto[], tipoOportunidad: string | null | undefined, conAbierta: boolean): string | null {
@@ -44,6 +45,7 @@ export function OportunidadPanel({
   enChat = false,
   agenda = false,
   contactoNombre = null,
+  antesDelInteres = null,
 }: {
   contactId: string;
   refreshKey?: number;
@@ -54,12 +56,17 @@ export function OportunidadPanel({
   enChat?: boolean;
   agenda?: boolean;
   contactoNombre?: string | null;
+  /** v5 — En el chat, lo que va entre los botones de acción y el interés (el Origen). */
+  antesDelInteres?: React.ReactNode;
 }) {
   const [datos, setDatos] = useState<EstadoComercialDto | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [motivo, setMotivo] = useState("");
+  // War — Los motivos de cierre de Ajustes.
   const motivosCierre = useMotivosCierre();
+  /** Cambios 25/11 — Con paso de cierre, las opciones se abren al tocarlo. */
+  const [cerrando, setCerrando] = useState(false);
   const [avisoTarea, setAvisoTarea] = useState<string | null>(null);
   const [tipoNueva, setTipoNueva] = useState("venta");
   const voc = useVocabulario();
@@ -133,8 +140,45 @@ export function OportunidadPanel({
   /** El interés de la oportunidad: edificio, tipología (ambientes) y, con la extensión, unidades. */
   const interes =
     abierta && voc.inmobiliario ? (
+      enChat ? (
+        // v5 — En el chat, desplegables en lugar de pastillas: ocupan menos.
+        <>
+          <p className="mb-1.5 text-[11px] font-medium text-text-2">Edificio</p>
+          <Select
+            multiple
+            aria-label="Edificio"
+            values={abierta.edificios.map((e) => e.id)}
+            placeholder="Elegí el edificio…"
+            disabled={guardando}
+            onValuesChange={(edificioIds) => cambiarOportunidad({ edificioIds })}
+            className="h-auto min-h-8 w-full"
+          >
+            {datos.edificios.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.nombre}
+              </option>
+            ))}
+          </Select>
+          <p className="mb-1.5 mt-3 text-[11px] font-medium text-text-2">Tipología</p>
+          <Select
+            multiple
+            aria-label="Tipología"
+            values={abierta.ambientes.map(String)}
+            placeholder="Elegí los ambientes…"
+            disabled={guardando}
+            onValuesChange={(valores) => cambiarOportunidad({ ambientes: valores.map(Number) })}
+            className="h-auto min-h-8 w-full"
+          >
+            {AMBIENTES.map((n) => (
+              <option key={n} value={String(n)}>
+                {etiquetaAmbientes(n)}
+              </option>
+            ))}
+          </Select>
+        </>
+      ) : (
       <>
-        <p className="mb-1.5 text-[11px] font-medium text-text-2">{enChat ? "Edificio" : "Edificios de interés"}</p>
+        <p className="mb-1.5 text-[11px] font-medium text-text-2">Edificios de interés</p>
         <Chips
           opciones={datos.edificios.map((e) => ({ value: e.id, label: e.nombre }))}
           elegidos={abierta.edificios.map((e) => e.id)}
@@ -142,13 +186,20 @@ export function OportunidadPanel({
           disabled={guardando}
           onCambio={(edificioIds) => cambiarOportunidad({ edificioIds })}
         />
-        <p className="mb-1.5 mt-3 text-[11px] font-medium text-text-2">{enChat ? "Tipología" : "Ambientes de interés"}</p>
+        <p className="mb-1.5 mt-3 text-[11px] font-medium text-text-2">Ambientes de interés</p>
         <Chips
           opciones={AMBIENTES.map((n) => ({ value: String(n), label: etiquetaAmbientes(n) }))}
           elegidos={abierta.ambientes.map(String)}
           disabled={guardando}
           onCambio={(valores) => cambiarOportunidad({ ambientes: valores.map(Number) })}
         />
+      </>
+      )
+    ) : null;
+  const interesCompleto =
+    interes && abierta ? (
+      <>
+        {interes}
         {Extra && (
           <div className="mt-3">
             <Extra oportunidadId={abierta.id} refreshKey={refreshKey} />
@@ -156,6 +207,220 @@ export function OportunidadPanel({
         )}
       </>
     ) : null;
+  /** Lo elegido, para verlo con la sección cerrada. */
+  const resumenInteres = abierta
+    ? [
+        abierta.edificios.map((e) => e.nombre).join(", "),
+        abierta.ambientes.length ? `${abierta.ambientes.join(", ")} amb.` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ") || "Sin elegir"
+    : null;
+
+  /** La etapa de la oportunidad abierta (o crear una), con el cierre. */
+  const etapa = (
+    <>
+            <div className="mb-3 flex items-baseline justify-between gap-2">
+              {/* En el chat el título ya es el de la sección. */}
+              {!enChat && <p className="kicker">{voc.singular}</p>}
+              {datos.anteriores > 0 && (
+                <span className="text-[11px] text-text-3">
+                  {datos.anteriores} anterior{datos.anteriores === 1 ? "" : "es"}
+                </span>
+              )}
+            </div>
+
+            {!abierta ? (
+              <div className="rounded-md border bg-subtle p-3">
+                <p className="text-[12px] text-text-2">No tiene una {singular} abierta.</p>
+                {voc.inmobiliario && (
+                  <Select
+                    aria-label="Qué busca"
+                    value={tipoNueva}
+                    onValueChange={setTipoNueva}
+                    className="mt-2 h-8 w-full text-[12px]"
+                  >
+                    {TIPOS_OPORTUNIDAD.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+                <Button
+                  size="sm"
+                  className="mt-2 w-full"
+                  disabled={guardando}
+                  onClick={() =>
+                    void pedir(`/api/contacts/${contactId}/oportunidad`, {
+                      method: "POST",
+                      body: JSON.stringify(voc.inmobiliario ? { tipo: tipoNueva } : {}),
+                    })
+                  }
+                >
+                  Crear {singular}
+                </Button>
+              </div>
+            ) : (
+              <>
+                <ol>
+                  {voc.camino.map((estado, i) => {
+                    const hecho = pasoActual >= 0 && i < pasoActual;
+                    const actual = estado === abierta.estado;
+                    return (
+                      <li key={estado} className="relative flex gap-3 pb-3 last:pb-0">
+                        {i < voc.camino.length - 1 && (
+                          <span
+                            className={cn(
+                              "absolute left-[7px] top-4 h-full w-px",
+                              hecho ? "bg-brand" : "bg-border-strong"
+                            )}
+                          />
+                        )}
+                        <button
+                          type="button"
+                          disabled={guardando}
+                          onClick={() => cambiarOportunidad({ estado })}
+                          aria-label={`Mover a ${nombreEstado(voc, estado)}`}
+                          className={cn(
+                            "relative z-10 mt-0.5 flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full transition-colors",
+                            hecho && "bg-brand text-brand-fg",
+                            actual && "bg-brand ring-4 ring-brand-soft",
+                            !hecho && !actual && "border border-border-strong bg-background hover:border-brand"
+                          )}
+                        >
+                          {hecho && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={guardando}
+                          onClick={() => cambiarOportunidad({ estado })}
+                          className={cn(
+                            "text-left text-[13px]",
+                            actual ? "font-[650] text-brand-text" : "text-text-2 hover:text-foreground"
+                          )}
+                        >
+                          {nombreEstado(voc, estado)}
+                          {estado === "compro" && (
+                            <span className="ml-1 text-[11px] text-text-3">(cierra)</span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                  {voc.ganadaEnElCierre && (
+                    <li className="relative flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setCerrando((v) => !v)}
+                        aria-expanded={cerrando}
+                        aria-label={voc.etiquetaCerrar}
+                        className="relative z-10 mt-0.5 flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full border border-border-strong bg-background hover:border-brand"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCerrando((v) => !v)}
+                        aria-expanded={cerrando}
+                        className="text-left text-[13px] text-text-2 hover:text-foreground"
+                      >
+                        {voc.etiquetaCerrar}
+                      </button>
+                    </li>
+                  )}
+                </ol>
+                {abierta.sinRespuesta && (
+                  <p className="mt-2 text-[12px] font-medium text-warning-text">{abierta.sinRespuesta}</p>
+                )}
+                <a
+                  href={`/oportunidades/${abierta.id}`}
+                  className="mt-2 inline-block text-[12px] font-medium text-brand-ink hover:underline"
+                >
+                  Ver la {singular} completa →
+                </a>
+
+                {(!voc.ganadaEnElCierre || cerrando) && (
+                <div className="mt-3 rounded-md border bg-subtle p-2.5">
+                  <p className="mb-1.5 text-[11px] font-medium text-text-2">
+                    {voc.ganadaEnElCierre ? voc.etiquetaCerrar : "Cerrar"}
+                  </p>
+                  <Select
+                    aria-label="Motivo"
+                    value={motivo}
+                    onValueChange={(valor) => setMotivo(valor)}
+                    className="mb-2 h-8 w-full text-[12px]"
+                  >
+                    <option value="">{voc.motivoObligatorio ? "Elegí el motivo…" : "Motivo (opcional)"}</option>
+                    {motivosCierre.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </Select>
+                  <div className="flex flex-wrap gap-1.5">
+                    {voc.cierres.filter((e) => !voc.camino.includes(e)).map((estado: EstadoOportunidad) => (
+                      <Button
+                        key={estado}
+                        size="sm"
+                        variant="outline"
+                        // v5 — Sin motivo no se cierra como perdida o no calificada.
+                        disabled={guardando || abierta.estado === estado || (voc.motivoObligatorio && !motivo)}
+                        onClick={() =>
+                          cambiarOportunidad({ estado, motivoCierre: motivo || null })
+                        }
+                      >
+                        {nombreEstado(voc, estado)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                )}
+
+                {!enChat && interes && <div className="mt-4">{interes}</div>}
+              </>
+            )}
+    </>
+  );
+
+  // v5 — En el chat: los botones de acción siempre a la vista y el resto en
+  // secciones que arrancan plegadas (Origen, Interés, la oportunidad).
+  if (enChat) {
+    return (
+      <>
+        {abierta && (
+          <section className="border-b p-4">
+            <BotonesNuevaTarea
+              modal
+              oportunidadId={abierta.id}
+              contacto={{ id: contactId, nombre: contactoNombre ?? abierta.nombre }}
+              edificioOportunidad={abierta.edificios[0] ?? null}
+              agenda={agenda}
+              onCreada={async (texto) => {
+                setAvisoTarea(texto);
+                await cargar();
+              }}
+            />
+            {avisoTarea && <p className="mt-2 text-[11.5px] text-success-text">{avisoTarea}</p>}
+            {aviso && <p className="mt-1.5 text-[11px] text-text-3">{aviso}</p>}
+            {error && <p className="mt-2 text-xs text-danger-text">{error}</p>}
+          </section>
+        )}
+        {antesDelInteres}
+        {interesCompleto && (
+          <SeccionPlegable titulo="Interés" resumen={resumenInteres}>
+            {interesCompleto}
+          </SeccionPlegable>
+        )}
+        <SeccionPlegable
+          titulo={voc.singular}
+          resumen={abierta ? nombreEstado(voc, abierta.estado) : `Sin ${singular} abierta`}
+        >
+          {!abierta && aviso && <p className="mb-2 text-[11px] text-text-3">{aviso}</p>}
+          {etapa}
+          {!abierta && error && <p className="mt-2 text-xs text-danger-text">{error}</p>}
+        </SeccionPlegable>
+      </>
+    );
+  }
 
   return (
     <section className="border-b p-4">
@@ -186,156 +451,7 @@ export function OportunidadPanel({
 
       {(
         <div className={voc.inmobiliario && !enChat ? "mt-4" : undefined}>
-          {enChat && abierta && (
-            <div className="mb-4">
-              <BotonesNuevaTarea
-                modal
-                oportunidadId={abierta.id}
-                contacto={{ id: contactId, nombre: contactoNombre ?? abierta.nombre }}
-                edificioOportunidad={abierta.edificios[0] ?? null}
-                agenda={agenda}
-                onCreada={async (texto) => {
-                  setAvisoTarea(texto);
-                  await cargar();
-                }}
-              />
-              {avisoTarea && <p className="mt-2 text-[11.5px] text-success-text">{avisoTarea}</p>}
-            </div>
-          )}
-          {enChat && interes && <div className="mb-4">{interes}</div>}
-          <div className="mb-3 flex items-baseline justify-between gap-2">
-            <p className="kicker">{voc.singular}</p>
-            {datos.anteriores > 0 && (
-              <span className="text-[11px] text-text-3">
-                {datos.anteriores} anterior{datos.anteriores === 1 ? "" : "es"}
-              </span>
-            )}
-          </div>
-
-          {!abierta ? (
-            <div className="rounded-md border bg-subtle p-3">
-              <p className="text-[12px] text-text-2">No tiene una {singular} abierta.</p>
-              {voc.inmobiliario && (
-                <Select
-                  aria-label="Qué busca"
-                  value={tipoNueva}
-                  onValueChange={setTipoNueva}
-                  className="mt-2 h-8 w-full text-[12px]"
-                >
-                  {TIPOS_OPORTUNIDAD.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </Select>
-              )}
-              <Button
-                size="sm"
-                className="mt-2 w-full"
-                disabled={guardando}
-                onClick={() =>
-                  void pedir(`/api/contacts/${contactId}/oportunidad`, {
-                    method: "POST",
-                    body: JSON.stringify(voc.inmobiliario ? { tipo: tipoNueva } : {}),
-                  })
-                }
-              >
-                Crear {singular}
-              </Button>
-            </div>
-          ) : (
-            <>
-              <ol>
-                {voc.camino.map((estado, i) => {
-                  const hecho = pasoActual >= 0 && i < pasoActual;
-                  const actual = estado === abierta.estado;
-                  return (
-                    <li key={estado} className="relative flex gap-3 pb-3 last:pb-0">
-                      {i < voc.camino.length - 1 && (
-                        <span
-                          className={cn(
-                            "absolute left-[7px] top-4 h-full w-px",
-                            hecho ? "bg-brand" : "bg-border-strong"
-                          )}
-                        />
-                      )}
-                      <button
-                        type="button"
-                        disabled={guardando}
-                        onClick={() => cambiarOportunidad({ estado })}
-                        aria-label={`Mover a ${nombreEstado(voc, estado)}`}
-                        className={cn(
-                          "relative z-10 mt-0.5 flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full transition-colors",
-                          hecho && "bg-brand text-brand-fg",
-                          actual && "bg-brand ring-4 ring-brand-soft",
-                          !hecho && !actual && "border border-border-strong bg-background hover:border-brand"
-                        )}
-                      >
-                        {hecho && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={guardando}
-                        onClick={() => cambiarOportunidad({ estado })}
-                        className={cn(
-                          "text-left text-[13px]",
-                          actual ? "font-[650] text-brand-text" : "text-text-2 hover:text-foreground"
-                        )}
-                      >
-                        {nombreEstado(voc, estado)}
-                        {estado === "compro" && (
-                          <span className="ml-1 text-[11px] text-text-3">(cierra)</span>
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ol>
-              {abierta.sinRespuesta && (
-                <p className="mt-2 text-[12px] font-medium text-warning-text">{abierta.sinRespuesta}</p>
-              )}
-              <a
-                href={`/oportunidades/${abierta.id}`}
-                className="mt-2 inline-block text-[12px] font-medium text-brand-ink hover:underline"
-              >
-                Ver la {singular} completa →
-              </a>
-
-              <div className="mt-3 rounded-md border bg-subtle p-2.5">
-                <p className="mb-1.5 text-[11px] font-medium text-text-2">Cerrar</p>
-                <Select
-                  aria-label="Motivo"
-                  value={motivo}
-                  onValueChange={(valor) => setMotivo(valor)}
-                  className="mb-2 h-8 w-full text-[12px]"
-                >
-                  <option value="">Motivo (opcional)</option>
-                  {motivosCierre.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </Select>
-                <div className="flex flex-wrap gap-1.5">
-                  {voc.cierres.filter((e) => e !== "compro").map((estado: EstadoOportunidad) => (
-                    <Button
-                      key={estado}
-                      size="sm"
-                      variant="outline"
-                      disabled={guardando || abierta.estado === estado}
-                      onClick={() =>
-                        cambiarOportunidad({ estado, motivoCierre: motivo || null })
-                      }
-                    >
-                      {nombreEstado(voc, estado)}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              {!enChat && interes && <div className="mt-4">{interes}</div>}
-            </>
-          )}
+          {etapa}
         </div>
       )}
 

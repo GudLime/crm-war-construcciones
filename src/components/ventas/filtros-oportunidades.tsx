@@ -201,12 +201,16 @@ export function useVistas<F extends FilaFiltrable>({
     if (activa === v.id) elegir(fabrica[0]!);
   }
 
-  const visibles = useMemo(() => filas.filter((f) => cumpleFiltros(f, filtros, yo)), [filas, filtros, yo]);
+  const abiertas = useVocabulario().abiertosLista;
+  const visibles = useMemo(
+    () => filas.filter((f) => cumpleFiltros(f, filtros, yo, abiertas)),
+    [filas, filtros, yo, abiertas]
+  );
   /** Solo se cuenta lo que está cargado: una pestaña de cerradas no se cuenta con las abiertas. */
   const contar = (v: VistaDto): number | null => {
     const necesita = situacionACargar(v.filtros);
     if (cargadas === null || (cargadas !== "todas" && necesita !== cargadas)) return null;
-    return filas.filter((f) => cumpleFiltros(f, v.filtros, yo)).length;
+    return filas.filter((f) => cumpleFiltros(f, v.filtros, yo, abiertas)).length;
   };
 
   return {
