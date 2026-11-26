@@ -312,6 +312,7 @@ function VentanaNuevaTarea({
           }),
         }).catch(() => null);
     setCreando(false);
+    if (res === "cancelado") return;
     if (!res?.ok) {
       const d = (await res?.json().catch(() => null)) as { error?: { message?: string } } | null;
       setError(d?.error?.message ?? "No se pudo crear");
