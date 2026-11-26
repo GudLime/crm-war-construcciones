@@ -32,6 +32,7 @@ import { SelectorColor } from "./selector-color";
 import { cn } from "@/lib/utils";
 import { SelectorColumnasTabla, TablaConfigurable, usePrefTabla, type ColumnaTabla } from "@/components/ui/tabla-configurable";
 import { Select } from "@/components/ui/select";
+import { EditorHorarioVisitas, resumenHorario, type HorarioVisitas } from "@/components/ventas/horario-visitas";
 
 type UnidadForm = {
   unidad: string;
@@ -124,6 +125,7 @@ export function EdificioDetalleClient() {
     enVenta: "si",
     notasAgente: "",
     color: "",
+    horarioVisitas: {} as HorarioVisitas,
   });
   const [memoriaAgente, setMemoriaAgente] = useState(false);
   const [unidad, setUnidad] = useState<UnidadForm>(unidadVacia);
@@ -157,6 +159,7 @@ export function EdificioDetalleClient() {
       enVenta: data.edificio.enVenta ? "si" : "no",
       notasAgente: data.edificio.notasAgente ?? "",
       color: data.edificio.color ?? "",
+      horarioVisitas: (data.edificio.horarioVisitas ?? {}) as HorarioVisitas,
     });
     setMemoriaAgente(data.edificio.memoriaAgente);
   }, [id]);
@@ -177,6 +180,8 @@ export function EdificioDetalleClient() {
         estado: datos.estado,
         enVenta: datos.enVenta === "si",
         notasAgente: datos.notasAgente || null,
+        // v6 — Sin días marcados, usa el horario general.
+        horarioVisitas: resumenHorario(datos.horarioVisitas) ? datos.horarioVisitas : null,
         ...(datos.color ? { color: datos.color } : {}),
       }),
     }).catch(() => null);
@@ -198,6 +203,7 @@ export function EdificioDetalleClient() {
         enVenta: edificio.enVenta ? "si" : "no",
         notasAgente: edificio.notasAgente ?? "",
         color: edificio.color ?? "",
+        horarioVisitas: (edificio.horarioVisitas ?? {}) as HorarioVisitas,
       });
     }
     setErrorEdificio(null);
@@ -632,6 +638,11 @@ export function EdificioDetalleClient() {
               { etiqueta: "Dirección", valor: edificio.direccion },
               { etiqueta: "Estado", valor: etiqueta(ESTADOS_EDIFICIO, edificio.estado) },
               { etiqueta: "En venta", valor: edificio.enVenta ? "Sí" : "No" },
+              {
+                etiqueta: "Horario de visitas",
+                valor: resumenHorario(edificio.horarioVisitas as HorarioVisitas | null) ?? "El general de la Agenda",
+                ancho: true,
+              },
               { etiqueta: "Color", valor: <PildoraEdificio nombre={edificio.nombre} color={edificio.color} /> },
               { etiqueta: "Notas para el agente", valor: edificio.notasAgente, ancho: true },
             ]}
@@ -676,13 +687,19 @@ export function EdificioDetalleClient() {
               <option value="no">No</option>
             </Select>
           </Campo>
+          <Campo label="Horario de visitas" className="sm:col-span-2 lg:col-span-3">
+            <EditorHorarioVisitas
+              valor={datos.horarioVisitas}
+              onCambio={(horarioVisitas) => setDatos({ ...datos, horarioVisitas })}
+            />
+          </Campo>
           <Campo label="Notas para el agente" className="sm:col-span-2 lg:col-span-3">
             <Textarea
               rows={4}
               value={datos.notasAgente}
               onChange={(e) => setDatos({ ...datos, notasAgente: e.target.value })}
               maxLength={4000}
-              placeholder="Visitas martes, jueves y sábados de 10 a 17. Entrega estimada: marzo 2027. Amenities: SUM y terraza. Lista de precios en PDF: https://…"
+              placeholder="Entrega estimada: marzo 2027. Amenities: SUM y terraza. Lista de precios en PDF: https://…"
             />
           </Campo>
           <Acciones error={errorEdificio}>

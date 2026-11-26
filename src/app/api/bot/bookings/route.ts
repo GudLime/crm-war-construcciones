@@ -7,6 +7,7 @@ import {
   rescheduleForConversation,
 } from "@/server/agenda/service";
 import { bookingErrorResponse, bookingPayload } from "@/server/agenda/http";
+import { edificioPorNombreOId } from "@/server/agenda/availability";
 import { reservasEnabled } from "@/server/reservas/flag";
 import { reservarDesdeElBot, respuestaDeError } from "@/server/reservas/bot";
 
@@ -33,6 +34,8 @@ const createSchema = z.object({
   conversationId: z.string().min(1),
   startUtc: z.string().min(1),
   notes: z.string().nullish(),
+  /** v6 — La visita es a este edificio (id o nombre): se mide con SU horario de visitas. */
+  edificio: z.string().trim().min(1).max(200).nullish(),
 });
 
 const rescheduleSchema = z.object({
@@ -61,11 +64,13 @@ export async function POST(req: Request) {
   }
 
   try {
+    const edificioId = body.data.edificio ? await edificioPorNombreOId(gate.organizationId, body.data.edificio) : null;
     const result = await createSessionBooking({
       organizationId: gate.organizationId,
       conversationId: body.data.conversationId,
       startUtc: body.data.startUtc,
       notes: body.data.notes ?? null,
+      ...(edificioId ? { modo: "visita" as const, edificioId } : {}),
       source: "ai",
       // La regla innegociable: el agente solo reserva lo que ya ofreció.
       requireOffer: true,
