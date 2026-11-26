@@ -21,6 +21,7 @@ import {
   type FilaFiltrable,
   type Filtros,
   type VistaDto,
+  ordenarVistas,
 } from "@/lib/vistas";
 import type { PreferenciasDeLista } from "./oportunidades-vistas";
 
@@ -86,8 +87,10 @@ export function useVistas<F extends FilaFiltrable>({
   const [activa, setActiva] = useState<string>(VISTAS_DE_FABRICA[0]!.id);
   const [filtros, setFiltros] = useState<Filtros>(VISTAS_DE_FABRICA[0]!.filtros);
   const [lista, setLista] = useState(false);
+  /** v6 — El orden de las pestañas de esta persona (las arrastra). */
+  const [orden, setOrden] = useState<string[]>([]);
 
-  const vistas = useMemo(() => [...fabrica, ...guardadas], [fabrica, guardadas]);
+  const vistas = useMemo(() => ordenarVistas([...fabrica, ...guardadas], orden), [fabrica, guardadas, orden]);
   const vista = vistas.find((v) => v.id === activa) ?? fabrica[0]!;
 
   const aplicar = useCallback(
@@ -106,8 +109,15 @@ export function useVistas<F extends FilaFiltrable>({
   const cargar = useCallback(async () => {
     const r = await fetch("/api/vistas?pagina=oportunidades").catch(() => null);
     if (!r?.ok) return null;
-    const d = (await r.json()) as { vistas: VistaDto[]; ultima: string | null; yo: string; admin?: boolean };
+    const d = (await r.json()) as {
+      vistas: VistaDto[];
+      ultima: string | null;
+      orden?: string[];
+      yo: string;
+      admin?: boolean;
+    };
     setGuardadas(d.vistas);
+    setOrden(d.orden ?? []);
     setYo(d.yo);
     setAdmin(d.admin === true);
     return d;
@@ -131,7 +141,9 @@ export function useVistas<F extends FilaFiltrable>({
       }
       if (!d) return;
       const propias = vistasDeFabrica(d.admin === true);
-      const v = d.ultima ? [...propias, ...d.vistas].find((x) => x.id === d.ultima) : undefined;
+      const todas = ordenarVistas([...propias, ...d.vistas], d.orden ?? []);
+      // La última que usó; si no hay (o se borró), la primera de sus pestañas.
+      const v = (d.ultima ? todas.find((x) => x.id === d.ultima) : undefined) ?? todas[0];
       if (v && v.id !== propias[0]!.id) {
         setActiva(v.id);
         aplicar(v);
@@ -141,6 +153,19 @@ export function useVistas<F extends FilaFiltrable>({
       }
     })();
   }, [cargar, aplicar]);
+
+  /** v6 — Mueve una pestaña antes de otra (o al final) y guarda el orden de esta persona. */
+  function mover(id: string, antesDe: string | null) {
+    const ids = vistas.map((x) => x.id).filter((x) => x !== id);
+    const i = antesDe ? ids.indexOf(antesDe) : -1;
+    ids.splice(i < 0 ? ids.length : i, 0, id);
+    setOrden(ids);
+    void fetch("/api/vistas/orden", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pagina: "oportunidades", ids }),
+    }).catch(() => null);
+  }
 
   function elegir(v: VistaDto) {
     setActiva(v.id);
@@ -198,7 +223,8 @@ export function useVistas<F extends FilaFiltrable>({
     const res = await fetch(`/api/vistas/${v.id}`, { method: "DELETE" }).catch(() => null);
     if (!res?.ok && res?.status !== 204) return;
     setGuardadas((g) => g.filter((x) => x.id !== v.id));
-    if (activa === v.id) elegir(fabrica[0]!);
+    // v6 — Sin la que se borró, la primera de sus pestañas.
+    if (activa === v.id) elegir(vistas.find((x) => x.id !== v.id) ?? fabrica[0]!);
   }
 
   const abiertas = useVocabulario().abiertosLista;
@@ -224,6 +250,7 @@ export function useVistas<F extends FilaFiltrable>({
     visibles,
     contar,
     elegir,
+    mover,
     sinGuardar,
     descartar: () => aplicar(vista),
     guardarNueva,
@@ -247,12 +274,52 @@ export function PestanasDeVistas({ v }: { v: EstadoVistas }) {
   const voc = useVocabulario();
   // 071 — Sin cierre por silencio, «Para cerrar» nunca tendría nada.
   const vistas = voc.cierrePorSinRespuesta ? v.vistas : v.vistas.filter((x) => !(x.deFabrica && x.id === "para-cerrar"));
+  // v6 — Las pestañas se ordenan arrastrándolas (cada persona las suyas).
+  const [arrastrada, setArrastrada] = useState<string | null>(null);
+  const [encima, setEncima] = useState<string | null>(null);
   return (
     <div role="tablist" aria-label="Vistas guardadas" className="-mb-px flex gap-1 overflow-x-auto border-b border-border">
       {vistas.map((x) => {
         const elegida = x.id === v.activa;
         return (
-          <div key={x.id} className="flex shrink-0 items-center">
+          <div
+            key={x.id}
+            draggable
+            onDragStart={(e) => {
+              setArrastrada(x.id);
+              e.dataTransfer.effectAllowed = "move";
+              e.dataTransfer.setData("text/plain", x.id);
+            }}
+            onDragOver={(e) => {
+              if (!arrastrada || arrastrada === x.id) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              setEncima(x.id);
+            }}
+            onDragLeave={() => setEncima((y) => (y === x.id ? null : y))}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (arrastrada && arrastrada !== x.id) {
+                // Se suelta sobre una pestaña: va antes de ella (o después, si venía de antes).
+                const ids = vistas.map((y) => y.id);
+                const desde = ids.indexOf(arrastrada);
+                const hasta = ids.indexOf(x.id);
+                v.mover(arrastrada, desde < hasta ? (ids[hasta + 1] ?? null) : x.id);
+              }
+              setArrastrada(null);
+              setEncima(null);
+            }}
+            onDragEnd={() => {
+              setArrastrada(null);
+              setEncima(null);
+            }}
+            title="Arrastrala para cambiar el orden"
+            className={cn(
+              "flex shrink-0 cursor-grab items-center active:cursor-grabbing",
+              arrastrada === x.id && "opacity-50",
+              encima === x.id && "rounded-md bg-accent"
+            )}
+          >
             <button
               type="button"
               role="tab"

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { apiError, parseBody, withAuth } from "@/lib/api";
-import { parseRangeQuery } from "@/lib/time/calendar";
+import { blockStartUtc, parseRangeQuery } from "@/lib/time/calendar";
 import { agendaDisabledResponse, agendaEnabled } from "@/server/agenda/flag";
 import { listBookings, listBookingsInRange } from "@/server/agenda/queries";
 import { getSettings } from "@/server/agenda/settings";
@@ -59,6 +59,8 @@ const postSchema = z.discriminatedUnion("kind", [
     modo: z.enum(["visita", "reunion"]).nullish(),
     edificioId: z.string().min(1).nullish(),
     responsableId: z.string().min(1).nullish(),
+    /** v6 — La persona confirmó agendarla fuera del horario. */
+    forzarHorario: z.boolean().optional(),
   }),
   z.object({
     kind: z.literal("block"),
@@ -89,6 +91,15 @@ export const POST = withAuth(async (session, req: Request) => {
     if (body.data.kind === "block") return prohibido("Solo un admin bloquea horarios");
     if (!(await puedeVerContacto(alcance, body.data.contactId))) return prohibido("Ese contacto no es tuyo");
   }
+  // v6 — Una hora sin zona («2026-11-26T17:00», de un formulario) es hora del
+  // NEGOCIO, no del navegador ni del servidor: así no queda corrida.
+  const naive = body.data.startUtc.trim().match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(:\d{2})?$/);
+  if (naive) {
+    const { timezone } = await getSettings(session.organizationId);
+    const utc = blockStartUtc(naive[1]!, naive[2]!, timezone);
+    if (!utc) return apiError(422, "invalid_body", "La fecha no es válida");
+    body.data.startUtc = utc;
+  }
   try {
     if (body.data.kind === "block") {
       const block = await createBlock({
@@ -110,6 +121,7 @@ export const POST = withAuth(async (session, req: Request) => {
       modo: body.data.modo ?? null,
       edificioId: body.data.edificioId ?? null,
       responsableUserId: body.data.responsableId ?? session.userId,
+      forzarHorario: body.data.forzarHorario === true,
       source: "manual",
       // 0054 — Una cita que carga una persona nace confirmada por ella.
       confirmadaPor: session.userId,

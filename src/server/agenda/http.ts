@@ -46,6 +46,7 @@ export function bookingErrorStatus(code: BookingError["code"]): number {
       return 422;
     case "slot_taken":
     case "slot_not_offered":
+    case "fuera_de_horario":
       return 409;
   }
 }

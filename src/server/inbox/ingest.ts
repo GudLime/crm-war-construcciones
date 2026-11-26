@@ -411,9 +411,11 @@ async function ingestManualEcho(
     : null;
 
   // Solo lastMessageAt: un mensaje del negocio NUNCA abre la ventana de 24 h.
+  // v6 — Contestar desde el celular es haber visto el chat: queda leído, igual
+  // que al responder desde el CRM (sin el contador de pendientes).
   await db
     .update(schema.conversation)
-    .set({ lastMessageAt: waTimestamp, updatedAt: new Date() })
+    .set({ lastMessageAt: waTimestamp, unreadCount: 0, updatedAt: new Date() })
     .where(eq(schema.conversation.id, conversation.id));
 
   // War — escribirle desde el teléfono también es un intento («sin respuesta»).

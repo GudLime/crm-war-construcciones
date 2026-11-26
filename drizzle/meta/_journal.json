@@ -589,6 +589,20 @@
       "when": 1795540000000,
       "tag": "0070_reservas_confirmadas",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1795550800000,
+      "tag": "0071_vista_orden",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1795561600000,
+      "tag": "0072_horario_de_visitas",
+      "breakpoints": true
     }
   ]
 }

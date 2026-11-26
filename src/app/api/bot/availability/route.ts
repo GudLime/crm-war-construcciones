@@ -8,6 +8,8 @@ import { addDaysISO, todayInTz } from "@/lib/time/slots";
 import {
   buildCandidateSlots,
   computeAvailability,
+  edificioPorNombreOId,
+  horarioDeEdificio,
 } from "@/server/agenda/availability";
 import { getSettings } from "@/server/agenda/settings";
 import { armarHuecos, daysWithAgenda } from "@/server/agenda/spread";
@@ -112,7 +114,16 @@ export async function GET(req: Request) {
     }
   }
 
-  const settings = await getSettings(organizationId);
+  const general = await getSettings(organizationId);
+  // v6 — `edificio` (id o nombre): una visita a ese edificio se ofrece con SU
+  // horario de visitas; sin horario propio, el de la agenda.
+  const edificioParam = url.searchParams.get("edificio")?.trim() || null;
+  let settings = general;
+  if (edificioParam) {
+    const ed = await edificioPorNombreOId(organizationId, edificioParam);
+    const h = ed ? await horarioDeEdificio(organizationId, ed) : null;
+    if (h?.horario) settings = { ...general, weeklyHours: h.horario };
+  }
   const now = new Date();
   const hoy = todayInTz(now, settings.timezone);
   // Un día fuera de lo agendable ni se calcula: no hay nada que buscar.

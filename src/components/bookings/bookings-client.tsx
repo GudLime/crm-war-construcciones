@@ -36,6 +36,7 @@ import type { Booking } from "./booking-look";
 import { CalendarToolbar } from "./calendar-toolbar";
 import { MonthGrid } from "./month-grid";
 import { TimeGrid, type TareaCal } from "./time-grid";
+import { conConfirmacionDeHorario } from "@/components/ventas/fuera-de-horario";
 
 /**
  * Cambios 23/11, punto 2 — El mismo calendario, dentro de Tareas
@@ -323,11 +324,15 @@ export function BookingsClient({
   }
 
   async function act(b: Booking, body: Record<string, unknown>): Promise<ActResult> {
-    const res = await fetch(`/api/bookings/${b.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    }).catch(() => null);
+    // v6 — Fuera del horario (del edificio o de la agenda), se pregunta antes de mover.
+    const res = await conConfirmacionDeHorario((forzarHorario) =>
+      fetch(`/api/bookings/${b.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(forzarHorario ? { ...body, forzarHorario } : body),
+      }).catch(() => null)
+    );
+    if (res === "cancelado") return { ok: false, message: "No se movió la cita" };
     if (!res?.ok) {
       const data = (await res?.json().catch(() => null)) as {
         error?: { message?: string };

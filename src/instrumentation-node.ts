@@ -143,6 +143,8 @@ export function resumeVentas(): void {
   setTimeout(() => void pasarLeadsAVentaAlArrancar(), 20_000).unref?.();
   // v3 — Visita y Reunión son citas: las tareas viejas con fecha pasan solas.
   if (agendaEnabled()) setTimeout(() => void convertirTareasDeVisitaAlArrancar(), 30_000).unref?.();
+  // War v6 — TEMPORAL: diagnóstico y prueba en seco de la limpieza de Notion.
+  setTimeout(() => void import("@/server/limpieza-v6").then((m) => m.limpiezaV6AlArrancar()), 45_000).unref?.();
 }
 
 /**

@@ -260,3 +260,25 @@ export function filtroDeEventos(a: Alcance): (evento: { type: string; data: unkn
     return (await vigentes()).has(contactId);
   };
 }
+
+/**
+ * v6 — Cuando un operador abre una oportunidad que no es suya: si existe,
+ * se le dice de quién es en vez de «no existe» (que confundía). Devuelve la
+ * respuesta 403, o la 404 si de verdad no existe.
+ */
+export async function sinPermisoDeOportunidad(a: Alcance, oportunidadId: string): Promise<Response> {
+  const [f] = await getDb()
+    .select({ responsable: schema.user.name })
+    .from(schema.oportunidad)
+    .leftJoin(schema.user, eq(schema.user.id, schema.oportunidad.responsableUserId))
+    .where(scoped(schema.oportunidad.organizationId, a.organizationId, eq(schema.oportunidad.id, oportunidadId)))
+    .limit(1);
+  if (!f) return noEncontrado("Esa oportunidad");
+  return apiError(
+    403,
+    "sin_permiso",
+    f.responsable
+      ? `Esta oportunidad la lleva ${f.responsable}. No tenés permiso para verla: pedile a un admin que te la asigne.`
+      : "Esta oportunidad no tiene responsable. No tenés permiso para verla: pedile a un admin que te la asigne."
+  );
+}

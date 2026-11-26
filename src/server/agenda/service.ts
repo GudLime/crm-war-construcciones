@@ -7,6 +7,8 @@ import { CONNECTOR_META, type ConnectorId } from "@/lib/agenda-connectors";
 import {
   computeAvailability,
   findSlot,
+  horarioDeEdificio,
+  huecoLibre,
   type AvailableSlot,
 } from "@/server/agenda/availability";
 import { getSettings, type CalendarSettings } from "@/server/agenda/settings";
@@ -43,6 +45,8 @@ import { publish } from "@/server/events/bus";
 
 export type BookingErrorCode =
   | "slot_taken"
+  /** v6 — Fuera del horario (del edificio o de la agenda): una persona puede confirmar igual. */
+  | "fuera_de_horario"
   | "slot_not_offered"
   | "not_found"
   | "invalid";
@@ -97,6 +101,8 @@ export async function createSessionBooking(input: {
   modo?: "visita" | "reunion" | null;
   edificioId?: string | null;
   responsableUserId?: string | null;
+  /** v6 — Una persona confirmó que la quiere fuera del horario: solo respeta bloqueos (y choques). */
+  forzarHorario?: boolean;
   /**
    * true ⇒ exige que el instante figure entre los ofrecidos a la conversación
    * (agente/bot). El operador elige de la disponibilidad que está viendo, así
@@ -162,11 +168,24 @@ export async function createSessionBooking(input: {
 
   // REGLA 2 (primera mitad): el hueco debe seguir libre AHORA. 0069 — Con
   // citas en paralelo, lo que carga una persona solo respeta horario y bloqueos.
-  const slot = await findSlot(input.organizationId, input.startUtc, {
-    now: input.now,
-    settings,
-    soloBloqueos: input.source === "manual" && settings.citasEnParalelo === true,
-  });
+  // v6 — Una visita a un edificio con horario propio se mide con ese horario.
+  const edificio = input.modo !== "reunion" && input.edificioId ? await horarioDeEdificio(input.organizationId, input.edificioId) : null;
+  const ajustes = edificio?.horario ? { ...settings, weeklyHours: edificio.horario } : settings;
+  const soloBloqueos = input.source === "manual" && settings.citasEnParalelo === true;
+  let slot = await findSlot(input.organizationId, input.startUtc, { now: input.now, settings: ajustes, soloBloqueos });
+  if (!slot && input.source === "manual") {
+    // ¿Está libre y solo cae fuera del horario? Una persona puede confirmarla igual.
+    const libre = await huecoLibre(input.organizationId, input.startUtc, ajustes, { soloBloqueos });
+    if (libre && input.forzarHorario) slot = libre;
+    else if (libre) {
+      throw new BookingError(
+        "fuera_de_horario",
+        edificio?.horario
+          ? `Está fuera del horario de visitas de ${edificio.nombre}. ¿Agendar igual?`
+          : "Está fuera del horario de la agenda. ¿Agendar igual?"
+      );
+    }
+  }
   if (!slot) {
     throw new BookingError(
       "slot_taken",
@@ -308,6 +327,8 @@ export async function rescheduleBooking(input: {
   bookingId: string;
   startUtc: string;
   now?: Date;
+  /** v6 — La persona confirmó moverla fuera del horario. */
+  forzarHorario?: boolean;
 }): Promise<BookingResult> {
   const db = getDb();
   const booking = await getOwnBooking(input.organizationId, input.bookingId);
@@ -316,14 +337,31 @@ export async function rescheduleBooking(input: {
   }
 
   const settings = await getSettings(input.organizationId);
+  // v6 — Una visita a un edificio con horario propio se mide con ese horario.
+  const edificio =
+    booking.modo !== "reunion" && booking.edificioId ? await horarioDeEdificio(input.organizationId, booking.edificioId) : null;
+  const ajustes = edificio?.horario ? { ...settings, weeklyHours: edificio.horario } : settings;
+  const soloBloqueos = settings.citasEnParalelo === true;
   // excludeBookingId: la propia cita no debe bloquearse a sí misma.
-  const slot = await findSlot(input.organizationId, input.startUtc, {
+  let slot = await findSlot(input.organizationId, input.startUtc, {
     excludeBookingId: booking.id,
     now: input.now,
-    settings,
+    settings: ajustes,
     // 0069 — La reprograma una persona: con citas en paralelo, solo horario y bloqueos.
-    soloBloqueos: settings.citasEnParalelo === true,
+    soloBloqueos,
   });
+  if (!slot) {
+    const libre = await huecoLibre(input.organizationId, input.startUtc, ajustes, { soloBloqueos, excludeBookingId: booking.id });
+    if (libre && input.forzarHorario) slot = libre;
+    else if (libre) {
+      throw new BookingError(
+        "fuera_de_horario",
+        edificio?.horario
+          ? `Está fuera del horario de visitas de ${edificio.nombre}. ¿Agendar igual?`
+          : "Está fuera del horario de la agenda. ¿Agendar igual?"
+      );
+    }
+  }
   if (!slot) {
     throw new BookingError("slot_taken", "Ese horario ya no está disponible");
   }
