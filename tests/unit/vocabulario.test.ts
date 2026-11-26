@@ -170,6 +170,24 @@ describe("problemaDeVocabulario", () => {
   it("con el de siempre, nada cambia", () => {
     expect(problemaDeVocabulario(VOCABULARIO_POR_DEFECTO, { estado: "visito", motivoCierre: "No responde" })).toBeNull();
   });
+  it("v5 — con el de siempre, cerrar como perdida o no calificada pide el motivo", () => {
+    const d = VOCABULARIO_POR_DEFECTO;
+    expect(d.motivoObligatorio).toBe(true);
+    expect(d.etiquetaCerrar).toBe("Cerrar");
+    expect(problemaDeVocabulario(d, { estado: "perdido" })).toMatch(/elegí el motivo/);
+    expect(problemaDeVocabulario(d, { estado: "no_calificado", motivoCierre: null })).toMatch(/elegí el motivo/);
+    expect(problemaDeVocabulario(d, { estado: "perdido", motivoCierre: "No responde" })).toBeNull();
+    // Ya cerrada: cambiar solo el motivo, o dejarla igual, vale.
+    expect(problemaDeVocabulario(d, { estado: "perdido" }, { estado: "perdido", motivoCierre: "No responde" })).toBeNull();
+    // Avanzar en el camino no pide nada.
+    expect(problemaDeVocabulario(d, { estado: "compro" })).toBeNull();
+  });
+
+  it("v5 — con paso de cierre (restaurante), el motivo sigue siendo opcional", () => {
+    const r = vocabularioDe(config({ ...RESTAURANTE, oportunidad: { ...RESTAURANTE.oportunidad, pasoDeCierre: "Cierre" } }));
+    expect(r.motivoObligatorio).toBe(false);
+    expect(problemaDeVocabulario(r, { estado: "perdido" })).toBeNull();
+  });
 });
 
 describe("pantallas", () => {

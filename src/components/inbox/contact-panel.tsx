@@ -31,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FichaPanel } from "@/components/ficha-panel";
 import { useVocabulario } from "@/components/vocabulario";
 import { OportunidadPanel } from "@/components/ventas/oportunidad-panel";
+import { SeccionPlegable } from "@/components/ui/seccion-plegable";
 import { DeleteConversationDialog } from "./delete-conversation-dialog";
 
 
@@ -281,21 +282,26 @@ export function ContactPanel({
             ) : null}
           </div>
 
-          {anuncio && (
-            <div className="mt-3">
-              <AnuncioOrigen anuncio={anuncio} />
-            </div>
-          )}
         </section>
 
         {/* 068 — En War avanza la OPORTUNIDAD, no el contacto: tipo de
             contacto + oportunidad abierta reemplazan el stepper del pipeline. */}
+        {/* v5 — Debajo de la IA, siempre a la vista, los botones de acción; el
+            resto (Origen, Interés, la oportunidad, la ficha y las notas) en
+            secciones que arrancan plegadas. */}
         <OportunidadPanel
           contactId={contactId}
           refreshKey={refreshKey}
           enChat
           agenda={agenda}
           contactoNombre={conversation.contact.name}
+          antesDelInteres={
+            anuncio ? (
+              <SeccionPlegable titulo="Origen" resumen="Llegó por un anuncio">
+                <AnuncioOrigen anuncio={anuncio} />
+              </SeccionPlegable>
+            ) : null
+          }
         />
 
         {/* Ficha: lo que se SABE del lead. Va antes de Notas —lo que alguien
@@ -305,8 +311,11 @@ export function ContactPanel({
         {voc.fichaEnElChat && <FichaPanel ficha={ficha} onSave={saveFicha} />}
 
         {/* Notas */}
-        <section className={cn("p-4", onDeleteConversation && "border-b")}>
-          <p className="kicker mb-2">Notas del contacto</p>
+        <SeccionPlegable
+          titulo="Notas del contacto"
+          resumen={notes.trim() ? notes.trim().split("\n")[0] : undefined}
+          className={cn(!onDeleteConversation && "border-b-0")}
+        >
           <Textarea
             rows={5}
             placeholder="Lo fijo del cliente: dirección, cómo prefiere pagar… (lo de esta conversación va en Nota interna)"
@@ -323,7 +332,7 @@ export function ContactPanel({
           >
             {savingNotes ? "Guardando…" : "Guardar notas del contacto"}
           </Button>
-        </section>
+        </SeccionPlegable>
 
         {/* 026 — Al fondo y sin color de alarma: está a la mano de quien la
             busca, no en el camino de quien solo vino a leer la ficha. */}

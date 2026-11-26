@@ -125,7 +125,8 @@ export async function leerConversacion(organizationId: string, conversationId: s
   const edificios = await db
     .select({ nombre: schema.edificio.nombre })
     .from(schema.edificio)
-    .where(scoped(schema.edificio.organizationId, organizationId));
+    // v5 — Solo los que están en venta: por los otros no se abre una oportunidad.
+    .where(scoped(schema.edificio.organizationId, organizationId, eq(schema.edificio.enVenta, true)));
 
   const r = await chatJson(
     respuestaSchema,

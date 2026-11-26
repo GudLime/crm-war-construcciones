@@ -40,6 +40,11 @@ export type Vocabulario = {
   /** El botón que abre el cierre en la barra de avance. */
   etiquetaCerrar: string;
   /**
+   * v5 — Una persona no puede cerrar como perdida o no calificada sin motivo.
+   * Sin «paso de cierre» (lo de siempre), sí; con paso de cierre, no.
+   */
+  motivoObligatorio: boolean;
+  /**
    * Cambios 25/11 — El último paso tiene todos los cierres, la ganada también
    * (`pasoDeCierre` del cliente): la ganada sale del camino y va a `cierres`.
    */
@@ -69,7 +74,8 @@ export const VOCABULARIO_POR_DEFECTO: Vocabulario = {
   abiertosLista: [...ESTADOS_ABIERTOS_LISTA],
   cierres: ESTADOS_OPORTUNIDAD.map((e) => e.value).filter((e) => !ESTADOS_ABIERTOS.includes(e)),
   motivos: [...MOTIVOS_CIERRE],
-  etiquetaCerrar: "Perdida",
+  etiquetaCerrar: "Cerrar",
+  motivoObligatorio: true,
   ganadaEnElCierre: false,
   abrirConCadaLead: false,
   fichaEnElChat: true,
@@ -112,6 +118,7 @@ export function vocabularioDe(
     cierres: ganadaEnElCierre ? [...cierres.filter((e) => e === "compro"), ...cierres.filter((e) => e !== "compro")] : cierres,
     motivos: o.motivosCierre ?? [...MOTIVOS_CIERRE],
     etiquetaCerrar: o.pasoDeCierre ?? "Cerrar",
+    motivoObligatorio: !ganadaEnElCierre,
     ganadaEnElCierre,
     abrirConCadaLead: o.abrirConCadaLead,
     fichaEnElChat,
@@ -189,6 +196,15 @@ export function problemaDeVocabulario(
     !v.motivos.includes(pedido.motivoCierre)
   ) {
     return `«${pedido.motivoCierre}» no es un motivo de cierre de este CRM`;
+  }
+  // v5 — Cerrar como perdida o no calificada pide el motivo.
+  if (
+    v.motivoObligatorio &&
+    (pedido.estado === "perdido" || pedido.estado === "no_calificado") &&
+    pedido.estado !== actual?.estado &&
+    !pedido.motivoCierre?.trim()
+  ) {
+    return "Para cerrarla como perdida o no calificada, elegí el motivo de cierre";
   }
   return null;
 }

@@ -532,7 +532,7 @@ function duracion(min: number): string {
   return m ? `${h} h ${m} min` : `${h} h`;
 }
 
-type EdificioCita = { id: string; nombre: string; direccion: string | null; color: string | null };
+type EdificioCita = { id: string; nombre: string; direccion: string | null; color: string | null; enVenta?: boolean };
 
 /**
  * v3 — La cita: visita o reunión en la misma ventana, con una pestaña para
@@ -807,7 +807,8 @@ export function VentanaCita({
                 }}
                 className="h-8 w-auto rounded-full"
               >
-                {edificios.map((e) => (
+                {/* v5 — Solo los que están en venta (y el que ya tenía la cita). */}
+                {edificios.filter((e) => e.enVenta !== false || e.id === cita.edificioId).map((e) => (
                   <option key={e.id} value={e.id}>
                     {e.nombre}
                   </option>
