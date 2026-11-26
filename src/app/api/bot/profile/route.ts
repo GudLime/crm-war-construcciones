@@ -6,6 +6,9 @@ import { serializeBotProfile, type BotLlm } from "@/server/bot/profile";
 import { resolveAiProvider } from "@/lib/ai/provider";
 import { conInstruccionesOportunidades } from "@/lib/instrucciones-oportunidades";
 import { conocimientoDelAgente } from "@/server/bot/conocimiento";
+import { conInstruccionesReservas } from "@/lib/reservas-bot";
+import { reservasEnabled } from "@/server/reservas/flag";
+import { vocabulario } from "@/server/vocabulario";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +52,12 @@ export async function GET(req: Request) {
   // 068 (War) — Las reglas de clasificación y oportunidad van siempre, después
   // de las instrucciones del negocio: son contrato con el CRM, no estilo.
   const out = serializeBotProfile(profile, kb, llm);
-  out.profile.instructions = conInstruccionesOportunidades(out.profile.instructions);
+  // 071 — Las de edificios y tipologías son de lo inmobiliario: un restaurante
+  // no las recibe. Con Reservas, las claves de la ficha que lee el CRM al reservar.
+  if ((await vocabulario()).inmobiliario) {
+    out.profile.instructions = conInstruccionesOportunidades(out.profile.instructions);
+  }
+  if (reservasEnabled()) out.profile.instructions = conInstruccionesReservas(out.profile.instructions);
   // La memoria de edificios (War, hasta que Edificio pasa al motor) y los
   // objetos del motor visibles para el agente van con el conocimiento.
   out.kb = (await conocimientoDelAgente(organizationId, out.kb)).texto;

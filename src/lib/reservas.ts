@@ -4,7 +4,7 @@
  * el servicio (`server/reservas/`) les pasa los datos y las prueba
  * `tests/unit/reservas.test.ts`.
  *
- * La regla de mesas (decidida con Beba):
+ * La regla de mesas:
  * - Una reserva usa la mesa MÁS CHICA que alcanza, y solo esa: si no quedan
  *   mesas de 2, una reserva de 2 no ocupa una de 4 (se ofrece otro horario).
  * - Si ninguna mesa sola alcanza, junta DOS mesas del mismo sector, la

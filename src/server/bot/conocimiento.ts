@@ -1,6 +1,24 @@
 import { conMemoria } from "@/lib/memoria-agente";
 import { memoriaViejaReemplazada, textoDeObjetosParaAgente } from "@/server/motor/agente";
 import { memoriaDeEdificios } from "@/server/ventas";
+import { enZona } from "@/lib/reservas";
+import { textoDeReservasParaAgente } from "@/lib/reservas-agente";
+import { getBranding } from "@/server/branding";
+import { reservasEnabled } from "@/server/reservas/flag";
+import { leerConfiguracion } from "@/server/reservas/servicio";
+
+/** 071 — Los datos del restaurante de Ajustes → Reservas, si el módulo está encendido. */
+async function datosDelRestaurante(organizationId: string): Promise<string> {
+  if (!reservasEnabled()) return "";
+  const [config, branding] = await Promise.all([leerConfiguracion(organizationId), getBranding(organizationId)]);
+  return textoDeReservasParaAgente({
+    nombre: branding.name,
+    ajustes: config.ajustes,
+    horarios: config.horarios,
+    cierres: config.cierres,
+    hoy: enZona(new Date(), config.ajustes.zonaHoraria).fecha,
+  });
+}
 
 /**
  * Lo que el agente lee además de su base de conocimiento: la memoria de
@@ -22,10 +40,15 @@ export async function conocimientoDelAgente(
   kbRenderizado: string,
   opciones: { simular?: string[] } = {}
 ): Promise<Conocimiento> {
-  const [reemplazada, motor] = await Promise.all([
+  const [reemplazada, motor, restaurante] = await Promise.all([
     memoriaViejaReemplazada(organizationId, opciones),
     textoDeObjetosParaAgente(organizationId, opciones),
+    datosDelRestaurante(organizationId),
   ]);
   const memoriaVieja = reemplazada ? "" : await memoriaDeEdificios(organizationId);
-  return { texto: conMemoria(conMemoria(kbRenderizado, memoriaVieja), motor), memoriaVieja, motor };
+  return {
+    texto: conMemoria(conMemoria(conMemoria(kbRenderizado, memoriaVieja), motor), restaurante),
+    memoriaVieja,
+    motor,
+  };
 }

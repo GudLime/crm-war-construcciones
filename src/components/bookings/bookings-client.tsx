@@ -7,6 +7,7 @@ import {
   LIST_DEFAULT_DAYS,
   MAX_RANGE_DAYS,
   calendarVisible,
+  sinConfirmar,
   clampListTo,
   coalesce,
   datesOf,
@@ -62,6 +63,7 @@ export type CalendarioEmbebido = {
 /** Preferencias de quien mira, en su navegador: no son datos del negocio. */
 const VIEW_KEY = "vocero:citas:vista";
 const CANCELLED_KEY = "vocero:citas:canceladas";
+const SIN_CONFIRMAR_KEY = "vocero:citas:sin-confirmar";
 const TESTS_KEY = "vocero:citas:pruebas";
 
 /** Una ráfaga de eventos SSE (una cita y su enlace) se paga con UNA consulta. */
@@ -114,6 +116,8 @@ export function BookingsClient({
   const [loadError, setLoadError] = useState(false);
   const [showCancelled, setShowCancelled] = useState(false);
   const [showTests, setShowTests] = useState(false);
+  // 0069 — Las citas sin confirmar no se ven por defecto: un interruptor las prende.
+  const [showSinConfirmar, setShowSinConfirmar] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<Booking | null>(null);
   const [blockDraft, setBlockDraft] = useState<{ day: string; time: string } | null>(null);
@@ -125,6 +129,7 @@ export function BookingsClient({
   useEffect(() => {
     setShowCancelled(readPref(CANCELLED_KEY) === "1");
     setShowTests(readPref(TESTS_KEY) === "1");
+    setShowSinConfirmar(readPref(SIN_CONFIRMAR_KEY) === "1");
     const stored = readPref(VIEW_KEY);
     setView(
       initialView ??
@@ -219,8 +224,8 @@ export function BookingsClient({
 
   const all = useMemo(() => loaded?.bookings ?? [], [loaded]);
   const visible = useMemo(
-    () => calendarVisible(all, { showCancelled, showTests }),
-    [all, showCancelled, showTests]
+    () => calendarVisible(all, { showCancelled, showTests, showSinConfirmar }),
+    [all, showCancelled, showTests, showSinConfirmar]
   );
   const counts = useMemo(() => {
     const inRange = all.filter((b) => {
@@ -232,6 +237,7 @@ export function BookingsClient({
       sessions: shown.filter((b) => b.kind === "session" && b.status !== "cancelada").length,
       blocks: shown.filter((b) => b.kind === "block" && b.status !== "cancelada").length,
       cancelled: shown.filter((b) => b.status === "cancelada").length,
+      sinConfirmar: shown.filter((b) => sinConfirmar(b)).length,
       tests: inRange.filter((b) => b.isTest).length,
       google: inRange.some((b) => b.connector === "google"),
     };
@@ -372,6 +378,11 @@ export function BookingsClient({
             timezone={timezone}
             showCancelled={showCancelled}
             showTests={showTests}
+            showSinConfirmar={showSinConfirmar}
+            onShowSinConfirmar={(next) => {
+              setShowSinConfirmar(next);
+              writePref(SIN_CONFIRMAR_KEY, next ? "1" : "0");
+            }}
             onShowCancelled={(next) => {
               setShowCancelled(next);
               writePref(CANCELLED_KEY, next ? "1" : "0");
@@ -505,13 +516,17 @@ function StatusBar({
   timezone,
   showCancelled,
   showTests,
+  showSinConfirmar,
+  onShowSinConfirmar,
   onShowCancelled,
   onShowTests,
 }: {
-  counts: { sessions: number; blocks: number; cancelled: number; tests: number; google: boolean };
+  counts: { sessions: number; blocks: number; cancelled: number; tests: number; sinConfirmar: number; google: boolean };
   timezone: string;
   showCancelled: boolean;
   showTests: boolean;
+  showSinConfirmar: boolean;
+  onShowSinConfirmar: (next: boolean) => void;
   onShowCancelled: (next: boolean) => void;
   onShowTests: (next: boolean) => void;
 }) {
@@ -545,6 +560,15 @@ function StatusBar({
             <span>Mostrar pruebas{counts.tests > 0 ? ` (${counts.tests})` : ""}</span>
           </div>
         )}
+        <div className="flex items-center gap-2">
+          <Switch
+            size="sm"
+            checked={showSinConfirmar}
+            label="Mostrar sin confirmar"
+            onCheckedChange={onShowSinConfirmar}
+          />
+          <span>Mostrar sin confirmar{counts.sinConfirmar > 0 ? ` (${counts.sinConfirmar})` : ""}</span>
+        </div>
         <div className="flex items-center gap-2">
           <Switch
             size="sm"

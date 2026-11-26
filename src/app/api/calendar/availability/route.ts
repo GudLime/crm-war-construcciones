@@ -31,6 +31,8 @@ export const GET = withAuth(async (session, req: Request) => {
     toISO: to && ISO_DATE.test(to) ? to : undefined,
     settings,
     now,
+    // 0069 — Con citas en paralelo, quien carga a mano ve todo el horario (menos los bloqueos).
+    soloBloqueos: settings.citasEnParalelo === true,
   });
 
   return Response.json({

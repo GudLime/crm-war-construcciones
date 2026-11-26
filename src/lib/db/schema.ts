@@ -858,6 +858,8 @@ export const calendarSettings = pgTable(
     connector: text("connector").notNull().default("enlace-fijo"),
     /** Sala fija del conector `enlace-fijo`; null ⇒ citas sin link. */
     meetingLink: text("meeting_link"),
+    /** 0069 — Dos citas a la misma hora (varias personas atienden). Lo del agente sigue de a una. */
+    citasEnParalelo: boolean("citas_en_paralelo").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -947,10 +949,12 @@ export const booking = pgTable(
      * alternativas frescas. Las citas de prueba quedan fuera: no consumen la
      * agenda real.
      */
-    uniqueIndex("booking_org_active_slot_uq")
+    // 0069 — Solo lo que reserva el agente: lo manual puede ir en paralelo
+    // (`calendar_settings.citas_en_paralelo`) y se valida en el código.
+    uniqueIndex("booking_org_active_slot_ai_uq")
       .on(t.organizationId, t.scheduledAt)
       .where(
-        sql`${t.status} in ('agendada','realizada') and ${t.isTest} = false`
+        sql`${t.status} in ('agendada','realizada') and ${t.isTest} = false and ${t.source} = 'ai'`
       ),
   ]
 );

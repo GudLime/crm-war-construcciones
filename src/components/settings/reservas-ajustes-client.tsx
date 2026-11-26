@@ -28,6 +28,7 @@ type Ajustes = {
   enlaceCarta: string | null;
   direccion: string | null;
   umbralHabitual: number;
+  toleranciaMinutos: number | null;
 };
 type Config = { ajustes: Ajustes; horarios: Horario[]; cupo: Cupo[]; cierres: Cierre[] };
 
@@ -381,6 +382,23 @@ export function ReservasAjustesClient() {
             <p className="text-[12px] text-text-3">
               Con menos visitas es Cliente; sin ninguna, Nuevo. Se ve en Contactos y en el salón.
             </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="tolerancia">Tolerancia de llegada (minutos)</Label>
+            <Input
+              id="tolerancia"
+              type="number"
+              min={1}
+              max={240}
+              placeholder="Sin tolerancia"
+              value={c.ajustes.toleranciaMinutos ?? ""}
+              disabled={!puedeEditar}
+              onChange={(e) => {
+                const n = Number.parseInt(e.target.value, 10);
+                ajuste("toleranciaMinutos", Number.isFinite(n) && n > 0 ? n : null);
+              }}
+            />
+            <p className="text-[12px] text-text-3">Cuánto se guarda la mesa. Vacío, el agente no la menciona.</p>
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="direccion">Dirección (va en el evento del calendario)</Label>

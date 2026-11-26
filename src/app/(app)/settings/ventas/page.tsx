@@ -1,5 +1,4 @@
 import { AsignacionAutomatica } from "@/components/settings/asignacion-automatica";
-import { ConvertirVisitas } from "@/components/settings/convertir-visitas";
 import { OficinaAjuste } from "@/components/settings/oficina-ajuste";
 import { ResponsableDerivaciones } from "@/components/settings/responsable-derivaciones";
 import { VendedoresAsignacion } from "@/components/settings/vendedores-asignacion";
@@ -19,7 +18,6 @@ export default function VentasSettingsPage() {
       <VendedoresAsignacion />
       <ResponsableDerivaciones />
       <OficinaAjuste />
-      <ConvertirVisitas />
     </div>
   );
 }
