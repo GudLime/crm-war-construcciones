@@ -448,7 +448,7 @@ export function SalonDelDia({ nuevaPedida }: { nuevaPedida: number }) {
 
       {horario && (
         <p className="flex flex-wrap gap-4 text-[12px] text-text-3">
-          <Leyenda tono="confirmada" texto={nombreEstado(voc, "recibido")} />
+          <Leyenda tono="confirmada" texto={nombreEstado(voc, "reservo")} />
           <Leyenda tono="llego" texto={nombreEstado(voc, "compro")} />
           <Leyenda tono="libre" texto="Libre" />
           <span>Las reservas no tienen mesa fija: se sientan en orden de llegada.</span>
@@ -612,7 +612,8 @@ function VentanaDeReserva({
   const tarjetas: { titulo: string; valor: string; detalle: string }[] = [
     { titulo: "Hora", valor: hora, detalle: fechaCorta(fecha) },
     { titulo: "Personas", valor: String(r.personas), detalle: r.observaciones ?? "" },
-    { titulo: "Mesas", valor: r.mesas.map((m) => m.capacidad).join(" + "), detalle: r.sector },
+    // Cambios 25/11 — El sector, no el tamaño de las mesas: repetía las personas.
+    { titulo: "Sector", valor: r.sector || "Sin sector", detalle: "" },
   ];
 
   return (
@@ -632,7 +633,9 @@ function VentanaDeReserva({
         {tarjetas.map((t) => (
           <div key={t.titulo} className="flex min-w-0 flex-col gap-0.5 rounded-xl bg-subtle px-3.5 py-3">
             <span className="text-[12px] font-semibold text-text-3">{t.titulo}</span>
-            <span className="text-[30px] font-bold leading-[1.1] tracking-tight tabular-nums">{t.valor}</span>
+            <span className="truncate text-[30px] font-bold leading-[1.1] tracking-tight tabular-nums" title={t.valor}>
+              {t.valor}
+            </span>
             <span className="truncate text-[12px] text-text-3" title={t.detalle}>
               {t.detalle || "\u00a0"}
             </span>

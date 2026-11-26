@@ -4,6 +4,8 @@ import { scoped } from "@/lib/db/tenant";
 import { isWindowOpen, replyWindow, windowRemainingMs } from "@/server/inbox/window";
 import { capabilitiesFor, windowMsFor } from "@/server/channels/capabilities";
 import type { ConversationDto } from "@/lib/types";
+import { pantallaOculta } from "@/lib/vocabulario";
+import { vocabulario } from "@/server/vocabulario";
 
 /**
  * 018 — El anuncio de origen viaja con la conversación. La llave única
@@ -89,12 +91,15 @@ export async function listConversations(
     )
     .orderBy(desc(sql`coalesce(${schema.conversation.lastMessageAt}, ${schema.conversation.createdAt})`));
 
+  // Cambios 26/11 — Con el Pipeline oculto (un restaurante), la etapa del
+  // embudo no se muestra: confundía con las etapas de la reserva.
+  const sinEmbudo = pantallaOculta(await vocabulario(), "pipeline");
   return rows.map((r) =>
     serializeConversation(
       r.conversation,
       r.contact,
       r.preview,
-      r.stageName,
+      sinEmbudo ? null : r.stageName,
       aAnuncioDeLista(r.anuncio)
     )
   );

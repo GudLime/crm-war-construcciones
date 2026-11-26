@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { FichaPanel } from "@/components/ficha-panel";
+import { useVocabulario } from "@/components/vocabulario";
 import { OportunidadPanel } from "@/components/ventas/oportunidad-panel";
 import { DeleteConversationDialog } from "./delete-conversation-dialog";
 
@@ -57,6 +58,7 @@ export function ContactPanel({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [notes, setNotes] = useState("");
   const [ficha, setFicha] = useState<FichaDto>({});
+  const voc = useVocabulario();
   const [notesLoaded, setNotesLoaded] = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
   // 018: de qué anuncio llegó; null si escribió por su cuenta.
@@ -298,7 +300,9 @@ export function ContactPanel({
 
         {/* Ficha: lo que se SABE del lead. Va antes de Notas —lo que alguien
             OPINA— porque es lo que se consulta a mitad de una conversación. */}
-        <FichaPanel ficha={ficha} onSave={saveFicha} />
+        {/* Cambios 25/11 — Un cliente puede apagarla (`chat.ficha`): el CRM la
+            sigue leyendo (personas y nombre de la reserva), solo no se ve. */}
+        {voc.fichaEnElChat && <FichaPanel ficha={ficha} onSave={saveFicha} />}
 
         {/* Notas */}
         <section className={cn("p-4", onDeleteConversation && "border-b")}>

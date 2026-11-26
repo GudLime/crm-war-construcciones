@@ -107,6 +107,43 @@ describe("vocabularioDe", () => {
     expect(nombreEstado(v, "no_calificado")).toBe("No vino");
   });
 
+  it("cambios 25/11 — con paso de cierre: Recibido → Conoce información → Confirmada, y el cierre trae Asistió", () => {
+    const v = vocabularioDe(
+      config({
+        ...RESTAURANTE,
+        oportunidad: {
+          ...RESTAURANTE.oportunidad,
+          estados: [
+            { estado: "recibido", nombre: "Recibido" },
+            { estado: "conoce_informacion", nombre: "Conoce información" },
+            { estado: "reservo", nombre: "Confirmada" },
+            { estado: "compro", nombre: "Asistió" },
+            { estado: "no_calificado", nombre: "No vino" },
+            { estado: "perdido", nombre: "Canceló" },
+          ],
+          pasoDeCierre: "Cierre",
+          abrirConCadaLead: true,
+        },
+        chat: { ficha: false },
+      })
+    );
+    expect(v.camino).toEqual(["recibido", "conoce_informacion", "reservo"]);
+    expect(v.cierres).toEqual(["compro", "no_calificado", "perdido"]);
+    expect(v.abiertosLista).toEqual(["recibido", "conoce_informacion", "reservo"]);
+    expect(v.etiquetaCerrar).toBe("Cierre");
+    expect(v.ganadaEnElCierre).toBe(true);
+    expect(v.abrirConCadaLead).toBe(true);
+    expect(v.fichaEnElChat).toBe(false);
+  });
+
+  it("sin paso de cierre ni chat, todo como antes", () => {
+    const v = vocabularioDe(config(RESTAURANTE));
+    expect(v.ganadaEnElCierre).toBe(false);
+    expect(v.abrirConCadaLead).toBe(false);
+    expect(v.fichaEnElChat).toBe(true);
+    expect(VOCABULARIO_POR_DEFECTO.fichaEnElChat).toBe(true);
+  });
+
   it("una etapa oculta se sigue mostrando con el nombre del núcleo", () => {
     const v = vocabularioDe(config(RESTAURANTE));
     expect(nombreEstado(v, "visito")).toBe("Visitó");

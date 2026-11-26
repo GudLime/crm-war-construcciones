@@ -5,10 +5,8 @@ import { scoped } from "@/lib/db/tenant";
 import { herramientasEfectivas } from "@/lib/agent-roles";
 import {
   ESTADOS_ABIERTOS,
-  ESTADOS_OPORTUNIDAD,
   MAX_AMBIENTES,
   ambientesDeTipologia,
-  etiqueta,
   normalizarTipoContacto,
   normalizarTipologias,
   ordenarTipologiasUnidad,
@@ -34,6 +32,8 @@ import { publish } from "@/server/events/bus";
 import { ajustarInteres } from "@/server/motor/interes";
 import { asignarLeadDeMeta } from "@/server/asignacion";
 import { VentasError } from "@/server/ventas";
+import { vocabulario } from "@/server/vocabulario";
+import { nombreEstado, type Vocabulario } from "@/lib/vocabulario";
 
 /**
  * 068 — Oportunidades de War (ver specs/068-oportunidades-war).
@@ -183,7 +183,9 @@ async function aDelChat(
     ambientes: interes.ambientes,
     tipologiasUnidad: interes.tipologiasUnidad,
     updatedAt: op.updatedAt.toISOString(),
-    sinRespuesta: textoSinRespuesta(op),
+    // Cambios 25/11 — El conteo de intentos es del cierre por falta de
+    // respuesta: un cliente que no lo usa no lo ve.
+    sinRespuesta: (await vocabulario()).cierrePorSinRespuesta ? textoSinRespuesta(op) : null,
   };
 }
 
@@ -340,6 +342,21 @@ export async function registrarInteraccionDelContacto(input: {
       .set({ ultimaInteraccion: at, updatedAt: new Date() })
       .where(eq(schema.oportunidad.id, abierta.id));
     await registrarRespuesta({ organizationId, contactId, at });
+    return;
+  }
+  // Cambios 25/11 — En un cliente donde cada lead nace con su oportunidad (un
+  // restaurante: Recibido), quien escribe sin una abierta tiene una nueva. No
+  // se reabre la anterior: una reserva cerrada (Asistió, Canceló) es pasado.
+  if ((await vocabulario()).abrirConCadaLead) {
+    const nueva = await abrirOportunidad(organizationId, contactId, { fuente: "sistema" });
+    await getDb()
+      .update(schema.oportunidad)
+      .set({
+        ultimaInteraccion: at,
+        ...(input.desdeAnuncio && !nueva.origen ? { origen: "Meta Ads" } : {}),
+      })
+      .where(eq(schema.oportunidad.id, nueva.id));
+    await avisarConversaciones(organizationId, contactId);
     return;
   }
   // v4 — Sin «Lead»: vuelve a la venta quien ya tuvo una oportunidad. Quien
@@ -738,14 +755,28 @@ export async function leadParaElCerebro(
   // v4 — El cerebro mueve la oportunidad abierta de Venta (o sin tipo).
   const abierta = await oportunidadAbierta(organizationId, contactId);
   if (!abierta || (abierta.tipo && abierta.tipo !== "venta")) return null;
+  const voc = await vocabulario();
   return {
     id: abierta.id,
-    stageName: etiqueta(ESTADOS_OPORTUNIDAD, abierta.estado),
-    nextStages: siguientesParaLaIA(abierta.estado).map((e) => ({
-      id: e,
-      name: etiqueta(ESTADOS_OPORTUNIDAD, e),
-    })),
+    stageName: nombreEstado(voc, abierta.estado),
+    nextStages: (await siguientesDeLaIA(abierta.estado)).map((e) => ({ id: e, name: nombreEstado(voc, e) })),
   };
+}
+
+/**
+ * Cambios 25/11 — Las etapas a las que la IA puede llevarla, solo las que
+ * esta instancia muestra: un restaurante no tiene «En charlas».
+ */
+async function siguientesDeLaIA(actual: EstadoOportunidad): Promise<EstadoOportunidad[]> {
+  const visibles = new Set((await vocabulario()).estados.map((e) => e.value));
+  return siguientesParaLaIA(actual).filter((e) => visibles.has(e));
+}
+
+/** La etapa que pidió el cerebro, por el nombre de esta instancia o el del núcleo. */
+async function etapaPedida(pedida: string): Promise<EstadoOportunidad | null> {
+  const limpia = pedida.trim().toLowerCase();
+  const propia = (await vocabulario()).estados.find((e) => e.label.trim().toLowerCase() === limpia);
+  return propia?.value ?? resolverEstadoOportunidad(pedida);
 }
 
 export type ResultadoEtapaWar =
@@ -759,9 +790,9 @@ export type ResultadoEtapaWar =
     }
   | { ok: false; status: 422; code: "etapa_desconocida"; message: string };
 
-function listaParaElModelo(estados: readonly EstadoOportunidad[]): string {
+function listaParaElModelo(estados: readonly EstadoOportunidad[], voc: Vocabulario): string {
   return estados.length
-    ? `Puedes moverla a: ${estados.map((e) => etiqueta(ESTADOS_OPORTUNIDAD, e)).join(", ")}.`
+    ? `Puedes moverla a: ${estados.map((e) => nombreEstado(voc, e)).join(", ")}.`
     : "No hay etapas a las que puedas moverla: el resto lo decide una persona.";
 }
 
@@ -825,14 +856,15 @@ export async function moverOportunidadPorElCerebro(input: {
     };
   }
 
-  const siguientes = siguientesParaLaIA(abierta.estado);
-  const destino = resolverEstadoOportunidad(input.stage);
+  const voc = await vocabulario();
+  const siguientes = await siguientesDeLaIA(abierta.estado);
+  const destino = await etapaPedida(input.stage);
   if (!destino) {
     return {
       ok: false,
       status: 422,
       code: "etapa_desconocida",
-      message: `No existe la etapa «${input.stage.trim()}». ${listaParaElModelo(siguientes)}`,
+      message: `No existe la etapa «${input.stage.trim()}». ${listaParaElModelo(siguientes, voc)}`,
     };
   }
   if (destino === abierta.estado) {
@@ -843,7 +875,7 @@ export async function moverOportunidadPorElCerebro(input: {
       ok: false,
       status: 409,
       code: "etapa_no_permitida",
-      message: `No puedes mover la oportunidad a «${etiqueta(ESTADOS_OPORTUNIDAD, destino)}». ${listaParaElModelo(siguientes)}`,
+      message: `No puedes mover la oportunidad a «${nombreEstado(voc, destino)}». ${listaParaElModelo(siguientes, voc)}`,
     };
   }
 
@@ -857,7 +889,7 @@ export async function moverOportunidadPorElCerebro(input: {
   return {
     ok: true,
     changed: true,
-    lead: { id: abierta.id, stageName: etiqueta(ESTADOS_OPORTUNIDAD, destino) },
+    lead: { id: abierta.id, stageName: nombreEstado(voc, destino) },
     conversationId: conv.id,
   };
 }

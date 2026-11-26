@@ -58,6 +58,8 @@ export function OportunidadPanel({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [motivo, setMotivo] = useState("");
+  /** Cambios 25/11 — Con paso de cierre, las opciones se abren al tocarlo. */
+  const [cerrando, setCerrando] = useState(false);
   const [avisoTarea, setAvisoTarea] = useState<string | null>(null);
   const [tipoNueva, setTipoNueva] = useState("venta");
   const voc = useVocabulario();
@@ -288,6 +290,25 @@ export function OportunidadPanel({
                     </li>
                   );
                 })}
+                {voc.ganadaEnElCierre && (
+                  <li className="relative flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setCerrando((v) => !v)}
+                      aria-expanded={cerrando}
+                      aria-label={voc.etiquetaCerrar}
+                      className="relative z-10 mt-0.5 flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full border border-border-strong bg-background hover:border-brand"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCerrando((v) => !v)}
+                      aria-expanded={cerrando}
+                      className="text-left text-[13px] text-text-2 hover:text-foreground"
+                    >
+                      {voc.etiquetaCerrar}
+                    </button>
+                  </li>
+                )}
               </ol>
               {abierta.sinRespuesta && (
                 <p className="mt-2 text-[12px] font-medium text-warning-text">{abierta.sinRespuesta}</p>
@@ -299,8 +320,11 @@ export function OportunidadPanel({
                 Ver la {singular} completa →
               </a>
 
+              {(!voc.ganadaEnElCierre || cerrando) && (
               <div className="mt-3 rounded-md border bg-subtle p-2.5">
-                <p className="mb-1.5 text-[11px] font-medium text-text-2">Cerrar</p>
+                <p className="mb-1.5 text-[11px] font-medium text-text-2">
+                  {voc.ganadaEnElCierre ? voc.etiquetaCerrar : "Cerrar"}
+                </p>
                 <Select
                   aria-label="Motivo"
                   value={motivo}
@@ -315,7 +339,7 @@ export function OportunidadPanel({
                   ))}
                 </Select>
                 <div className="flex flex-wrap gap-1.5">
-                  {voc.cierres.filter((e) => e !== "compro").map((estado: EstadoOportunidad) => (
+                  {voc.cierres.filter((e) => !voc.camino.includes(e)).map((estado: EstadoOportunidad) => (
                     <Button
                       key={estado}
                       size="sm"
@@ -330,6 +354,7 @@ export function OportunidadPanel({
                   ))}
                 </div>
               </div>
+              )}
 
               {!enChat && interes && <div className="mt-4">{interes}</div>}
             </>

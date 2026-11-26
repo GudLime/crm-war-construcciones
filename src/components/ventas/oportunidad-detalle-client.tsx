@@ -724,14 +724,18 @@ function BarraDeAvance({
   // un restaurante, Cancelada y No vino), en el orden de la configuración.
   const cierres = voc.cierres.filter((e) => !camino.includes(e));
   const indice = camino.indexOf(estado);
-  const perdida = cierres.includes(estado) || estado === "perdido" || estado === "no_calificado";
+  // Cambios 25/11 — Con paso de cierre, la ganada también se elige ahí: el
+  // camino queda entero hecho y el cierre se pinta en verde.
+  const ganada = voc.ganadaEnElCierre && estado === "compro";
+  const perdida = !ganada && (cierres.includes(estado) || estado === "perdido" || estado === "no_calificado");
+  const cerrada = ganada || perdida;
 
   return (
     <div className="mt-5">
       {/* En pantallas angostas no se parte: se desplaza. */}
       <ol className="flex gap-1 overflow-x-auto pb-0.5" aria-label="Avance">
         {camino.map((paso, i) => {
-          const hecho = !perdida && indice >= 0 && i < indice;
+          const hecho = ganada || (!perdida && indice >= 0 && i < indice);
           const actual = paso === estado;
           // Punto 5 — la actual en su sólido, las pasadas en su tinte, las que faltan en gris.
           const color = colorDeEtapa(paso);
@@ -770,13 +774,21 @@ function BarraDeAvance({
             className={cn(
               "flex h-10 w-full items-center justify-center gap-1.5 rounded-[10px] text-[13.5px] font-medium transition-colors",
               ULTIMA,
-              perdida
-                ? "bg-danger-tint font-semibold text-danger-text"
-                : "bg-muted text-text-2 hover:bg-accent hover:text-foreground"
+              ganada
+                ? "bg-success-tint font-semibold text-success-text"
+                : perdida
+                  ? "bg-danger-tint font-semibold text-danger-text"
+                  : "bg-muted text-text-2 hover:bg-accent hover:text-foreground"
             )}
           >
-            {perdida ? <X className="size-3.5 shrink-0" /> : <Flag className="size-3.5 shrink-0" />}
-            <span className="truncate">{perdida ? nombreEstado(voc, estado) : voc.etiquetaCerrar}</span>
+            {ganada ? (
+              <Check className="size-3.5 shrink-0" />
+            ) : perdida ? (
+              <X className="size-3.5 shrink-0" />
+            ) : (
+              <Flag className="size-3.5 shrink-0" />
+            )}
+            <span className="truncate">{cerrada ? nombreEstado(voc, estado) : voc.etiquetaCerrar}</span>
           </button>
         </li>
       </ol>
@@ -799,6 +811,7 @@ function BarraDeAvance({
               key={cierre}
               size="sm"
               variant="outline"
+              disabled={cierre === estado}
               onClick={() => void onCambiar(cierre, motivoNuevo || null).then(() => setCerrando(false))}
             >
               {nombreEstado(voc, cierre)}

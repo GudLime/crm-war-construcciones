@@ -2,6 +2,8 @@ import { and, asc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { textoEventoEtapa, textoTraspaso, type EventoHiloDto } from "@/lib/eventos-hilo";
+import { pantallaOculta } from "@/lib/vocabulario";
+import { vocabulario } from "@/server/vocabulario";
 
 /**
  * 054 — Los eventos del hilo de una conversación, por hora: los cambios de
@@ -34,8 +36,9 @@ export async function eventosDeConversacion(
 
   const eventos: EventoHiloDto[] = [];
 
-  // El Laboratorio no tiene lead en el embudo (D5).
-  if (!conv.isTest) {
+  // El Laboratorio no tiene lead en el embudo (D5). Cambios 26/11 — Con el
+  // Pipeline oculto (un restaurante) tampoco se cuentan sus cambios de etapa.
+  if (!conv.isTest && !pantallaOculta(await vocabulario(), "pipeline")) {
     const filas = await db
       .select({
         id: schema.leadStageEvent.id,
