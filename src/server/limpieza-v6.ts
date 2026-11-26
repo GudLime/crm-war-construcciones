@@ -17,7 +17,7 @@ import { getDb } from "@/lib/db";
  * Agenda. La conversión borra la tarea y crea la cita con
  * `confirmada_at = created_at de la tarea`, que es el `now()` de la
  * transacción de la importación: el mismo instante que el de su anotación en
- * `importacion_externa`. Una cita cuenta como de Notion solo si su
+ * `importacion_externa` (truncado a milisegundos: pasa por un Date de JS). Una cita cuenta como de Notion solo si su
  * `confirmada_at` coincide exacto con una anotación de una tarea que ya no
  * existe; lo demás queda afuera.
  *
@@ -49,7 +49,7 @@ const citasDeNotion = sql`
     and exists (
       select 1 from importacion_externa ie
       where ie.organization_id = b.organization_id and ie.fuente = 'notion' and ie.tipo = 'tarea'
-        and ie.created_at = b.confirmada_at
+        and date_trunc('milliseconds', ie.created_at) = b.confirmada_at
         and not exists (select 1 from tarea_venta t where t.id = ie.crm_id)
     )`;
 
