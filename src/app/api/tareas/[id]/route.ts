@@ -1,3 +1,5 @@
+import { agendaEnabled } from "@/server/agenda/flag";
+import { pasarTareaACita } from "@/server/agenda/convertir-tareas";
 import { and, eq } from "drizzle-orm";
 import { apiError, parseBody, withAuth } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
@@ -65,7 +67,10 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
     return prohibido("Solo un admin pasa una tarea a otra persona");
   }
   try {
-    return Response.json({ tarea: await editarTarea(session.organizationId, id, body.data, session.userId) });
+    const tarea = await editarTarea(session.organizationId, id, body.data, session.userId);
+    // 0069 — Le pusieron fecha a una visita o reunión: pasa a ser la cita.
+    const citaId = agendaEnabled() ? await pasarTareaACita(session.organizationId, id) : null;
+    return Response.json({ tarea, citaId });
   } catch (err) {
     if (err instanceof VentasError) return apiError(err.status, err.code, err.message);
     throw err;

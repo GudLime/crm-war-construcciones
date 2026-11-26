@@ -472,12 +472,22 @@ export function groupSlotsByDay<T extends DaySlot>(slots: readonly T[]): [string
  * (`isTest`) se ocultan por defecto: una cancelada ya no ocupa el hueco y una
  * de prueba nunca lo ocupó (el motor no la cuenta como ocupación).
  */
-export function calendarVisible<T extends { status: string; isTest: boolean }>(
+/** 0069 — Una cita sin confirmar: agendada y nadie la confirmó todavía. */
+export function sinConfirmar(b: { kind?: string; status: string; confirmadaAt?: string | null }): boolean {
+  return b.kind !== "block" && b.status === "agendada" && !b.confirmadaAt;
+}
+
+export function calendarVisible<
+  T extends { status: string; isTest: boolean; kind?: string; confirmadaAt?: string | null },
+>(
   bookings: readonly T[],
-  opts: { showCancelled: boolean; showTests: boolean }
+  opts: { showCancelled: boolean; showTests: boolean; showSinConfirmar?: boolean }
 ): T[] {
   return bookings.filter(
-    (b) => (opts.showCancelled || b.status !== "cancelada") && (opts.showTests || !b.isTest)
+    (b) =>
+      (opts.showCancelled || b.status !== "cancelada") &&
+      (opts.showTests || !b.isTest) &&
+      (opts.showSinConfirmar !== false || !sinConfirmar(b))
   );
 }
 

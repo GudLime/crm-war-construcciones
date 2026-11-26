@@ -160,6 +160,14 @@ export function VentanaTarea({
       setError(res ? await mensajeDe(res) : "No se pudo guardar");
       return false;
     }
+    // 0069 — Una visita o reunión con fecha pasa a ser la cita: la tarea ya no existe.
+    const d = (await res.json().catch(() => null)) as { citaId?: string | null } | null;
+    if (d?.citaId) {
+      avisar("Pasó a la Agenda como cita");
+      void onCambio();
+      onCerrar();
+      return true;
+    }
     await cargar();
     void onCambio();
     return true;

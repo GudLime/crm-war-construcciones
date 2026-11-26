@@ -83,6 +83,8 @@ export async function computeAvailability(
     excludeBookingId?: string;
     now?: Date;
     settings?: CalendarSettings;
+    /** 0069 — Citas en paralelo: las otras citas no ocupan (los bloqueos sí). */
+    soloBloqueos?: boolean;
   }
 ): Promise<AvailableSlot[]> {
   const settings = opts?.settings ?? (await getSettings(organizationId));
@@ -101,6 +103,7 @@ export async function computeAvailability(
       zonedWallClockToUtc(addDaysISO(to, 1), "00:00", tz) ??
       new Date(now.getTime() + 86_400_000 * 61),
     excludeBookingId: opts?.excludeBookingId,
+    soloBloqueos: opts?.soloBloqueos,
   });
 
   return filterFreeSlots(candidates, busy, {
@@ -125,7 +128,7 @@ export async function computeAvailability(
 export async function findSlot(
   organizationId: string,
   whenISO: string,
-  opts?: { excludeBookingId?: string; now?: Date; settings?: CalendarSettings }
+  opts?: { excludeBookingId?: string; now?: Date; settings?: CalendarSettings; soloBloqueos?: boolean }
 ): Promise<AvailableSlot | null> {
   const target = Date.parse(whenISO);
   if (Number.isNaN(target)) return null;
@@ -139,13 +142,14 @@ export async function findSlot(
     excludeBookingId: opts?.excludeBookingId,
     now: opts?.now,
     settings,
+    soloBloqueos: opts?.soloBloqueos,
   });
   return slots.find((s) => Date.parse(s.startUtc) === target) ?? null;
 }
 
 async function getBusyIntervals(
   organizationId: string,
-  input: { fromUtc: Date; toUtc: Date; excludeBookingId?: string }
+  input: { fromUtc: Date; toUtc: Date; excludeBookingId?: string; soloBloqueos?: boolean }
 ): Promise<SlotUtc[]> {
   const db = getDb();
   const rows = await db
@@ -164,6 +168,7 @@ async function getBusyIntervals(
           inArray(schema.booking.status, ["agendada", "realizada"]),
           // Sandbox: una cita de prueba no consume la agenda real.
           eq(schema.booking.isTest, false),
+          ...(input.soloBloqueos ? [eq(schema.booking.kind, "block")] : []),
           gte(schema.booking.scheduledAt, input.fromUtc),
           lte(schema.booking.scheduledAt, input.toUtc)
         )
