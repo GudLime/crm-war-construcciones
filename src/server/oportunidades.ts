@@ -211,16 +211,19 @@ export async function estadoComercialDelContacto(
         )
       ),
     db
-      .select({ id: schema.edificio.id, nombre: schema.edificio.nombre })
+      .select({ id: schema.edificio.id, nombre: schema.edificio.nombre, enVenta: schema.edificio.enVenta })
       .from(schema.edificio)
       .where(scoped(schema.edificio.organizationId, organizationId))
       .orderBy(asc(schema.edificio.nombre)),
   ]);
+  const delChat = abierta ? await aDelChat(organizationId, abierta) : null;
+  // v5 — Para elegir, solo los que están en venta (y los que ya tenía).
+  const tenia = new Set(delChat?.edificios.map((e) => e.id) ?? []);
   return {
     tiposContacto: tiposValidos(contacto.tiposContacto),
-    abierta: abierta ? await aDelChat(organizationId, abierta) : null,
+    abierta: delChat,
     anteriores: Number(cerradas?.n ?? 0),
-    edificios,
+    edificios: edificios.filter((e) => e.enVenta || tenia.has(e.id)).map(({ id, nombre }) => ({ id, nombre })),
   };
 }
 
@@ -495,12 +498,35 @@ export async function pasarLeadsAVentaAlArrancar(): Promise<void> {
   }
 }
 
-async function edificiosValidos(organizationId: string, ids: readonly string[]): Promise<string[]> {
+/**
+ * v5 — Solo se abre interés por edificios EN VENTA. Uno que ya estaba en la
+ * oportunidad (`conservar`) se mantiene aunque haya dejado de estar en venta.
+ * Vale para todos: una persona, la IA, el lector y los leads.
+ */
+async function edificiosValidos(
+  organizationId: string,
+  ids: readonly string[],
+  conservar: readonly string[] = []
+): Promise<string[]> {
   if (ids.length === 0) return [];
   const filas = await getDb()
-    .select({ id: schema.edificio.id })
+    .select({ id: schema.edificio.id, enVenta: schema.edificio.enVenta })
     .from(schema.edificio)
     .where(scoped(schema.edificio.organizationId, organizationId, inArray(schema.edificio.id, [...ids])));
+  return filas.filter((f) => f.enVenta || conservar.includes(f.id)).map((f) => f.id);
+}
+
+async function edificiosDe(organizationId: string, oportunidadId: string): Promise<string[]> {
+  const filas = await getDb()
+    .select({ id: schema.oportunidadEdificio.edificioId })
+    .from(schema.oportunidadEdificio)
+    .where(
+      scoped(
+        schema.oportunidadEdificio.organizationId,
+        organizationId,
+        eq(schema.oportunidadEdificio.oportunidadId, oportunidadId)
+      )
+    );
   return filas.map((f) => f.id);
 }
 
@@ -542,10 +568,15 @@ async function insertarInteres(
   oportunidadId: string,
   edificioIds: readonly string[],
   ambientes: readonly number[],
-  tipologiasUnidad: readonly string[] = []
+  tipologiasUnidad: readonly string[] = [],
+  conservar?: readonly string[]
 ): Promise<void> {
   const db = getDb();
-  const validos = await edificiosValidos(organizationId, edificioIds);
+  const validos = await edificiosValidos(
+    organizationId,
+    edificioIds,
+    conservar ?? (edificioIds.length ? await edificiosDe(organizationId, oportunidadId) : [])
+  );
   if (validos.length) {
     await db
       .insert(schema.oportunidadEdificio)
@@ -580,6 +611,8 @@ export async function reemplazarInteres(
 ): Promise<void> {
   const db = getDb();
   if (cambios.edificioIds) {
+    // Los que ya tenía se pueden dejar aunque no estén más en venta.
+    const tenia = await edificiosDe(organizationId, oportunidadId);
     await db
       .delete(schema.oportunidadEdificio)
       .where(
@@ -589,7 +622,7 @@ export async function reemplazarInteres(
           eq(schema.oportunidadEdificio.oportunidadId, oportunidadId)
         )
       );
-    await insertarInteres(organizationId, oportunidadId, cambios.edificioIds, []);
+    await insertarInteres(organizationId, oportunidadId, cambios.edificioIds, [], [], tenia);
   }
   if (cambios.ambientes) {
     await db
