@@ -69,12 +69,15 @@ const hora = (iso: string, zona: string) => fmt(iso, zona, { hour: "2-digit", mi
 function tituloSeccion(clave: string, hoy: string): string {
   if (clave === "vencidas") return "Vencidas";
   if (clave === "sin_hora") return "Sin hora";
-  const d = new Date(`${clave}T12:00:00Z`);
+  // La sección de hoy viene como «hoy» (no con la fecha): se titula con la de hoy.
+  const dia = clave === "hoy" ? hoy : clave;
+  const d = new Date(`${dia}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return dia;
   const larga = new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", timeZone: "UTC" }).format(d);
   const manana = new Date(`${hoy}T12:00:00Z`);
   manana.setUTCDate(manana.getUTCDate() + 1);
-  if (clave === hoy) return `Hoy · ${larga}`;
-  if (clave === manana.toISOString().slice(0, 10)) return `Mañana · ${larga}`;
+  if (dia === hoy) return `Hoy · ${larga}`;
+  if (dia === manana.toISOString().slice(0, 10)) return `Mañana · ${larga}`;
   return larga.charAt(0).toUpperCase() + larga.slice(1);
 }
 
