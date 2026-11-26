@@ -209,3 +209,15 @@ export function difiereDe(
   if (vista.anchos !== null && ordenado(vista.anchos) !== ordenado(actual.anchos)) return true;
   return false;
 }
+
+/**
+ * v6 — Las pestañas en el orden de esta persona: primero las que ordenó, en
+ * ese orden; las nuevas (o sin ordenar) después, como venían.
+ */
+export function ordenarVistas<V extends { id: string }>(vistas: readonly V[], orden: readonly string[]): V[] {
+  const pos = new Map(orden.map((id, i) => [id, i]));
+  return vistas
+    .map((v, i) => ({ v, i }))
+    .sort((a, b) => (pos.get(a.v.id) ?? orden.length + a.i) - (pos.get(b.v.id) ?? orden.length + b.i))
+    .map((x) => x.v);
+}

@@ -48,7 +48,7 @@ import { NOMBRE_ORIGEN_MAX } from "@/lib/origenes";
 import { HEX_COLOR, siguienteColor, VALORES_COLOR_EDIFICIO, type ColorEdificio } from "@/lib/colores-edificio";
 import { existeOrigen } from "@/server/origenes";
 import { blockStartUtc } from "@/lib/time/calendar";
-import { getSettings as ajustesDeAgenda } from "@/server/agenda/settings";
+import { getSettings as ajustesDeAgenda, normalizeWeeklyHours } from "@/server/agenda/settings";
 import { revisarCambio, vocabulario } from "@/server/vocabulario";
 
 /**
@@ -97,6 +97,14 @@ export const edificioSchema = z.object({
   /** 0032 — Si no viene, no se cambia. */
   memoriaAgente: z.boolean().optional(),
   notasAgente: texto(4000),
+  /** 0072 — v6: el horario de visitas; null = el de la agenda; si no viene, no se cambia. */
+  horarioVisitas: z
+    .partialRecord(
+      z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+      z.array(z.object({ start: z.string().regex(/^\d{2}:\d{2}$/), end: z.string().regex(/^\d{2}:\d{2}$/) })).max(6)
+    )
+    .nullable()
+    .optional(),
   /** 0045 — Si no viene, no se cambia (al crear, el menos usado). */
   /** Una clave de la paleta o un color propio `#rrggbb`. */
   color: z
@@ -179,7 +187,16 @@ export type EdificioDto = {
   notasAgente: string | null;
   /** 0045 — Clave de la paleta (`lib/colores-edificio.ts`), o null. */
   color: string | null;
+  /** 0072 — v6: su horario de visitas; null = el de la agenda. */
+  horarioVisitas: Partial<Record<string, { start: string; end: string }[]>> | null;
 };
+
+/** 0072 — Un horario sin ningún día abierto es lo mismo que no tener horario propio. */
+function horarioGuardable(h: z.infer<typeof edificioSchema>["horarioVisitas"]) {
+  if (!h) return null;
+  const n = normalizeWeeklyHours(h);
+  return Object.values(n).some((f) => f && f.length) ? n : null;
+}
 
 /** Un edificio en una píldora: nombre y color. */
 export type EdificioCorto = { id: string; nombre: string; color: string | null };
@@ -416,6 +433,7 @@ export async function listarEdificios(organizationId: string): Promise<EdificioD
     memoriaAgente: f.memoriaAgente,
     notasAgente: f.notasAgente,
     color: f.color,
+    horarioVisitas: f.horarioVisitas ?? null,
   }));
 }
 
@@ -452,6 +470,7 @@ export async function obtenerEdificio(
       memoriaAgente: fila.memoriaAgente,
       notasAgente: fila.notasAgente,
       color: fila.color,
+      horarioVisitas: fila.horarioVisitas ?? null,
     },
     departamentos: unidades.map(aDepartamento),
   };
@@ -476,6 +495,7 @@ export async function crearEdificio(
       enVenta: datos.enVenta ?? true,
       memoriaAgente: datos.memoriaAgente ?? false,
       notasAgente: oNulo(datos.notasAgente),
+      horarioVisitas: horarioGuardable(datos.horarioVisitas),
       color: datos.color ?? siguienteColor(usados.map((u) => u.color)),
     })
     .returning();
@@ -489,6 +509,7 @@ export async function crearEdificio(
     memoriaAgente: fila!.memoriaAgente,
     notasAgente: fila!.notasAgente,
     color: fila!.color,
+    horarioVisitas: fila!.horarioVisitas ?? null,
   };
 }
 
@@ -506,6 +527,7 @@ export async function editarEdificio(
       ...(datos.enVenta !== undefined ? { enVenta: datos.enVenta } : {}),
       ...(datos.memoriaAgente !== undefined ? { memoriaAgente: datos.memoriaAgente } : {}),
       ...(datos.notasAgente !== undefined ? { notasAgente: oNulo(datos.notasAgente) } : {}),
+      ...(datos.horarioVisitas !== undefined ? { horarioVisitas: horarioGuardable(datos.horarioVisitas) } : {}),
       ...(datos.color !== undefined ? { color: datos.color } : {}),
       updatedAt: new Date(),
     })
@@ -1400,6 +1422,7 @@ export async function memoriaDeEdificios(organizationId: string): Promise<string
         estado: e.estado,
         enVenta: e.enVenta,
         notasAgente: e.notasAgente,
+        horarioVisitas: e.horarioVisitas ?? null,
         unidades: porEdificio.get(e.id) ?? [],
       }))
     );

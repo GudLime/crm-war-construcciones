@@ -39,6 +39,8 @@ export const edificio = pgTable(
     memoriaAgente: boolean("memoria_agente").notNull().default(false),
     /** 0032 — Lo que el agente tiene que saber de este edificio (visitas, entrega, amenities…). */
     notasAgente: text("notas_agente"),
+    /** 0072 — v6: su horario de visitas ({ mon: [{start,end}], … }); null = el de la agenda. */
+    horarioVisitas: jsonb("horario_visitas").$type<Partial<Record<string, { start: string; end: string }[]>> | null>(),
     /** 0045 — Clave de la paleta de `lib/colores-edificio.ts` (sus píldoras). */
     color: text("color"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -534,6 +536,23 @@ export const vistaUltima = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     pagina: text("pagina").notNull(),
     vistaId: text("vista_id"),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.organizationId, t.userId, t.pagina] })]
+);
+
+/** 0071 — v6: el orden de las pestañas de vistas de cada persona (ids, «Todas» incluida). */
+export const vistaOrden = pgTable(
+  "vista_orden",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    pagina: text("pagina").notNull(),
+    ids: jsonb("ids").$type<string[]>().notNull().default([]),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.organizationId, t.userId, t.pagina] })]
