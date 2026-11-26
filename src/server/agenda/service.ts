@@ -160,10 +160,12 @@ export async function createSessionBooking(input: {
     }
   }
 
-  // REGLA 2 (primera mitad): el hueco debe seguir libre AHORA.
+  // REGLA 2 (primera mitad): el hueco debe seguir libre AHORA. 0069 — Con
+  // citas en paralelo, lo que carga una persona solo respeta horario y bloqueos.
   const slot = await findSlot(input.organizationId, input.startUtc, {
     now: input.now,
     settings,
+    soloBloqueos: input.source === "manual" && settings.citasEnParalelo === true,
   });
   if (!slot) {
     throw new BookingError(
@@ -319,6 +321,8 @@ export async function rescheduleBooking(input: {
     excludeBookingId: booking.id,
     now: input.now,
     settings,
+    // 0069 — La reprograma una persona: con citas en paralelo, solo horario y bloqueos.
+    soloBloqueos: settings.citasEnParalelo === true,
   });
   if (!slot) {
     throw new BookingError("slot_taken", "Ese horario ya no está disponible");

@@ -43,6 +43,8 @@ export type CalendarSettings = {
   connector: ConnectorId;
   /** Sala fija del conector `enlace-fijo`; null ⇒ citas sin link. */
   meetingLink: string | null;
+  /** 0069 — Lo que carga una persona puede ir a la misma hora que otra cita. */
+  citasEnParalelo?: boolean;
 };
 
 /** Lo que ve una instancia recién encendida: útil sin configurar nada. */
@@ -89,6 +91,7 @@ export async function getSettings(
     // puede dejar la agenda inservible: se degrada al soberano.
     connector: isConnectorId(row.connector) ? row.connector : DEFAULT_CONNECTOR,
     meetingLink: row.meetingLink,
+    citasEnParalelo: row.citasEnParalelo,
   };
 }
 
