@@ -603,6 +603,13 @@
       "when": 1795561600000,
       "tag": "0072_horario_de_visitas",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1795561660000,
+      "tag": "war_0014_zona_buenos_aires",
+      "breakpoints": true
     }
   ]
 }
