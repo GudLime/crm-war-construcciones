@@ -1,6 +1,6 @@
 /**
  * 071 — Self-test de reservas (fase 3): con `RESERVAS=on` y un `CLIENTE_CONFIG`
- * de restaurante, carga el cupo de Beba, llena un horario hasta que no queda
+ * de restaurante, carga un cupo de ejemplo, llena un horario hasta que no queda
  * lugar, comprueba las reglas (mesa de 2 para 1 o 2 personas, 4 + 2 para 5 o 6,
  * derivar a más de 6, nada fuera de los 7 días) y maneja el día desde la
  * vista Mosaico de Reservas: Asistió, Cancelada (libera la mesa) y una reserva
@@ -44,7 +44,7 @@ const reservar = (cuerpo) =>
   api("/api/reservas", { method: "POST", body: { fecha: MANANA, ...cuerpo } });
 
 try {
-  const credenciales = { email: "dueno@beba.test", password: "prueba-prueba-123", name: "Dueño" };
+  const credenciales = { email: "dueno@resto.test", password: "prueba-prueba-123", name: "Dueño" };
   let r = await api("/api/auth/sign-up/email", { method: "POST", body: credenciales });
   if (!r.ok()) r = await api("/api/auth/sign-in/email", { method: "POST", body: credenciales });
   ok("registro o login", r.ok(), await r.text());
@@ -62,7 +62,7 @@ try {
   r = await api("/api/reservas/sectores", { method: "PUT", body: { sectores: [{ nombre: "Patio" }, { nombre: "patio" }] } });
   ok("rechaza un sector repetido", r.status() === 422, String(r.status()));
 
-  // La configuración de Beba: todos los días a las 12, 14 y 20.
+  // Una configuración de ejemplo: todos los días a las 12, 14 y 20.
   const horarios = [];
   for (let dia = 0; dia < 7; dia++) for (const hora of ["12:00", "14:00", "20:00"]) horarios.push({ diaSemana: dia, hora, activo: true });
   r = await api("/api/reservas/configuracion", {

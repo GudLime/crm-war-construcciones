@@ -561,6 +561,20 @@
       "when": 1795508000000,
       "tag": "0067_respuestas_con_adjuntos",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1795518800000,
+      "tag": "0068_reserva_tolerancia",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1795529600000,
+      "tag": "0069_citas_en_paralelo",
+      "breakpoints": true
     }
   ]
 }

@@ -54,6 +54,7 @@ export const ajustesSchema = z.object({
   enlaceCarta: z.string().trim().url().max(500).nullable(),
   direccion: z.string().trim().max(200).nullable(),
   umbralHabitual: z.number().int().min(2).max(100).default(3),
+  toleranciaMinutos: z.number().int().min(1).max(240).nullable().default(null),
 });
 export type AjustesReservas = z.infer<typeof ajustesSchema>;
 
@@ -91,6 +92,7 @@ const AJUSTES_POR_DEFECTO: AjustesReservas = {
   enlaceCarta: null,
   direccion: null,
   umbralHabitual: 3,
+  toleranciaMinutos: null,
 };
 
 export async function leerAjustes(organizationId: string): Promise<AjustesReservas> {
@@ -109,6 +111,7 @@ export async function leerAjustes(organizationId: string): Promise<AjustesReserv
     enlaceCarta: fila.enlaceCarta,
     direccion: fila.direccion,
     umbralHabitual: fila.umbralHabitual,
+    toleranciaMinutos: fila.toleranciaMinutos,
   };
 }
 
@@ -397,12 +400,13 @@ export async function disponibilidad(
 /** Los días de la anticipación con al menos un horario libre para `personas`. */
 export async function diasConLugar(
   organizationId: string,
-  input: { personas: number; ahora?: Date }
+  input: { personas: number; ahora?: Date; /** Solo los primeros N días (hoy incluido). */ dias?: number }
 ): Promise<{ derivar: boolean; dias: { fecha: string; horarios: string[] }[] }> {
   const ajustes = await leerAjustes(organizationId);
   const ahora = input.ahora ?? new Date();
   const dias: { fecha: string; horarios: string[] }[] = [];
-  for (const fecha of fechasDeLaAnticipacion(ahora, ajustes.zonaHoraria, ajustes.anticipacionDias)) {
+  const fechas = fechasDeLaAnticipacion(ahora, ajustes.zonaHoraria, ajustes.anticipacionDias);
+  for (const fecha of input.dias ? fechas.slice(0, input.dias) : fechas) {
     const d = await disponibilidad(organizationId, { fecha, personas: input.personas, ahora });
     if (d.derivar) return { derivar: true, dias: [] };
     const libres = d.horarios.filter((h) => h.hayLugar).map((h) => h.hora);

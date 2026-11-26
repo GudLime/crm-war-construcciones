@@ -1,3 +1,5 @@
+import { agendaEnabled } from "@/server/agenda/flag";
+import { pasarTareaACita } from "@/server/agenda/convertir-tareas";
 import { apiError, parseBody, withAuth } from "@/lib/api";
 import { alcanceDe, prohibido, puedeVerOportunidad, tareaVisible } from "@/server/acceso";
 import { crearTarea, esEstadoTarea, listarTareas, tareaSchema, VentasError } from "@/server/ventas";
@@ -37,7 +39,9 @@ export const POST = withAuth(async (session, req: Request) => {
       a.admin ? body.data : { ...body.data, responsableId: session.userId },
       session.userId
     );
-    return Response.json({ tarea }, { status: 201 });
+    // 0069 — Una visita o reunión con fecha es la cita misma.
+    const citaId = agendaEnabled() ? await pasarTareaACita(session.organizationId, tarea.id) : null;
+    return Response.json({ tarea, citaId }, { status: 201 });
   } catch (err) {
     if (err instanceof VentasError) return apiError(err.status, err.code, err.message);
     throw err;

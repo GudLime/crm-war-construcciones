@@ -175,14 +175,14 @@ describe("menú del cliente (071)", () => {
     if (!r.ok) throw new Error(r.errores.join("; "));
     return vocabularioDe(r.config);
   };
-  const BEBA = {
+  const RESTO = {
     trabajo: ["oportunidades", "inbox", "contacts", "results"],
     nombres: { results: "Dashboard" },
     ocultar: ["inicio", "pipeline", "tareas"],
   };
 
   it("arma Trabajo en ese orden y saca esas pantallas de su grupo", () => {
-    const grupos = appNavGroups({ role: "owner", vocabulario: conMenu(BEBA) });
+    const grupos = appNavGroups({ role: "owner", vocabulario: conMenu(RESTO) });
     expect(grupos[0]!.title).toBe("Trabajo");
     expect(grupos[0]!.items.map((i) => i.label)).toEqual(["Reservas", "Bandeja", "Contactos", "Dashboard"]);
     const todo = grupos.flatMap((g) => g.items.map((i) => i.href));
@@ -195,7 +195,7 @@ describe("menú del cliente (071)", () => {
   });
 
   it("sin Inicio se entra a la primera pantalla de Trabajo", () => {
-    expect(rutaDeEntrada(conMenu(BEBA))).toBe("/oportunidades");
+    expect(rutaDeEntrada(conMenu(RESTO))).toBe("/oportunidades");
     expect(rutaDeEntrada(VOCABULARIO_POR_DEFECTO)).toBe("/inicio");
   });
 

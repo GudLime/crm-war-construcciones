@@ -33,6 +33,8 @@ export const reservaAjustes = pgTable("reserva_ajustes", {
   direccion: text("direccion"),
   /** Con cuántas visitas (Asistió) una persona pasa a ser Habitual. */
   umbralHabitual: integer("umbral_habitual").notNull().default(3),
+  /** Minutos que se guarda la mesa después del horario. NULL = no se informa. */
+  toleranciaMinutos: integer("tolerancia_minutos"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 

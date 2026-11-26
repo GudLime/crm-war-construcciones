@@ -12,6 +12,8 @@ import {
 import { getSettings } from "@/server/agenda/settings";
 import { armarHuecos, daysWithAgenda } from "@/server/agenda/spread";
 import { replaceOffers } from "@/server/agenda/offers";
+import { reservasEnabled } from "@/server/reservas/flag";
+import { huecosParaElBot, respuestaDeError } from "@/server/reservas/bot";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +35,9 @@ export const dynamic = "force-dynamic";
  * `query.status` dice por qué no hay ninguna. Sin esto, a «¿mañana en la
  * tarde?» el cerebro solo veía las tres primeras horas de mañana y contestaba
  * que solo había mañana (`src/server/agenda/spread.ts`, `armarHuecos`).
+ *
+ * 071 — Con `RESERVAS` encendida (aunque también esté `AGENDA`) los huecos
+ * salen del módulo de Reservas, con el mismo contrato (`src/server/reservas/bot.ts`).
  */
 
 const LIMITS = {
@@ -53,7 +58,7 @@ function clamp(raw: string | null, l: { min: number; max: number; def: number })
 export async function GET(req: Request) {
   // La bandera se evalúa ANTES que la llave: si esta instancia no tiene
   // agenda, el endpoint no existe — no hay nada que autenticar.
-  if (!agendaEnabled()) return agendaDisabledResponse();
+  if (!agendaEnabled() && !reservasEnabled()) return agendaDisabledResponse();
 
   const denied = requireBotKey(req);
   if (denied) return denied;
@@ -96,6 +101,16 @@ export async function GET(req: Request) {
   const limit = clamp(url.searchParams.get("limit"), LIMITS.limit);
   const perDay = clamp(url.searchParams.get("perDay"), LIMITS.perDay);
   const days = clamp(url.searchParams.get("days"), LIMITS.days);
+
+  if (reservasEnabled()) {
+    try {
+      return Response.json(
+        await huecosParaElBot(organizationId, { conversationId, date, limit, perDay, days })
+      );
+    } catch (err) {
+      return respuestaDeError(err);
+    }
+  }
 
   const settings = await getSettings(organizationId);
   const now = new Date();
