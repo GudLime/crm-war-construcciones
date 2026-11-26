@@ -575,6 +575,13 @@
       "when": 1795529600000,
       "tag": "0069_citas_en_paralelo",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1795529660000,
+      "tag": "war_0013_citas_en_paralelo",
+      "breakpoints": true
     }
   ]
 }
