@@ -320,6 +320,18 @@ const vocabularioOportunidadSchema = z.object({
   motivosCierre: z.array(z.string().trim().min(1).max(80)).min(1).max(40).optional(),
   /** Cerrar sola la que no responde (Ajustes → Ventas). Apagado, nunca corre. */
   cierrePorSinRespuesta: z.boolean().default(true),
+  /**
+   * Cambios 25/11 — El último paso de la barra se llama así y adentro tiene
+   * todos los cierres, la ganada también: un restaurante va de Confirmada a
+   * «Cierre», y ahí elige Asistió, No vino o Canceló. Sin él, la ganada es un
+   * paso más del camino y el cierre abre solo las perdidas.
+   */
+  pasoDeCierre: z.string().trim().min(1).max(40).optional(),
+  /**
+   * Cambios 25/11 — Cada contacto nuevo que escribe nace con su oportunidad en
+   * `recibido`. Sin esto, la abre la IA al clasificarlo o una persona a mano.
+   */
+  abrirConCadaLead: z.boolean().default(false),
 });
 
 /** 071 — Las pantallas del menú que un cliente puede reordenar, renombrar u ocultar. */
@@ -390,6 +402,8 @@ export const configClienteSchema = z.object({
   menu: menuSchema.optional(),
   /** Cambios 23/11 — Qué bloques muestra el Inicio y en qué orden (ver arriba). */
   inicio: inicioSchema.optional(),
+  /** Cambios 25/11 — El panel del chat. `ficha: false` no muestra la ficha (el CRM la sigue leyendo). */
+  chat: z.object({ ficha: z.boolean().default(true) }).optional(),
   objetos: z.array(objetoSchema).default([]),
   relaciones: z.array(relacionSchema).default([]),
   reglasEtapa: z.array(reglaEtapaSchema).default([]),

@@ -78,6 +78,7 @@ export const INSTRUCCIONES_RESERVAS = `
 1. Antes de consultar horarios, guardá en la ficha la cantidad de personas con la clave "personas", solo el número. Si cambia, actualizala antes de volver a consultar.
 2. Guardá el nombre para la reserva en la ficha con la clave "nombre".
 3. Si el CRM no te deja consultar o reservar (por ejemplo, porque son más personas que el tope), pasá la conversación a alguien del equipo.
+4. Cuando la persona pregunta por el restaurante (carta, horarios, dirección) o empieza a reservar, movela a la etapa siguiente que te ofrece el CRM.
 `.trim();
 
 export function conInstruccionesReservas(instrucciones: string | null): string {

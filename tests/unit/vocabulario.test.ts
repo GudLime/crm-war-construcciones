@@ -107,6 +107,43 @@ describe("vocabularioDe", () => {
     expect(nombreEstado(v, "no_calificado")).toBe("No vino");
   });
 
+  it("cambios 25/11 — con paso de cierre: Recibido → Conoce información → Confirmada, y el cierre trae Asistió", () => {
+    const v = vocabularioDe(
+      config({
+        ...RESTAURANTE,
+        oportunidad: {
+          ...RESTAURANTE.oportunidad,
+          estados: [
+            { estado: "recibido", nombre: "Recibido" },
+            { estado: "conoce_informacion", nombre: "Conoce información" },
+            { estado: "reservo", nombre: "Confirmada" },
+            { estado: "compro", nombre: "Asistió" },
+            { estado: "no_calificado", nombre: "No vino" },
+            { estado: "perdido", nombre: "Canceló" },
+          ],
+          pasoDeCierre: "Cierre",
+          abrirConCadaLead: true,
+        },
+        chat: { ficha: false },
+      })
+    );
+    expect(v.camino).toEqual(["recibido", "conoce_informacion", "reservo"]);
+    expect(v.cierres).toEqual(["compro", "no_calificado", "perdido"]);
+    expect(v.abiertosLista).toEqual(["recibido", "conoce_informacion", "reservo"]);
+    expect(v.etiquetaCerrar).toBe("Cierre");
+    expect(v.ganadaEnElCierre).toBe(true);
+    expect(v.abrirConCadaLead).toBe(true);
+    expect(v.fichaEnElChat).toBe(false);
+  });
+
+  it("sin paso de cierre ni chat, todo como antes", () => {
+    const v = vocabularioDe(config(RESTAURANTE));
+    expect(v.ganadaEnElCierre).toBe(false);
+    expect(v.abrirConCadaLead).toBe(false);
+    expect(v.fichaEnElChat).toBe(true);
+    expect(VOCABULARIO_POR_DEFECTO.fichaEnElChat).toBe(true);
+  });
+
   it("una etapa oculta se sigue mostrando con el nombre del núcleo", () => {
     const v = vocabularioDe(config(RESTAURANTE));
     expect(nombreEstado(v, "visito")).toBe("Visitó");
@@ -132,6 +169,24 @@ describe("problemaDeVocabulario", () => {
 
   it("con el de siempre, nada cambia", () => {
     expect(problemaDeVocabulario(VOCABULARIO_POR_DEFECTO, { estado: "visito", motivoCierre: "No responde" })).toBeNull();
+  });
+  it("v5 — con el de siempre, cerrar como perdida o no calificada pide el motivo", () => {
+    const d = VOCABULARIO_POR_DEFECTO;
+    expect(d.motivoObligatorio).toBe(true);
+    expect(d.etiquetaCerrar).toBe("Cerrar");
+    expect(problemaDeVocabulario(d, { estado: "perdido" })).toMatch(/elegí el motivo/);
+    expect(problemaDeVocabulario(d, { estado: "no_calificado", motivoCierre: null })).toMatch(/elegí el motivo/);
+    expect(problemaDeVocabulario(d, { estado: "perdido", motivoCierre: "No responde" })).toBeNull();
+    // Ya cerrada: cambiar solo el motivo, o dejarla igual, vale.
+    expect(problemaDeVocabulario(d, { estado: "perdido" }, { estado: "perdido", motivoCierre: "No responde" })).toBeNull();
+    // Avanzar en el camino no pide nada.
+    expect(problemaDeVocabulario(d, { estado: "compro" })).toBeNull();
+  });
+
+  it("v5 — con paso de cierre (restaurante), el motivo sigue siendo opcional", () => {
+    const r = vocabularioDe(config({ ...RESTAURANTE, oportunidad: { ...RESTAURANTE.oportunidad, pasoDeCierre: "Cierre" } }));
+    expect(r.motivoObligatorio).toBe(false);
+    expect(problemaDeVocabulario(r, { estado: "perdido" })).toBeNull();
   });
 });
 

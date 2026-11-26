@@ -1,7 +1,8 @@
 /**
  * 071 — Self-test del vocabulario configurable: con un `CLIENTE_CONFIG` de
- * restaurante (Reserva, Confirmada → Asistió, Cancelada, No vino, sin lo
- * inmobiliario), la app real tiene que hablar de reservas en todas las
+ * restaurante (Reserva: Recibido → Conoce información → Confirmada y un paso
+ * de Cierre con Asistió, No vino y Canceló; sin lo inmobiliario; sin ficha en
+ * el chat), la app real tiene que hablar de reservas en todas las
  * pantallas, no mostrar edificios ni tipo de contacto, y rechazar por API
  * una etapa o un motivo que no son de esta instancia.
  *
@@ -50,7 +51,7 @@ try {
   ok("se abre una reserva sin tipo de contacto (sin lo inmobiliario no hace falta Lead)", r.ok(), await r.text());
   const comercial = await r.json();
   const reservaId = comercial.abierta?.id;
-  ok("la reserva nace Confirmada (recibido)", comercial.abierta?.estado === "recibido", JSON.stringify(comercial.abierta));
+  ok("la reserva nace en Recibido", comercial.abierta?.estado === "recibido", JSON.stringify(comercial.abierta));
 
   // La API rechaza lo que esta instancia no usa.
   r = await api(`/api/oportunidades/${reservaId}/estado`, { method: "PATCH", body: { estado: "visito" } });
@@ -73,29 +74,74 @@ try {
   await pagina.getByText("Lucía Pérez").first().waitFor({ timeout: 15000 });
   const lista = await pagina.locator("main").innerText();
   ok("la lista tiene «Nueva reserva»", /Nueva reserva/.test(lista));
-  ok("la lista muestra Confirmada", /Confirmada/.test(lista), lista.slice(0, 400));
+  ok("la lista muestra Recibido", /Recibido/.test(lista), lista.slice(0, 400));
   ok("la lista no tiene columnas inmobiliarias", !/Ambientes|Interés|Unidades/.test(lista));
   ok("sin cierre por silencio no hay pestaña «Para cerrar»", !/Para cerrar/.test(lista));
 
-  // Página de la reserva: barra de avance Confirmada → Asistió y cierres propios.
+  // Página de la reserva: Recibido → Conoce información → Confirmada → Cierre.
   await pagina.goto(`/oportunidades/${reservaId}`);
   await pagina.getByRole("list", { name: "Avance" }).waitFor({ timeout: 15000 });
   const avance = await pagina.getByRole("list", { name: "Avance" }).innerText();
-  ok("la barra de avance es Confirmada → Asistió → Cerrar", /Confirmada[\s\S]*Asistió[\s\S]*Cerrar/.test(avance), avance);
+  ok(
+    "la barra de avance es Recibido → Conoce información → Confirmada → Cierre",
+    /Recibido[\s\S]*Conoce información[\s\S]*Confirmada[\s\S]*Cierre/.test(avance) && !/Asistió/.test(avance),
+    avance
+  );
   ok("la barra no tiene etapas de la constructora", !/En charlas|Visitó|Reservó/.test(avance), avance);
   const encabezado = await pagina.locator("main").innerText();
   ok("la página no muestra Interés, Ambientes ni Tipo", !/\bInterés\b|\bAmbientes\b|\bTipo\b/.test(encabezado));
-  ok("el historial habla de la reserva y de Confirmada", /Se abrió la reserva/.test(encabezado) && /Estado: Confirmada/.test(encabezado));
+  ok("el historial habla de la reserva", /Se abrió la reserva/.test(encabezado));
 
-  await pagina.getByRole("button", { name: "Cerrar", exact: true }).click();
+  await pagina.getByRole("button", { name: "Cierre", exact: true }).click();
   const cierre = await pagina.locator("main").innerText();
-  ok("el cierre ofrece Cancelada y No vino", /Cancelada/.test(cierre) && /No vino/.test(cierre));
+  ok("el cierre ofrece Asistió, No vino y Canceló", /Asistió/.test(cierre) && /No vino/.test(cierre) && /Canceló/.test(cierre));
   await pagina.getByRole("combobox").last().selectOption("Canceló la persona").catch(() => undefined);
-  await pagina.getByRole("button", { name: "Cancelada" }).click();
+  await pagina.getByRole("button", { name: "Canceló", exact: true }).click();
   await pagina.getByText("Motivo: Canceló la persona").waitFor({ timeout: 10000 }).catch(() => undefined);
   r = await api(`/api/oportunidades/${reservaId}/detalle`);
   const det = await r.json();
   ok("cancelar desde la página la cierra como perdido", det.oportunidad?.estado === "perdido", JSON.stringify(det.oportunidad?.estado));
+
+  // Cambios 25/11 — Un lead nuevo de WhatsApp nace con su reserva en Recibido
+  // y el panel del chat no tiene ficha: la reserva cierra en el paso Cierre.
+  // Necesita el wa-mock (WA_MOCK_ENABLED y META_GRAPH_BASE_URL al mock).
+  const mock = await api("/api/dev/wa-mock/outbox");
+  if (mock.status() === 404) {
+    console.log("· sin wa-mock: se saltea el lead nuevo por WhatsApp");
+  } else {
+    const PN = "PN-E2E-RESTO";
+    r = await api("/api/settings/whatsapp", {
+      method: "PUT",
+      body: { wabaId: "WABA-E2E-RESTO", phoneNumberId: PN, token: "tok-e2e" },
+    });
+    ok("conexión de WhatsApp de prueba", r.ok(), await r.text());
+    const desde = `549115${String(Date.now() + 7).slice(-7)}`;
+    r = await api("/api/dev/wa-mock/inbound", {
+      method: "POST",
+      body: { phoneNumberId: PN, from: desde, name: "Lead Sábado", text: "hola, ¿tienen lugar el sábado?", waMessageId: `wamid.resto.${desde}` },
+    });
+    ok("entra el mensaje del lead", r.ok(), await r.text());
+    r = await api(`/api/contacts?q=${desde.slice(-7)}`);
+    const lista = await r.json();
+    const lead = (lista.contacts ?? lista.items ?? lista).find?.((c) => (c.phone ?? "").includes(desde.slice(-7)) || c.name === "Lead Sábado");
+    r = await api(`/api/contacts/${lead?.id}/oportunidad`);
+    const delLead = await r.json();
+    ok("el lead nuevo nace con su reserva en Recibido", delLead.abierta?.estado === "recibido", JSON.stringify(delLead.abierta));
+
+    // El panel del chat se ve completo en una pantalla de escritorio.
+    await pagina.setViewportSize({ width: 1440, height: 900 });
+    await pagina.goto("/inbox");
+    await pagina.getByText("Lead Sábado").first().click();
+    await pagina.getByRole("button", { name: "Cierre" }).first().waitFor({ timeout: 30000 });
+    const panel = await pagina.locator("body").innerText();
+    ok("el panel del chat no tiene ficha", !/\bFICHA\b|^Ficha$/m.test(panel), panel.slice(-800));
+    ok("el panel del chat no muestra «Sin respuesta»", !/Sin respuesta ·/.test(panel));
+    ok("la bandeja no muestra la etapa del embudo oculto", !/Entró al embudo/.test(panel) && !/^Nuevo$/m.test(panel), panel.slice(0, 600));
+    ok("el camino del panel es Recibido → Conoce información → Confirmada", /Recibido[\s\S]*Conoce información[\s\S]*Confirmada[\s\S]*Cierre/.test(panel));
+    await pagina.getByRole("button", { name: "Cierre" }).last().click();
+    const abierto = await pagina.locator("body").innerText();
+    ok("Cierre abre Asistió, No vino y Canceló", /Asistió/.test(abierto) && /No vino/.test(abierto) && /Canceló/.test(abierto));
+  }
 
   // El panel del chat (en la ficha del contacto no hay tipo de contacto).
   await pagina.goto(`/contacts/${contactId}`);

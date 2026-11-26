@@ -3,7 +3,7 @@
  * de restaurante, carga un cupo de ejemplo, llena un horario hasta que no queda
  * lugar, comprueba las reglas (mesa de 2 para 1 o 2 personas, 4 + 2 para 5 o 6,
  * derivar a más de 6, nada fuera de los 7 días) y maneja el día desde la
- * vista Mosaico de Reservas: Asistió, Cancelada (libera la mesa) y una reserva
+ * vista Mosaico de Reservas: Asistió, Canceló (libera la mesa) y una reserva
  * cargada tocando una mesa libre.
  *
  * Uso: app corriendo con RESERVAS=on y la BD migrada, sin reservas para mañana;
@@ -181,7 +181,7 @@ try {
   await ventana.waitFor();
   ok("la reserva se abre en una ventana", await ventana.getByRole("heading", { name: `Pareja 1 ${sello}` }).isVisible());
   const arriba = await ventana.innerText();
-  ok("arriba van hora, personas y mesas", /Hora\s*20:00/.test(arriba) && /Personas\s*2/.test(arriba) && /Mesas\s*2/.test(arriba), arriba);
+  ok("arriba van hora, personas y sector", /Hora\s*20:00/.test(arriba) && /Personas\s*2/.test(arriba) && /Sector\s*Salón/.test(arriba), arriba);
   ok("el sector no es un desplegable hasta tocar Editar", (await ventana.getByRole("combobox", { name: "Sector" }).count()) === 0);
   ok("cancelar no está a mano sin Editar", (await ventana.getByRole("button", { name: "Cancelar reserva" }).count()) === 0);
   await ventana.getByRole("button", { name: "Editar" }).click();
@@ -196,7 +196,7 @@ try {
   await tile(`Pareja 2 ${sello}`).click();
   await ventana.getByRole("button", { name: "Editar" }).click();
   await ventana.getByRole("button", { name: "Cancelar reserva" }).click();
-  await ventana.getByRole("button", { name: "Cancelada", exact: true }).click();
+  await ventana.getByRole("button", { name: "Canceló", exact: true }).click();
   await libres(2).first().waitFor();
   ok("cancelar libera la mesa (quien asistió la sigue ocupando)", (await libres(2).count()) === 1);
   ok("la cancelada figura aparte, sin mesa", await pagina.getByRole("region", { name: "Sin mesa" }).getByText(`Pareja 2 ${sello}`).isVisible());

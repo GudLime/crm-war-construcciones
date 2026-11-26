@@ -34,6 +34,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Menu, MenuItem, MenuTitulo } from "@/components/ui/menu";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { aLocal, plata, useMoneda } from "@/components/ventas/ui";
@@ -186,12 +187,14 @@ export function OportunidadDetalleClient({ agenda = false }: { agenda?: boolean 
   const singular = enFrase(voc.singular);
   const [datos, setDatos] = useState<OportunidadDetalleDto | null>(null);
   /** Los edificios para elegir el interés (también cuando todavía no tiene ninguno). */
-  const [catalogo, setCatalogo] = useState<{ id: string; nombre: string; color: string | null }[]>([]);
+  const [catalogo, setCatalogo] = useState<{ id: string; nombre: string; color: string | null; enVenta: boolean }[]>([]);
   useEffect(() => {
     void fetch("/api/edificios")
       .then((r) => (r.ok ? r.json() : { edificios: [] }))
-      .then((d: { edificios: { id: string; nombre: string; color: string | null }[] }) =>
-        setCatalogo(d.edificios.map((e) => ({ id: e.id, nombre: e.nombre, color: e.color ?? null })))
+      .then((d: { edificios: { id: string; nombre: string; color: string | null; enVenta?: boolean }[] }) =>
+        setCatalogo(
+          d.edificios.map((e) => ({ id: e.id, nombre: e.nombre, color: e.color ?? null, enVenta: e.enVenta !== false }))
+        )
       )
       .catch(() => undefined);
   }, []);
@@ -238,9 +241,10 @@ export function OportunidadDetalleClient({ agenda = false }: { agenda?: boolean 
     }).catch(() => null);
     if (!res?.ok) {
       setError(await mensajeError(res));
-      return;
+      return false;
     }
     await cargar();
+    return true;
   }
 
   async function cambiarInteres(cambios: { ambientes?: number[]; edificioIds?: string[] }) {
@@ -385,11 +389,14 @@ export function OportunidadDetalleClient({ agenda = false }: { agenda?: boolean 
                         }}
                         className="h-auto min-h-7 w-auto max-w-full rounded-full px-2 py-0.5 text-[13px]"
                       >
-                        {catalogo.map((e) => (
-                          <option key={e.id} value={e.id}>
-                            {e.nombre}
-                          </option>
-                        ))}
+                        {/* v5 — Solo los que están en venta (y los que ya tenía). */}
+                        {catalogo
+                          .filter((e) => e.enVenta || edificios.some((x) => x.id === e.id))
+                          .map((e) => (
+                            <option key={e.id} value={e.id}>
+                              {e.nombre}
+                            </option>
+                          ))}
                       </Select>
                     ) : edificios.length ? (
                       edificios.map((e) => (
@@ -710,14 +717,184 @@ const FLECHA = "[clip-path:polygon(0_0,calc(100%-14px)_0,100%_50%,calc(100%-14px
 const PRIMERA = "[clip-path:polygon(0_0,calc(100%-14px)_0,100%_50%,calc(100%-14px)_100%,0_100%)] pl-3 pr-5";
 const ULTIMA = "[clip-path:polygon(0_0,100%_0,100%_100%,0_100%,14px_50%)] pl-[22px] pr-3";
 
-function BarraDeAvance({
+/**
+ * v5 — La barra de avance: el camino termina en la ganada y el cierre va
+ * aparte, en su propio botón. Se elige Perdido o No calificado, después el
+ * motivo, y recién con OK cambia la etapa: sin motivo no se cierra. Con
+ * «paso de cierre» (un restaurante), la barra de siempre.
+ */
+function BarraDeAvance(props: {
+  estado: EstadoOportunidad;
+  motivo: string | null;
+  onCambiar: (e: EstadoOportunidad, motivo?: string | null) => Promise<boolean | void>;
+}) {
+  const voc = useVocabulario();
+  if (voc.ganadaEnElCierre) return <BarraConPasoDeCierre {...props} />;
+  return <BarraConCierreAparte {...props} />;
+}
+
+function BarraConCierreAparte({
   estado,
   motivo,
   onCambiar,
 }: {
   estado: EstadoOportunidad;
   motivo: string | null;
-  onCambiar: (e: EstadoOportunidad, motivo?: string | null) => Promise<void>;
+  onCambiar: (e: EstadoOportunidad, motivo?: string | null) => Promise<boolean | void>;
+}) {
+  const voc = useVocabulario();
+  const camino = voc.camino;
+  const cierres = voc.cierres.filter((e) => !camino.includes(e));
+  const indice = camino.indexOf(estado);
+  const perdida = cierres.includes(estado);
+  const [eligiendo, setEligiendo] = useState<EstadoOportunidad | null>(null);
+  // War — los motivos salen de Ajustes → Motivos de cierre.
+  const motivosCierre = useMotivosCierre();
+  const [motivoNuevo, setMotivoNuevo] = useState("");
+  const [guardando, setGuardando] = useState(false);
+
+  async function confirmar() {
+    if (!eligiendo || (voc.motivoObligatorio && !motivoNuevo)) return;
+    setGuardando(true);
+    const ok = await onCambiar(eligiendo, motivoNuevo || null);
+    setGuardando(false);
+    if (ok !== false) {
+      setEligiendo(null);
+      setMotivoNuevo("");
+    }
+  }
+
+  return (
+    <div className="mt-5">
+      <div className="flex items-stretch gap-2">
+        {/* En pantallas angostas no se parte: se desplaza. */}
+        <ol className="flex min-w-0 flex-1 gap-1 overflow-x-auto pb-0.5" aria-label="Avance">
+          {camino.map((paso, i) => {
+            const hecho = !perdida && indice >= 0 && i < indice;
+            const actual = paso === estado;
+            const color = colorDeEtapa(paso);
+            const estilo = actual
+              ? { background: color.solido, color: color.sobreSolido }
+              : hecho
+                ? { background: color.tinte, color: color.texto }
+                : undefined;
+            return (
+              <li key={paso} className="min-w-[118px] flex-1">
+                <button
+                  type="button"
+                  onClick={() => void onCambiar(paso)}
+                  disabled={actual}
+                  aria-current={actual ? "step" : undefined}
+                  style={estilo}
+                  className={cn(
+                    "flex h-10 w-full items-center justify-center gap-1.5 rounded-[10px] text-[13.5px] font-medium transition-[filter,background-color]",
+                    i === 0 ? PRIMERA : i === camino.length - 1 ? ULTIMA : FLECHA,
+                    actual && "font-semibold",
+                    hecho && "hover:brightness-95",
+                    !actual && !hecho && "bg-muted text-text-2 hover:bg-accent hover:text-foreground"
+                  )}
+                >
+                  {(hecho || actual) && <Check className="size-3.5 shrink-0" />}
+                  <span className="truncate">{nombreEstado(voc, paso)}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+        <Menu
+          alinear="derecha"
+          boton={(abierto, alternar) => (
+            <button
+              type="button"
+              onClick={() => {
+                setEligiendo(null);
+                alternar();
+              }}
+              aria-expanded={abierto || Boolean(eligiendo)}
+              aria-haspopup="menu"
+              className={cn(
+                "flex h-10 shrink-0 items-center gap-1.5 rounded-[10px] border px-3.5 text-[13.5px] font-medium transition-colors",
+                perdida
+                  ? "border-transparent bg-danger-tint font-semibold text-danger-text"
+                  : "border-border bg-card text-text-2 hover:bg-accent hover:text-foreground"
+              )}
+            >
+              {perdida ? <X className="size-3.5 shrink-0" /> : <Flag className="size-3.5 shrink-0" />}
+              <span className="whitespace-nowrap">{perdida ? nombreEstado(voc, estado) : voc.etiquetaCerrar}</span>
+              <ChevronDown className="size-3.5 shrink-0 opacity-70" />
+            </button>
+          )}
+        >
+          {(cerrar) => (
+            <>
+              <MenuTitulo>Cerrar como</MenuTitulo>
+              {cierres.map((cierre) => (
+                <MenuItem
+                  key={cierre}
+                  disabled={cierre === estado}
+                  marcado={cierre === estado}
+                  onClick={() => {
+                    cerrar();
+                    setMotivoNuevo("");
+                    setEligiendo(cierre);
+                  }}
+                >
+                  {nombreEstado(voc, cierre)}
+                </MenuItem>
+              ))}
+            </>
+          )}
+        </Menu>
+      </div>
+      {perdida && motivo && !eligiendo && <p className="mt-2 text-[12.5px] text-text-3">Motivo: {motivo}</p>}
+      {eligiendo && (
+        <div className="mt-3 rounded-2xl bg-subtle p-3">
+          <p className="mb-2 text-[13px] font-medium">
+            Cerrar como «{nombreEstado(voc, eligiendo)}»: ¿cuál es el motivo?
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              value={motivoNuevo}
+              onValueChange={setMotivoNuevo}
+              placeholder="Elegí el motivo…"
+              aria-label="Motivo de cierre"
+              className="min-w-[240px] flex-1"
+            >
+              {motivosCierre.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </Select>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={guardando}
+              onClick={() => {
+                setEligiendo(null);
+                setMotivoNuevo("");
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button size="sm" disabled={guardando || (voc.motivoObligatorio && !motivoNuevo)} onClick={() => void confirmar()}>
+              OK
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BarraConPasoDeCierre({
+  estado,
+  motivo,
+  onCambiar,
+}: {
+  estado: EstadoOportunidad;
+  motivo: string | null;
+  onCambiar: (e: EstadoOportunidad, motivo?: string | null) => Promise<boolean | void>;
 }) {
   const [cerrando, setCerrando] = useState(false);
   const [motivoNuevo, setMotivoNuevo] = useState("");
@@ -729,14 +906,18 @@ function BarraDeAvance({
   // un restaurante, Cancelada y No vino), en el orden de la configuración.
   const cierres = voc.cierres.filter((e) => !camino.includes(e));
   const indice = camino.indexOf(estado);
-  const perdida = cierres.includes(estado) || estado === "perdido" || estado === "no_calificado";
+  // Cambios 25/11 — Con paso de cierre, la ganada también se elige ahí: el
+  // camino queda entero hecho y el cierre se pinta en verde.
+  const ganada = voc.ganadaEnElCierre && estado === "compro";
+  const perdida = !ganada && (cierres.includes(estado) || estado === "perdido" || estado === "no_calificado");
+  const cerrada = ganada || perdida;
 
   return (
     <div className="mt-5">
       {/* En pantallas angostas no se parte: se desplaza. */}
       <ol className="flex gap-1 overflow-x-auto pb-0.5" aria-label="Avance">
         {camino.map((paso, i) => {
-          const hecho = !perdida && indice >= 0 && i < indice;
+          const hecho = ganada || (!perdida && indice >= 0 && i < indice);
           const actual = paso === estado;
           // Punto 5 — la actual en su sólido, las pasadas en su tinte, las que faltan en gris.
           const color = colorDeEtapa(paso);
@@ -775,13 +956,21 @@ function BarraDeAvance({
             className={cn(
               "flex h-10 w-full items-center justify-center gap-1.5 rounded-[10px] text-[13.5px] font-medium transition-colors",
               ULTIMA,
-              perdida
-                ? "bg-danger-tint font-semibold text-danger-text"
-                : "bg-muted text-text-2 hover:bg-accent hover:text-foreground"
+              ganada
+                ? "bg-success-tint font-semibold text-success-text"
+                : perdida
+                  ? "bg-danger-tint font-semibold text-danger-text"
+                  : "bg-muted text-text-2 hover:bg-accent hover:text-foreground"
             )}
           >
-            {perdida ? <X className="size-3.5 shrink-0" /> : <Flag className="size-3.5 shrink-0" />}
-            <span className="truncate">{perdida ? nombreEstado(voc, estado) : voc.etiquetaCerrar}</span>
+            {ganada ? (
+              <Check className="size-3.5 shrink-0" />
+            ) : perdida ? (
+              <X className="size-3.5 shrink-0" />
+            ) : (
+              <Flag className="size-3.5 shrink-0" />
+            )}
+            <span className="truncate">{cerrada ? nombreEstado(voc, estado) : voc.etiquetaCerrar}</span>
           </button>
         </li>
       </ol>
@@ -804,6 +993,7 @@ function BarraDeAvance({
               key={cierre}
               size="sm"
               variant="outline"
+              disabled={cierre === estado}
               onClick={() => void onCambiar(cierre, motivoNuevo || null).then(() => setCerrando(false))}
             >
               {nombreEstado(voc, cierre)}

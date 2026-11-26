@@ -77,14 +77,19 @@ apaga lo inmobiliario:
     "nombre": "Reserva", "nombrePlural": "Reservas",
     "grupoMenu": "Restaurante",        // opcional; por defecto «Ventas»
     "estados": [                       // en orden; tiene que estar «recibido»
-      { "estado": "recibido", "nombre": "Confirmada" },
-      { "estado": "compro", "nombre": "Llegó" },
-      { "estado": "perdido", "nombre": "Cancelada" },
-      { "estado": "no_calificado", "nombre": "No vino" }
+      { "estado": "recibido", "nombre": "Recibido" },
+      { "estado": "conoce_informacion", "nombre": "Conoce información" },
+      { "estado": "reservo", "nombre": "Confirmada" },
+      { "estado": "compro", "nombre": "Asistió" },
+      { "estado": "no_calificado", "nombre": "No vino" },
+      { "estado": "perdido", "nombre": "Canceló" }
     ],
     "motivosCierre": ["Canceló la persona", "Canceló el restaurante"],
-    "cierrePorSinRespuesta": false     // nunca cerrar sola por «no responde»
-  }
+    "cierrePorSinRespuesta": false,    // nunca cerrar sola por «no responde» (y no muestra el conteo de intentos)
+    "pasoDeCierre": "Cierre",          // último paso con todos los cierres, la ganada también
+    "abrirConCadaLead": true           // cada contacto nuevo nace con su oportunidad en «recibido»
+  },
+  "chat": { "ficha": false }           // el panel del chat no muestra la ficha (el CRM la sigue leyendo)
 }
 ```
 
@@ -94,6 +99,9 @@ apaga lo inmobiliario:
   Las que no se nombran no se ven ni se pueden elegir (la API responde 422).
 - El camino de la barra de avance y del Pipeline son las nombradas, en el
   orden del núcleo; las de cierre (`perdido`, `no_calificado`) van en «Cerrar».
+  Con `pasoDeCierre`, la ganada (`compro`) también sale del camino y va a ese
+  último paso, que se despliega al tocarlo; lo que no se cerró cuenta como
+  abierto en la lista (Confirmada también).
 - Sin el bloque, todo queda como siempre. Sin `inmobiliario`, vale `true`.
 - Self-test: `APP_BASE_URL=... node scripts/e2e-vocabulario.mjs` con la app
   levantada y un archivo como el de arriba.
