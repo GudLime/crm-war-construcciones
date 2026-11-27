@@ -1,4 +1,7 @@
 import { asc, count, desc, eq, inArray, notInArray } from "drizzle-orm";
+import { existeOrigen } from "@/server/origenes";
+import { origenDelPrimerMensaje } from "@/server/origen-por-mensaje";
+import { esDeLaEmpresa } from "@/server/de-la-empresa";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
@@ -298,6 +301,12 @@ export async function abrirOportunidad(
   }
   const contacto = await contactoDe(organizationId, contactId);
   if (!contacto) throw new VentasError(404, "not_found", "Ese contacto no existe");
+  // v7 — A un contacto de la empresa no se le abre una sola: solo a mano.
+  if (actor.fuente !== "persona" && (contacto.tiposContacto ?? []).includes("propio")) {
+    throw new VentasError(409, "de_la_empresa", "Es un contacto de la empresa: no se le abren oportunidades solas");
+  }
+  // v7 — El origen sale del primer mensaje cuando es de un portal (Zonaprop…).
+  const origen = await origenDelPrimerMensaje(organizationId, contactId);
   try {
     const [nueva] = await getDb()
       .insert(schema.oportunidad)
@@ -308,6 +317,7 @@ export async function abrirOportunidad(
         contactId,
         estado: "recibido",
         ...(tipo ? { tipo } : {}),
+        ...(origen ? { origen } : {}),
       })
       .returning();
     await registrarCreada(organizationId, nueva!, actor);
@@ -338,6 +348,8 @@ export async function registrarInteraccionDelContacto(input: {
   desdeAnuncio: boolean;
 }): Promise<void> {
   const { organizationId, contactId, at } = input;
+  // v7 — Los contactos de la empresa quedan fuera del embudo.
+  if (await esDeLaEmpresa(organizationId, contactId)) return;
   const abierta = await oportunidadAbierta(organizationId, contactId);
   if (abierta) {
     await getDb()
@@ -668,10 +680,15 @@ export async function actualizarOportunidadDelChat(input: {
   edificioIds?: readonly string[];
   ambientes?: readonly number[];
   tipologiasUnidad?: readonly string[];
+  /** v7 — El origen, editable a mano. */
+  origen?: string | null;
   /** War — quién lo cambió, para el historial. */
   userId?: string | null;
 }): Promise<OportunidadDelChat> {
   const { organizationId, oportunidadId } = input;
+  if (input.origen && !(await existeOrigen(organizationId, input.origen))) {
+    throw new VentasError(422, "invalid_body", `El origen «${input.origen}» no existe: agregalo en Configuración → Orígenes`);
+  }
   let fila: FilaOportunidad | null | undefined;
   if (input.estado) {
     // El cambio de estado pasa por el historial (evento y tiempos).
@@ -688,6 +705,7 @@ export async function actualizarOportunidadDelChat(input: {
       .update(schema.oportunidad)
       .set({
         updatedAt: new Date(),
+        ...(input.origen !== undefined ? { origen: input.origen } : {}),
         ...(!input.estado && input.motivoCierre !== undefined
           ? { motivoCierre: input.motivoCierre }
           : {}),
@@ -737,6 +755,8 @@ export async function aplicarFichaDelCerebro(input: {
   // El Laboratorio no toca el embudo real.
   if (input.esPrueba) return;
   const { organizationId, contactId, ficha } = input;
+  // v7 — Ni la ficha ni el lector tocan a un contacto de la empresa.
+  if (await esDeLaEmpresa(organizationId, contactId)) return;
   try {
     const clasificacion = normalizarTipoContacto(ficha[CLAVES_FICHA_WAR.tipo]);
     if (clasificacion) await aplicarClasificacionIa({ organizationId, contactId, ...clasificacion });

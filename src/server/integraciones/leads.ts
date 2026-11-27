@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
+import { esDeLaEmpresa } from "@/server/de-la-empresa";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
@@ -53,7 +54,8 @@ export type LeadEntrante = {
 };
 
 export type ResultadoLead = {
-  resultado: "nueva" | "sumada" | "duplicado";
+  /** v7 — «empresa»: el teléfono es de un contacto de la empresa; no se abre nada. */
+  resultado: "nueva" | "sumada" | "duplicado" | "empresa";
   oportunidadId: string;
   contactId: string | null;
   contactoNuevo: boolean;
@@ -249,6 +251,18 @@ export async function recibirLead(
   const ahora = new Date();
 
   const contacto = telefono ? await contactoDelLead(organizationId, telefono, lead) : null;
+  // v7 — Un contacto de la empresa queda fuera de los flujos: Make no le abre nada.
+  if (contacto && !contacto.nuevo && (await esDeLaEmpresa(organizationId, contacto.id))) {
+    return {
+      resultado: "empresa",
+      oportunidadId: "",
+      contactId: contacto.id,
+      contactoNuevo: false,
+      telefonoValido: true,
+      telefono,
+      edificioId,
+    };
+  }
 
   // ¿Se suma a una abierta o se abre una nueva?
   const abiertas = contacto ? await abiertasDelContacto(organizationId, contacto.id) : [];

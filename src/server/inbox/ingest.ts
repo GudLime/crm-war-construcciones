@@ -26,6 +26,7 @@ import { registrarAnuncioDeOrigen } from "@/server/attribution/store";
 import { onLeadActivity } from "@/server/inbox/lead-activity";
 import { despachoActivo } from "@/server/brains/config";
 import { despacharAlCerebro } from "@/server/dispatch/encolar";
+import { programarLector } from "@/server/lector";
 import { registrarInteraccionDelContacto } from "@/server/oportunidades";
 import { registrarSaliente } from "@/server/oportunidad-historial";
 import {
@@ -593,6 +594,8 @@ export async function ingestInboundMessage(input: {
   // 036 — Quien contesta es el cerebro conectado; sin él, una persona. El
   // 025: `message.id` es lo que el despacho le debe al cerebro.
   if (despachoActivo()) await despacharAlCerebro(conversation.id, organizationId, message.id);
+  // v7 — Sin cerebro también lee el lector (él descarta el Laboratorio y la empresa).
+  else programarLector(organizationId, conversation.id);
 }
 
 function toDate(timestamp: string): Date {

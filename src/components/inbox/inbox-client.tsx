@@ -483,6 +483,8 @@ export function InboxClient({
           onSelect={select}
           onSeeded={() => void refetchConversations()}
           responsable={{ valor: responsable, opciones: opcionesResponsable, onChange: setResponsable }}
+          admin={equipo.admin}
+          onAsignado={() => void refetchConversations()}
         />
       </section>
 

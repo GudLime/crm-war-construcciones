@@ -13,6 +13,8 @@ export type RespuestaRapida = {
   texto: string;
   /** 0067 — Fotos y videos (pueden faltar en datos viejos). */
   adjuntos?: AdjuntoRespuesta[];
+  /** 0073 — v7: el agente la puede mandar armada. */
+  paraAgente?: boolean;
 };
 
 /** 0067 — Cuántos archivos caben en una respuesta. */

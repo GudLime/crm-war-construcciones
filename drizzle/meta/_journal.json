@@ -512,6 +512,20 @@
       "when": 1795561600000,
       "tag": "0072_horario_de_visitas",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1795572400000,
+      "tag": "0073_plantillas_del_agente",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1795583200000,
+      "tag": "0074_lector_por_rafaga",
+      "breakpoints": true
     }
   ]
 }
