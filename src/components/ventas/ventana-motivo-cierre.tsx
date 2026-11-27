@@ -19,7 +19,7 @@ export function VentanaMotivoCierre({
 }: {
   /** El nombre del cierre elegido («Perdido», «No calificado»…). */
   cierre: string;
-  motivos: string[];
+  motivos: readonly string[];
   obligatorio: boolean;
   /** Devuelve false si no se pudo guardar: la ventana queda abierta. */
   onConfirmar: (motivo: string | null) => Promise<boolean | void>;
