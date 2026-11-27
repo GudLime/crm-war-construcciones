@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { ESTADOS_ABIERTOS, iaAtiende } from "@/lib/ventas";
 import { programarLector } from "@/server/lector";
+import { esDeLaEmpresa } from "@/server/de-la-empresa";
 import { encolarDespacho } from "@/server/dispatch/outbox";
 import { iniciarWorker, programarTanda } from "@/server/dispatch/worker";
 
@@ -47,22 +48,21 @@ export async function despacharAlCerebro(
     // ingesta, pero una conversación de prueba no sale del CRM por ningún
     // camino.
     if (conv.isTest) return;
+    // v7 — Un contacto de la empresa: no contesta la IA ni lo lee el lector.
+    if (await esDeLaEmpresa(organizationId, conv.contactId)) return;
+    // v7 — El lector lee cada ráfaga, conteste quien conteste: arma y avanza
+    // la oportunidad (el agente no avanza la etapa).
+    programarLector(organizationId, conversationId);
     // v4 — Cuando no lee el agente, lee el lector: arma la oportunidad sin
     // contestar nada.
-    if (!conv.aiEnabled || conv.handoffAt) {
-      programarLector(organizationId, conversationId);
-      return;
-    }
+    if (!conv.aiEnabled || conv.handoffAt) return;
 
     const [perfil] = await getDb()
       .select({ enabled: schema.agentProfile.enabled })
       .from(schema.agentProfile)
       .where(eq(schema.agentProfile.organizationId, organizationId))
       .limit(1);
-    if (!perfil?.enabled) {
-      programarLector(organizationId, conversationId);
-      return;
-    }
+    if (!perfil?.enabled) return;
 
     // v4 — Quién atiende la IA, según la oportunidad: con una abierta, solo si
     // es de Venta; sin oportunidad, si no es Proveedor, Propio ni Inmobiliaria.

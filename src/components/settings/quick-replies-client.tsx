@@ -1,5 +1,6 @@
 "use client";
 
+import { Switch } from "@/components/ui/switch";
 import { useCallback, useEffect, useState } from "react";
 import { ImagePlus, Pencil, Plus, Trash2, Video, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -159,6 +160,16 @@ export function QuickRepliesClient() {
     void cargar();
   }
 
+  async function paraAgente(r: RespuestaRapida, valor: boolean) {
+    setLista((l) => l?.map((x) => (x.id === r.id ? { ...x, paraAgente: valor } : x)) ?? l);
+    const res = await fetch(`/api/quick-replies/${r.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ atajo: r.atajo, texto: r.texto, paraAgente: valor }),
+    }).catch(() => null);
+    if (!res?.ok) void cargar();
+  }
+
   async function borrar(r: RespuestaRapida) {
     if (!window.confirm(`¿Borrar la respuesta /${r.atajo}?`)) return;
     const res = await fetch(`/api/quick-replies/${r.id}`, { method: "DELETE" }).catch(() => null);
@@ -196,6 +207,17 @@ export function QuickRepliesClient() {
                     <p className="font-mono text-[13px] font-semibold">/{r.atajo}</p>
                     <p className="whitespace-pre-wrap break-words text-sm text-text-2">{r.texto}</p>
                     <Adjuntos respuesta={r} puedeEditar={puedeEditar} onCambio={() => void cargar()} />
+                    {/* v7 — El agente la puede mandar armada (con sus fotos y videos). */}
+                    <label className="mt-1.5 flex w-fit items-center gap-2 text-[12.5px] text-text-2">
+                      <Switch
+                        size="sm"
+                        checked={Boolean(r.paraAgente)}
+                        disabled={!puedeEditar}
+                        label={`Que el agente pueda usar /${r.atajo}`}
+                        onCheckedChange={(v) => void paraAgente(r, v)}
+                      />
+                      La puede usar el agente
+                    </label>
                   </div>
                   {puedeEditar && (
                     <span className="flex shrink-0 items-center gap-1">

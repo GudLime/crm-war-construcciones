@@ -6,7 +6,8 @@ export type ConversationDto = {
   id: string;
   /** 014: canal de la conversacion, para el distintivo de la bandeja. */
   channel: Channel;
-  contact: { id: string; name: string; phone: string | null };
+  /** v7 — `deLaEmpresa`: el contacto es de la empresa (tipo «propio»): fuera de los flujos. */
+  contact: { id: string; name: string; phone: string | null; deLaEmpresa?: boolean };
   stageName: string | null;
   aiEnabled: boolean;
   handoffAt: string | null;

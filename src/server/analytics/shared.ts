@@ -24,7 +24,11 @@ import type { PgColumn } from "drizzle-orm/pg-core";
  * más que lo simulado.
  */
 export function notLabContact(contactIdColumn: PgColumn): SQL {
-  return sql`(
+  // v7 — Los contactos de la empresa (tipo «propio») tampoco cuentan.
+  return sql`not exists (
+    select 1 from "contact" empresa
+    where empresa."id" = ${contactIdColumn} and 'propio' = any(empresa."tipos_contacto")
+  ) and (
     not exists (
       select 1 from "conversation" lab
       where lab."contact_id" = ${contactIdColumn} and lab."is_test" = true

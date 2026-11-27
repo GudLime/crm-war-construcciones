@@ -47,6 +47,7 @@ const encolarDespacho = vi.hoisted(() => vi.fn(async () => ({ notBefore: new Dat
 vi.mock("@/server/dispatch/outbox", () => ({ encolarDespacho }));
 vi.mock("@/server/dispatch/worker", () => ({ iniciarWorker: () => {}, programarTanda: () => {} }));
 vi.mock("@/server/lector", () => ({ programarLector: () => {} }));
+vi.mock("@/server/de-la-empresa", () => ({ esDeLaEmpresa: async () => false }));
 
 const getBrainHealth = vi.hoisted(() => vi.fn());
 vi.mock("@/server/bot/status", () => ({ getBrainHealth }));

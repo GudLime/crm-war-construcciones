@@ -231,7 +231,7 @@ export const TIPOS_CONTACTO = [
   { value: "proveedor", label: "Proveedor" },
   { value: "inquilino", label: "Inquilino" },
   { value: "inmobiliaria", label: "Inmobiliaria" },
-  { value: "propio", label: "Propio de WAR" },
+  { value: "propio", label: "De la empresa" },
 ] as const;
 
 export type TipoContacto = (typeof TIPOS_CONTACTO)[number]["value"];
@@ -358,7 +358,7 @@ export function normalizarTipoContacto(raw: unknown): ClasificacionIa | null {
     [/^(comprador|ya compro|cliente|cliente actual|propietario)(es|s)?$/, { oportunidad: null, contacto: "cliente" }],
     [/^(inmobiliaria|corredor|broker|martillero)s?$/, { oportunidad: "inmobiliaria", contacto: "inmobiliaria" }],
     [/^(proveedor|contratista)(es|s)?$/, { oportunidad: null, contacto: "proveedor" }],
-    [/^(propio|propio de war|interno|empleado)s?$/, { oportunidad: null, contacto: "propio" }],
+    [/^(propio|propio de war|de la empresa|interno|empleado)s?$/, { oportunidad: null, contacto: "propio" }],
   ];
   return sinonimos.find(([re]) => re.test(v))?.[1] ?? null;
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { VentanaMotivoCierre } from "@/components/ventas/ventana-motivo-cierre";
 import { BotonesNuevaTarea } from "@/components/ventas/nueva-tarea";
 import { useCallback, useEffect, useState } from "react";
 import { Check } from "lucide-react";
@@ -28,7 +29,7 @@ function avisoSinIa(tipos: readonly TipoContacto[], tipoOportunidad: string | nu
     if (tipoOportunidad === "inmobiliaria") return "Inmobiliaria: la atiende una persona, sin IA.";
     return null;
   }
-  if (tipos.includes("propio")) return "Propio de WAR: sin IA.";
+  if (tipos.includes("propio")) return "De la empresa: sin IA ni oportunidades.";
   if (tipos.includes("proveedor")) return "Proveedor: lo atiende una persona, sin IA.";
   if (tipos.includes("inmobiliaria")) return "Inmobiliaria: la atiende una persona, sin IA.";
   return null;
@@ -62,11 +63,11 @@ export function OportunidadPanel({
   const [datos, setDatos] = useState<EstadoComercialDto | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [motivo, setMotivo] = useState("");
-  // War — Los motivos de cierre de Ajustes.
-  const motivosCierre = useMotivosCierre();
   /** Cambios 25/11 — Con paso de cierre, las opciones se abren al tocarlo. */
   const [cerrando, setCerrando] = useState(false);
+  const [eligiendoCierre, setEligiendoCierre] = useState<EstadoOportunidad | null>(null);
+  // War — los motivos salen de Ajustes → Motivos de cierre.
+  const motivosCierre = useMotivosCierre();
   const [avisoTarea, setAvisoTarea] = useState<string | null>(null);
   const [tipoNueva, setTipoNueva] = useState("venta");
   const voc = useVocabulario();
@@ -343,36 +344,30 @@ export function OportunidadPanel({
                   <p className="mb-1.5 text-[11px] font-medium text-text-2">
                     {voc.ganadaEnElCierre ? voc.etiquetaCerrar : "Cerrar"}
                   </p>
-                  <Select
-                    aria-label="Motivo"
-                    value={motivo}
-                    onValueChange={(valor) => setMotivo(valor)}
-                    className="mb-2 h-8 w-full text-[12px]"
-                  >
-                    <option value="">{voc.motivoObligatorio ? "Elegí el motivo…" : "Motivo (opcional)"}</option>
-                    {motivosCierre.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </Select>
                   <div className="flex flex-wrap gap-1.5">
                     {voc.cierres.filter((e) => !voc.camino.includes(e)).map((estado: EstadoOportunidad) => (
                       <Button
                         key={estado}
                         size="sm"
                         variant="outline"
-                        // v5 — Sin motivo no se cierra como perdida o no calificada.
-                        disabled={guardando || abierta.estado === estado || (voc.motivoObligatorio && !motivo)}
-                        onClick={() =>
-                          cambiarOportunidad({ estado, motivoCierre: motivo || null })
-                        }
+                        disabled={guardando || abierta.estado === estado}
+                        onClick={() => setEligiendoCierre(estado)}
                       >
                         {nombreEstado(voc, estado)}
                       </Button>
                     ))}
                   </div>
                 </div>
+                )}
+                {/* v7 — El motivo se pide en una ventana. */}
+                {eligiendoCierre && (
+                  <VentanaMotivoCierre
+                    cierre={nombreEstado(voc, eligiendoCierre)}
+                    motivos={motivosCierre}
+                    obligatorio={voc.motivoObligatorio}
+                    onConfirmar={async (m) => cambiarOportunidad({ estado: eligiendoCierre, motivoCierre: m })}
+                    onCerrar={() => setEligiendoCierre(null)}
+                  />
                 )}
 
                 {!enChat && interes && <div className="mt-4">{interes}</div>}
