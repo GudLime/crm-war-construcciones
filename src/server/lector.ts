@@ -15,7 +15,7 @@ import {
   estadoComercialDelContacto,
   sumarInteres,
 } from "@/server/oportunidades";
-import { existeOrigen } from "@/server/origenes";
+import { resolverOrigen } from "@/server/origenes";
 import { vocabulario } from "@/server/vocabulario";
 
 /**
@@ -184,7 +184,8 @@ export async function leerConversacion(organizationId: string, conversationId: s
           .from(schema.oportunidad)
           .where(eq(schema.oportunidad.id, op.id))
           .limit(1);
-        if (!fila?.origen && (await existeOrigen(organizationId, portal))) cambios.origen = portal;
+        const origen = fila?.origen ? null : await resolverOrigen(organizationId, portal);
+        if (origen) cambios.origen = origen;
         if (Object.keys(cambios).length) {
           await db.update(schema.oportunidad).set({ ...cambios, updatedAt: new Date() }).where(eq(schema.oportunidad.id, op.id));
         }
