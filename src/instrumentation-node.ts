@@ -10,6 +10,7 @@ import { iniciarWorker, tanda } from "@/server/dispatch/worker";
 import { cifrarSecretosEnClaro } from "@/server/zernio/secreto-guardado";
 import { barrido, iniciarBarrido } from "@/server/webhooks/worker";
 import { iniciarBarridoSilencios } from "@/server/oportunidad-historial";
+import { iniciarLector } from "@/server/lector";
 import { recalcularValoresAlArrancar } from "@/server/motor/interes";
 import { sincronizarMotorAlArrancar } from "@/server/motor/sincronizar";
 
@@ -137,6 +138,8 @@ export function resumeWebhooks(): void {
  */
 export function resumeVentas(): void {
   iniciarBarridoSilencios();
+  // v7 — El lector por ráfaga (también lee lo que dejó pendiente un deploy).
+  iniciarLector();
   // v3 — Los WhatsApp programados de las tareas.
   iniciarTareasProgramadas();
   // v4 — Los contactos que eran «Lead» pasan a tener su oportunidad de Venta.

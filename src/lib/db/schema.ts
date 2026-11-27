@@ -417,6 +417,10 @@ export const conversation = pgTable(
     lastInboundAt: timestamp("last_inbound_at"),
     lastMessageAt: timestamp("last_message_at"),
     unreadCount: integer("unread_count").notNull().default(0),
+    /** 0074 — v7: desde cuándo hay una ráfaga sin leer por el lector (null = nada). */
+    lectorPendienteDesde: timestamp("lector_pendiente_desde"),
+    /** 0074 — v7: el último mensaje que ya leyó el lector (no se relee). */
+    lectorLeidoHasta: timestamp("lector_leido_hasta"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -1432,6 +1436,8 @@ export const quickReply = pgTable(
     texto: text("texto").notNull(),
     /** 0067 — Fotos y videos que salen con la respuesta (el archivo vive en medios). */
     adjuntos: jsonb("adjuntos").$type<{ id: string; nombre: string; mime: string; bytes: number }[]>().notNull().default([]),
+    /** 0073 — v7: el agente la puede mandar armada (toggle). */
+    paraAgente: boolean("para_agente").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

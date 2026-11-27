@@ -1,4 +1,6 @@
 import { conMemoria } from "@/lib/memoria-agente";
+import { textoPlantillasParaAgente } from "@/lib/plantillas-agente";
+import { plantillasDelAgente } from "@/server/quick-replies";
 import { memoriaViejaReemplazada, textoDeObjetosParaAgente } from "@/server/motor/agente";
 import { memoriaDeEdificios } from "@/server/ventas";
 import { enZona } from "@/lib/reservas";
@@ -40,14 +42,18 @@ export async function conocimientoDelAgente(
   kbRenderizado: string,
   opciones: { simular?: string[] } = {}
 ): Promise<Conocimiento> {
-  const [reemplazada, motor, restaurante] = await Promise.all([
+  const [reemplazada, motor, restaurante, plantillas] = await Promise.all([
     memoriaViejaReemplazada(organizationId, opciones),
     textoDeObjetosParaAgente(organizationId, opciones),
     datosDelRestaurante(organizationId),
+    // v7 — Las plantillas marcadas para el agente.
+    plantillasDelAgente(organizationId)
+      .then(textoPlantillasParaAgente)
+      .catch(() => ""),
   ]);
   const memoriaVieja = reemplazada ? "" : await memoriaDeEdificios(organizationId);
   return {
-    texto: conMemoria(conMemoria(conMemoria(kbRenderizado, memoriaVieja), motor), restaurante),
+    texto: conMemoria(conMemoria(conMemoria(conMemoria(kbRenderizado, memoriaVieja), motor), restaurante), plantillas),
     memoriaVieja,
     motor,
   };

@@ -1,5 +1,6 @@
 "use client";
 
+import { VentanaMotivoCierre } from "@/components/ventas/ventana-motivo-cierre";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -252,7 +253,7 @@ export function OportunidadDetalleClient({ agenda = false }: { agenda?: boolean 
     return true;
   }
 
-  async function cambiarInteres(cambios: { ambientes?: number[]; edificioIds?: string[] }) {
+  async function cambiarInteres(cambios: { ambientes?: number[]; edificioIds?: string[]; origen?: string | null }) {
     if (!datos?.contacto) return;
     setError(null);
     const res = await fetch(`/api/contacts/${datos.contacto.id}/oportunidad`, {
@@ -363,19 +364,31 @@ export function OportunidadDetalleClient({ agenda = false }: { agenda?: boolean 
                     </Fila>
                   )}
                   <Fila icono={Megaphone} titulo="Origen">
-                    {op.origen ? (
-                      <span className="flex items-center gap-2">
-                        <span className="grid size-[22px] place-items-center rounded-md bg-subtle">
+                    {/* v7 — Editable: viene precargado cuando se sabe de dónde llegó. */}
+                    <span className="flex items-center gap-2">
+                      {op.origen && (
+                        <span className="grid size-[22px] shrink-0 place-items-center rounded-md bg-subtle">
                           <OrigenIcono icono={origen?.icono ?? null} imagen={origen?.imagen} />
                         </span>
-                        {op.origen}
-                        {op.formularios > 1 && (
-                          <span className="font-normal text-text-3">· {op.formularios} formularios</span>
-                        )}
-                      </span>
-                    ) : (
-                      <SinDato />
-                    )}
+                      )}
+                      <Select
+                        aria-label="Origen"
+                        value={op.origen ?? ""}
+                        onValueChange={(v) => void cambiarInteres({ origen: v || null })}
+                        placeholder="Sin origen"
+                        className="h-8 min-w-[160px] max-w-[240px] text-[13px]"
+                      >
+                        <option value="">Sin origen</option>
+                        {[...new Set([...(op.origen ? [op.origen] : []), ...origenes.keys()])].map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                      </Select>
+                      {op.formularios > 1 && (
+                        <span className="font-normal text-text-3">· {op.formularios} formularios</span>
+                      )}
+                    </span>
                   </Fila>
                   {voc.inmobiliario && (
                   <>
@@ -755,19 +768,6 @@ function BarraConCierreAparte({
   const [eligiendo, setEligiendo] = useState<EstadoOportunidad | null>(null);
   // War — los motivos salen de Ajustes → Motivos de cierre.
   const motivosCierre = useMotivosCierre();
-  const [motivoNuevo, setMotivoNuevo] = useState("");
-  const [guardando, setGuardando] = useState(false);
-
-  async function confirmar() {
-    if (!eligiendo || (voc.motivoObligatorio && !motivoNuevo)) return;
-    setGuardando(true);
-    const ok = await onCambiar(eligiendo, motivoNuevo || null);
-    setGuardando(false);
-    if (ok !== false) {
-      setEligiendo(null);
-      setMotivoNuevo("");
-    }
-  }
 
   return (
     <div className="mt-5">
@@ -840,7 +840,6 @@ function BarraConCierreAparte({
                   marcado={cierre === estado}
                   onClick={() => {
                     cerrar();
-                    setMotivoNuevo("");
                     setEligiendo(cierre);
                   }}
                 >
@@ -852,41 +851,15 @@ function BarraConCierreAparte({
         </Menu>
       </div>
       {perdida && motivo && !eligiendo && <p className="mt-2 text-[12.5px] text-text-3">Motivo: {motivo}</p>}
+      {/* v7 — El motivo se pide en una ventana. */}
       {eligiendo && (
-        <div className="mt-3 rounded-2xl bg-subtle p-3">
-          <p className="mb-2 text-[13px] font-medium">
-            Cerrar como «{nombreEstado(voc, eligiendo)}»: ¿cuál es el motivo?
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={motivoNuevo}
-              onValueChange={setMotivoNuevo}
-              placeholder="Elegí el motivo…"
-              aria-label="Motivo de cierre"
-              className="min-w-[240px] flex-1"
-            >
-              {motivosCierre.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </Select>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={guardando}
-              onClick={() => {
-                setEligiendo(null);
-                setMotivoNuevo("");
-              }}
-            >
-              Cancelar
-            </Button>
-            <Button size="sm" disabled={guardando || (voc.motivoObligatorio && !motivoNuevo)} onClick={() => void confirmar()}>
-              OK
-            </Button>
-          </div>
-        </div>
+        <VentanaMotivoCierre
+          cierre={nombreEstado(voc, eligiendo)}
+          motivos={motivosCierre}
+          obligatorio={voc.motivoObligatorio}
+          onConfirmar={(m) => onCambiar(eligiendo, m)}
+          onCerrar={() => setEligiendo(null)}
+        />
       )}
     </div>
   );
@@ -902,7 +875,7 @@ function BarraConPasoDeCierre({
   onCambiar: (e: EstadoOportunidad, motivo?: string | null) => Promise<boolean | void>;
 }) {
   const [cerrando, setCerrando] = useState(false);
-  const [motivoNuevo, setMotivoNuevo] = useState("");
+  const [eligiendo, setEligiendo] = useState<EstadoOportunidad | null>(null);
   // War — los motivos salen de Ajustes → Motivos de cierre.
   const motivosCierre = useMotivosCierre();
   const voc = useVocabulario();
@@ -981,30 +954,28 @@ function BarraConPasoDeCierre({
       </ol>
       {perdida && motivo && <p className="mt-2 text-[12.5px] text-text-3">Motivo: {motivo}</p>}
       {cerrando && (
-        <div className="mt-3 flex flex-wrap items-end gap-2 rounded-2xl bg-subtle p-3">
-          <div className="min-w-[220px] flex-1">
-            <p className="mb-1 text-[12px] font-medium text-text-2">Motivo</p>
-            <Select value={motivoNuevo} onValueChange={setMotivoNuevo} className="w-full">
-              <option value="">Sin motivo</option>
-              {motivosCierre.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </Select>
-          </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl bg-subtle p-3">
+          <span className="mr-1 text-[12.5px] font-medium text-text-2">Cerrar como</span>
           {cierres.map((cierre) => (
-            <Button
-              key={cierre}
-              size="sm"
-              variant="outline"
-              disabled={cierre === estado}
-              onClick={() => void onCambiar(cierre, motivoNuevo || null).then(() => setCerrando(false))}
-            >
+            <Button key={cierre} size="sm" variant="outline" disabled={cierre === estado} onClick={() => setEligiendo(cierre)}>
               {nombreEstado(voc, cierre)}
             </Button>
           ))}
         </div>
+      )}
+      {/* v7 — El motivo se pide en una ventana. */}
+      {eligiendo && (
+        <VentanaMotivoCierre
+          cierre={nombreEstado(voc, eligiendo)}
+          motivos={motivosCierre}
+          obligatorio={voc.motivoObligatorio}
+          onConfirmar={async (m) => {
+            const ok = await onCambiar(eligiendo, m);
+            if (ok !== false) setCerrando(false);
+            return ok;
+          }}
+          onCerrar={() => setEligiendo(null)}
+        />
       )}
     </div>
   );

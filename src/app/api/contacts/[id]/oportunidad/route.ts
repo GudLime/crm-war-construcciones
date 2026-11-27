@@ -66,6 +66,8 @@ const patchSchema = z.object({
   ambientes: z.array(z.number().int().min(1).max(MAX_AMBIENTES)).max(MAX_AMBIENTES).optional(),
   /** 0047 — Tipologías de interés (unidades tipo «1A»). */
   tipologiasUnidad: z.array(z.string().trim().min(1).max(30)).max(30).optional(),
+  /** v7 — El origen se puede cambiar a mano (uno de Configuración → Orígenes). */
+  origen: z.string().trim().min(1).max(80).nullable().optional(),
 });
 
 /** Lo que una persona cambia desde el chat: etapa, cierre e interés. */

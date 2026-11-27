@@ -1,5 +1,6 @@
 "use client";
 
+import { LogoEmpresa } from "@/components/logo-empresa";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, MessageSquareText, Pencil, Search, Send, X } from "lucide-react";
@@ -134,6 +135,7 @@ export function ContactosLista({
             <ContactAvatar name={c.name} seed={c.id} />
           </span>
           <span className="truncate font-medium">{c.name}</span>
+          {(c.tiposContacto ?? []).includes("propio") && <LogoEmpresa />}
         </span>
       ),
     },

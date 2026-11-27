@@ -10,6 +10,9 @@ import { requireBotKey, resolveInstanceOrg } from "@/server/bot/auth";
 import { SendError, sendText } from "@/server/inbox/send";
 import { guardarRespuestaDePrueba } from "@/server/lab/sandbox";
 import { extraerMarcasFotos } from "@/lib/motor/agente";
+import { extraerMarcaPlantilla, textoConPlantilla } from "@/lib/plantillas-agente";
+import { rellenarVariables, type RespuestaRapida } from "@/lib/respuestas-rapidas";
+import { enviarAdjuntosDePlantilla, plantillasDelAgente } from "@/server/quick-replies";
 import {
   enviarMediosDeRegistros,
   mediosDeRegistro,
@@ -80,7 +83,28 @@ export async function POST(req: Request) {
     return apiError(409, "ai_paused", "La IA está en pausa en esta conversación");
   }
 
-  const marcas = extraerMarcasFotos(body.data.text);
+  // v7 — [plantilla:atajo]: el texto armado de una plantilla marcada para el agente.
+  const conPlantilla = extraerMarcaPlantilla(body.data.text);
+  let plantilla: RespuestaRapida | null = null;
+  let textoBase = body.data.text;
+  if (conPlantilla.atajo) {
+    plantilla = (await plantillasDelAgente(organizationId)).find((p) => p.atajo === conPlantilla.atajo) ?? null;
+    if (plantilla) {
+      const [c] = await db
+        .select({ name: schema.contact.name })
+        .from(schema.contact)
+        .innerJoin(schema.conversation, eq(schema.conversation.contactId, schema.contact.id))
+        .where(eq(schema.conversation.id, body.data.conversationId))
+        .limit(1);
+      textoBase = textoConPlantilla(conPlantilla.texto, rellenarVariables(plantilla.texto, c?.name));
+    } else {
+      // Un código que no existe (o no es para el agente) no sale al cliente.
+      textoBase = conPlantilla.texto;
+    }
+  }
+  const adjuntosPlantilla = plantilla?.adjuntos ?? [];
+
+  const marcas = extraerMarcasFotos(textoBase);
   const pedidos: MediosDeRegistro[] = [];
   for (const id of marcas.ids) {
     const r = await mediosDeRegistro(organizationId, id);
@@ -89,15 +113,21 @@ export async function POST(req: Request) {
   const conMedios = pedidos.filter((r) => r.fotos.length || r.videos.length);
   let texto = marcas.texto;
   if (!texto) {
-    if (!conMedios.length) return apiError(422, "invalid_body", "El mensaje quedó vacío");
-    texto = `Te paso las fotos de ${conMedios.map((r) => r.titulo).join(" y ")}.`;
+    if (!conMedios.length && !adjuntosPlantilla.length) return apiError(422, "invalid_body", "El mensaje quedó vacío");
+    texto = conMedios.length ? `Te paso las fotos de ${conMedios.map((r) => r.titulo).join(" y ")}.` : "Te paso las fotos.";
   }
 
   if (conv.isTest) {
     const guardada = await guardarRespuestaDePrueba({
       organizationId,
       conversationId: body.data.conversationId,
-      text: pedidos.length ? `${texto}\n\n${notaDeMedios(pedidos)}` : texto,
+      text: [
+        texto,
+        pedidos.length ? notaDeMedios(pedidos) : "",
+        adjuntosPlantilla.length ? `[Plantilla «${plantilla!.atajo}»: ${adjuntosPlantilla.length} foto(s)/video(s)]` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
     });
     return Response.json({ messageId: guardada.messageId, status: "sent" });
   }
@@ -117,6 +147,11 @@ export async function POST(req: Request) {
         conversationId: body.data.conversationId,
         registros: conMedios,
       }).catch((err) => console.error("[motor] fotos del agente:", err));
+    }
+    if (plantilla && adjuntosPlantilla.length) {
+      void enviarAdjuntosDePlantilla(organizationId, body.data.conversationId, plantilla).catch((err) =>
+        console.error("[plantillas] adjuntos del agente:", err)
+      );
     }
     return Response.json({ messageId: result.messageId });
   } catch (err) {

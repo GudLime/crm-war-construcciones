@@ -1,5 +1,7 @@
 "use client";
 
+import { LogoEmpresa } from "@/components/logo-empresa";
+import { MenuAsignarChat } from "@/components/inbox/asignar-chat";
 import { useEffect, useRef, useState } from "react";
 import { Clock3, Inbox, Megaphone, SlidersHorizontal, Search, Sparkles, UserRound, X } from "lucide-react";
 import type { ConversationDto } from "@/lib/types";
@@ -89,7 +91,12 @@ export function ConversationList({
   onSelect,
   onSeeded,
   responsable,
+  admin = false,
+  onAsignado,
 }: {
+  /** v7 — El admin asigna con clic derecho en un chat. */
+  admin?: boolean;
+  onAsignado?: () => void;
   conversations: ConversationDto[] | null;
   /**
    * Solo para un admin: de quién son los chats que se ven (lo suyo y lo sin
@@ -108,10 +115,20 @@ export function ConversationList({
   onSeeded: () => void;
 }) {
   const [query, setQuery] = useState("");
+  // v7 — Clic derecho: «Asignar a…».
+  const [menuAsignar, setMenuAsignar] = useState<{ contactId: string; nombre: string; x: number; y: number } | null>(null);
+  const [avisoAsignado, setAvisoAsignado] = useState<string | null>(null);
+  useEffect(() => {
+    if (!avisoAsignado) return;
+    const t = setTimeout(() => setAvisoAsignado(null), 3500);
+    return () => clearTimeout(t);
+  }, [avisoAsignado]);
   // 052 (enmienda) — Dos pestañas y un botón «Filtrar» con lo demás.
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [soloPorVencer, setSoloPorVencer] = useState(false);
   const [soloAnuncios, setSoloAnuncios] = useState(false);
+  // v7 — Solo los contactos de la empresa.
+  const [soloEmpresa, setSoloEmpresa] = useState(false);
   const [menuFiltros, setMenuFiltros] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   // El menú se cierra al hacer clic fuera o con Escape.
@@ -207,10 +224,14 @@ export function ConversationList({
   const deAnuncios = inInbox.filter((c) => c.anuncio !== null);
   // 052 — A la ventana le quedan 2 h o menos.
   const venciendo = inInbox.filter(porVencer);
+  const deLaEmpresa = inInbox.filter((c) => c.contact.deLaEmpresa);
   // Lo del menú «Filtrar» se aplica antes de las pestañas: «Todas» y «No
   // leídas» cuentan dentro de lo filtrado.
   const filtrado = inInbox.filter(
-    (c) => (!soloPorVencer || porVencer(c)) && (!soloAnuncios || c.anuncio !== null)
+    (c) =>
+      (!soloPorVencer || porVencer(c)) &&
+      (!soloAnuncios || c.anuncio !== null) &&
+      (!soloEmpresa || Boolean(c.contact.deLaEmpresa))
   );
   const unreadCount = filtrado.filter((c) => c.unreadCount > 0).length;
   const visible = filter === "unread" ? filtrado.filter((c) => c.unreadCount > 0) : filtrado;
@@ -219,11 +240,13 @@ export function ConversationList({
     { id: "all", label: "Todas", count: filtrado.length },
     { id: "unread", label: "No leídas", count: unreadCount },
   ];
-  const nFiltros = (stage !== "all" ? 1 : 0) + (soloPorVencer ? 1 : 0) + (soloAnuncios ? 1 : 0);
+  const nFiltros =
+    (stage !== "all" ? 1 : 0) + (soloPorVencer ? 1 : 0) + (soloAnuncios ? 1 : 0) + (soloEmpresa ? 1 : 0);
   function limpiarFiltros() {
     setStage("all");
     setSoloPorVencer(false);
     setSoloAnuncios(false);
+    setSoloEmpresa(false);
   }
   // Con un solo canal encendido no hay bandejas que distinguir: ni marca en
   // los renglones ni filtro. La pantalla queda exactamente como antes de 014.
@@ -412,7 +435,20 @@ export function ConversationList({
                     <span className="font-mono text-[11px] text-text-3">{deAnuncios.length}</span>
                   </label>
                 )}
-                {stages.length === 0 && venciendo.length === 0 && deAnuncios.length === 0 && nFiltros === 0 && (
+                {(deLaEmpresa.length > 0 || soloEmpresa) && (
+                  <label className="flex cursor-pointer items-center gap-2 text-[13px]">
+                    <input
+                      type="checkbox"
+                      checked={soloEmpresa}
+                      onChange={(e) => setSoloEmpresa(e.target.checked)}
+                      className="h-4 w-4 accent-[var(--accent)]"
+                    />
+                    <LogoEmpresa />
+                    <span className="flex-1">De la empresa</span>
+                    <span className="font-mono text-[11px] text-text-3">{deLaEmpresa.length}</span>
+                  </label>
+                )}
+                {stages.length === 0 && venciendo.length === 0 && deAnuncios.length === 0 && deLaEmpresa.length === 0 && nFiltros === 0 && (
                   <p className="text-[13px] text-text-3">Todavía no hay nada por qué filtrar.</p>
                 )}
                 {nFiltros > 0 && (
@@ -440,10 +476,26 @@ export function ConversationList({
             {soloAnuncios && (
               <FiltroPuesto texto="De anuncios" onQuitar={() => setSoloAnuncios(false)} />
             )}
+            {soloEmpresa && <FiltroPuesto texto="De la empresa" onQuitar={() => setSoloEmpresa(false)} />}
           </div>
         )}
       </div>
 
+      {menuAsignar && (
+        <MenuAsignarChat
+          {...menuAsignar}
+          onCerrar={() => setMenuAsignar(null)}
+          onHecho={(t) => {
+            setAvisoAsignado(t);
+            onAsignado?.();
+          }}
+        />
+      )}
+      {avisoAsignado && (
+        <p role="status" className="border-b bg-success-tint px-4 py-2 text-[12.5px] font-medium text-success-text">
+          {avisoAsignado}
+        </p>
+      )}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <p className="p-6 text-center text-xs text-text-3">Cargando…</p>
@@ -469,6 +521,14 @@ export function ConversationList({
                 <li key={c.id} className="relative border-b border-border">
                   <button
                     onClick={() => onSelect(c.id)}
+                    onContextMenu={
+                      admin
+                        ? (e) => {
+                            e.preventDefault();
+                            setMenuAsignar({ contactId: c.contact.id, nombre: c.contact.name, x: e.clientX, y: e.clientY });
+                          }
+                        : undefined
+                    }
                     // 055 — Cuál está abierta, para Alt+J/K y los lectores de pantalla.
                     aria-current={active ? "true" : undefined}
                     className={cn(
@@ -495,6 +555,7 @@ export function ConversationList({
                           >
                             {c.contact.name}
                           </span>
+                          {c.contact.deLaEmpresa && <LogoEmpresa />}
                         </span>
                         <span
                           className={cn(

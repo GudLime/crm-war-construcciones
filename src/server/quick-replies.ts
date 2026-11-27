@@ -14,6 +14,7 @@ import {
 } from "@/lib/respuestas-rapidas";
 import { borrarMedia, guardarMedia, leerMedia } from "@/lib/storage/medios";
 import { MediaValidationError, validateOutgoing } from "@/server/whatsapp/media";
+import { sendMediaMessage } from "@/server/inbox/send";
 
 /**
  * 049 — Respuestas rápidas de la organización. Las rutas solo validan sesión
@@ -39,10 +40,12 @@ export const respuestaSchema = z.object({
       message: "el atajo lleva de 1 a 32 letras, números, - o _",
     }),
   texto: z.string().trim().min(1, "el texto no puede ir vacío").max(TEXTO_MAX),
+  /** 0073 — v7: el agente la puede mandar. */
+  paraAgente: z.boolean().optional(),
 });
 
 function aDto(fila: typeof schema.quickReply.$inferSelect): RespuestaRapida {
-  return { id: fila.id, atajo: fila.atajo, texto: fila.texto, adjuntos: fila.adjuntos ?? [] };
+  return { id: fila.id, atajo: fila.atajo, texto: fila.texto, adjuntos: fila.adjuntos ?? [], paraAgente: fila.paraAgente };
 }
 
 async function filaDe(organizationId: string, id: string) {
@@ -196,3 +199,41 @@ export const RESPUESTAS_DEMO: { atajo: string; texto: string }[] = [
   { atajo: "envio", texto: "Hacemos envíos en la ciudad el mismo día si pides antes de las 14:00. Fuera de la ciudad, de 2 a 4 días." },
   { atajo: "pago", texto: "Aceptamos transferencia, tarjeta y efectivo en tienda. Te paso los datos de la cuenta si quieres pagar por transferencia." },
 ];
+
+/** v7 — Las plantillas que el agente puede mandar (las marcadas con el toggle). */
+export async function plantillasDelAgente(organizationId: string): Promise<RespuestaRapida[]> {
+  const filas = await getDb()
+    .select()
+    .from(schema.quickReply)
+    .where(scoped(schema.quickReply.organizationId, organizationId, eq(schema.quickReply.paraAgente, true)))
+    .orderBy(asc(schema.quickReply.atajo));
+  return filas.map(aDto);
+}
+
+/**
+ * v7 — Manda, en orden, las fotos y videos de una plantilla que usó el
+ * agente. Corta ante un error que haría fallar al resto (ventana cerrada,
+ * IA en pausa, sandbox).
+ */
+export async function enviarAdjuntosDePlantilla(
+  organizationId: string,
+  conversationId: string,
+  plantilla: RespuestaRapida
+): Promise<void> {
+  for (const a of plantilla.adjuntos ?? []) {
+    const data = await leerMedia(organizationId, a.id).catch(() => null);
+    if (!data) continue;
+    try {
+      await sendMediaMessage({
+        conversationId,
+        organizationId,
+        file: { data, mimeType: a.mime, fileName: a.nombre },
+        aiGenerated: true,
+      });
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      console.error(`[plantillas] no se pudo mandar ${a.nombre}:`, code ?? err);
+      if (code === "window_closed" || code === "ai_paused" || code === "sandbox_violation" || code === "reconnect_required") return;
+    }
+  }
+}
